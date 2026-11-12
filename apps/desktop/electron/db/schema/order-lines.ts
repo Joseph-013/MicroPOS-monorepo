@@ -17,6 +17,8 @@ export const orderLines = sqliteTable(
     name: text().notNull(),
     /** Unit price in cents at sale time. */
     unitPrice: integer().notNull(),
+    /** What one unit cost you, in cents, at sale time (from the batches it was taken from); null when unknown. */
+    unitCost: integer(),
     /** Thousandths of a unit: 1000 = 1, 1250 = 1.25 kg. Negative on refund lines. */
     quantityMilli: integer().notNull(),
     /** round(unitPrice * quantityMilli / 1000), in cents. */

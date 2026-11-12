@@ -42,6 +42,23 @@ describe('NavRail on touch', () => {
     await fixture.whenStable();
   });
 
+  it('with a mouse the rail stays open after following a link, and folds when the pointer leaves', async () => {
+    const { fixture, rail, link } = setup();
+    rail.dispatchEvent(new MouseEvent('mouseenter'));
+    fixture.detectChanges();
+    expect(rail.style.width).toBe('16rem');
+
+    pointer('pointerdown', link, 'mouse');
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(rail.style.width).toBe('16rem'); // still open after navigating
+
+    rail.dispatchEvent(new MouseEvent('mouseleave'));
+    fixture.detectChanges();
+    expect(rail.style.width).toBe('3.5rem');
+  });
+
   it('a tap outside folds an opened rail', () => {
     const { fixture, rail, link } = setup();
     pointer('pointerdown', link, 'touch');

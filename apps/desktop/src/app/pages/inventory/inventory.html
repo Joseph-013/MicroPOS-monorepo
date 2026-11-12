@@ -1,0 +1,161 @@
+<section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
+  <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
+    <h1 class="text-2xl">Inventory</h1>
+    <div class="flex items-center gap-3">
+      @if (selected().length) {
+        <span class="text-muted-foreground text-sm">{{ selected().length }} selected</span>
+        @if (selectedWithStock().length) {
+          <button hlmBtn variant="destructive" type="button" class="px-4" (click)="askWriteOff(selectedWithStock())">Write off {{ selectedWithStock().length }}</button>
+        }
+        <button hlmBtn variant="ghost" type="button" class="px-3" (click)="clearSelection()">Clear</button>
+      }
+      <label class="flex shrink-0 items-center gap-3 text-sm">
+        <hlm-switch [checked]="service.includeEmpty()" (checkedChange)="toggleEmpty($event)" />
+        <span>Show empty</span>
+      </label>
+      <button hlmBtn variant="outline" type="button" class="px-4" (click)="repackage()">Repackage</button>
+      <button hlmBtn type="button" class="px-4" (click)="receive()">Receive stock</button>
+    </div>
+  </header>
+
+  <div class="min-h-0 flex-1 overflow-auto">
+    <div role="table" aria-label="Inventory" class="min-w-[76rem] text-sm" [style.--cols]="columnsTemplate">
+      <div role="rowgroup" class="bg-background sticky top-0 z-10">
+        <!-- Row 1: column titles, click to sort -->
+        <div role="row" class="grid grid-cols-(--cols) border-b">
+          <div role="columnheader" class="flex h-(--control-height) items-center px-3">
+            <hlm-checkbox aria-label="Select all" [checked]="allSelected()" [indeterminate]="someSelected()" (checkedChange)="toggleAll($event)" />
+          </div>
+          @for (column of columns; track column.key) {
+            <div role="columnheader" [attr.aria-sort]="ariaSort(column.key)">
+              <button
+                type="button"
+                class="hover:bg-muted flex h-(--control-height) w-full items-center gap-1.5 px-3 font-medium {{ column.right ? 'justify-end' : '' }}"
+                (click)="sortBy(column.key)"
+              >
+                {{ column.label }}
+                <ng-icon
+                  size="14"
+                  [name]="sortKey() !== column.key ? 'lucideChevronsUpDown' : sortDirection() === 'asc' ? 'lucideArrowUp' : 'lucideArrowDown'"
+                  [class.opacity-40]="sortKey() !== column.key"
+                />
+              </button>
+            </div>
+          }
+        </div>
+        <!-- Row 2: the filter for each column -->
+        <div role="row" class="grid grid-cols-(--cols) items-center border-b [--control-height:var(--control-height-sm)]">
+          <div role="columnheader" class="flex items-center px-3">
+            <button hlmBtn variant="outline" size="icon" type="button" aria-label="Reset filters" title="Reset filters" [disabled]="!filtered()" (click)="resetFilters()">
+              <ng-icon name="lucideFilterX" size="18" />
+            </button>
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="productFilter" placeholder="Product" label="Filter product" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="batchFilter" placeholder="Batch" label="Filter batch" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-date-range-filter label="Expires" [future]="true" [(from)]="expiresFrom" [(to)]="expiresTo" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <hlm-select [(value)]="status" [itemToString]="statusLabel" class="block">
+              <hlm-select-trigger size="sm" class="w-full" aria-label="Filter status">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (s of statuses; track s) {
+                  <hlm-select-item [value]="s">{{ statusLabel(s) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+          <div role="columnheader"></div>
+          <div role="columnheader"></div>
+          <div role="columnheader"></div>
+          <div role="columnheader"></div>
+        </div>
+      </div>
+
+      <div role="rowgroup">
+        @for (batch of visible(); track batch.id) {
+          <div
+            class="border-b"
+            [animate.enter]="'row-enter'"
+            animate.leave="row-leave"
+            [hlmContextMenuTrigger]="rowMenu"
+            [hlmContextMenuTriggerData]="{ $implicit: batch.id }"
+          >
+            <app-swipe-actions [swipeLeft]="batch.onHandMilli > 0 ? swipeWriteOff : []" [distance]="56" [step]="56" (action)="onSwipe($event, batch)">
+              <div
+                role="row"
+                class="hover:bg-muted/40 grid min-h-(--control-height) cursor-pointer grid-cols-(--cols) items-center"
+                [class.bg-muted]="isSelected(batch)"
+                [attr.aria-selected]="isSelected(batch)"
+                tabindex="0"
+                (click)="adjust(batch)"
+                (keydown.enter)="$event.defaultPrevented || adjust(batch)"
+              >
+                <div role="cell" class="flex items-center px-3" (click)="$event.stopPropagation()">
+                  <hlm-checkbox [aria-label]="'Select ' + batch.productName + (batch.batchNumber ? ' ' + batch.batchNumber : '')" [checked]="isSelected(batch)" (checkedChange)="toggleRow(batch, $event)" />
+                </div>
+                <div role="cell" class="truncate px-3 text-base">{{ batch.productName }}</div>
+                <div role="cell" class="text-muted-foreground truncate px-3 text-xs">{{ batch.batchNumber ?? '' }}</div>
+                <div role="cell" class="text-muted-foreground px-3 whitespace-nowrap">{{ batch.expiresAt ? (batch.expiresAt | date: 'MMM d, y') : '' }}</div>
+                <div role="cell" class="px-3">
+                  @if (batch.onHandMilli === 0) {
+                    <span hlmBadge variant="outline">Empty</span>
+                  } @else {
+                    @switch (state(batch)) {
+                      @case ('expired') { <span hlmBadge variant="destructive">Expired</span> }
+                      @case ('soon') { <span hlmBadge variant="warning">Expiring soon</span> }
+                      @case ('ok') { <span hlmBadge variant="success">OK</span> }
+                      @default { <span hlmBadge variant="outline">No expiry</span> }
+                    }
+                  }
+                </div>
+                <div role="cell" class="px-3 text-right text-base font-medium">{{ formatQuantity(batch.onHandMilli) }}<span class="text-muted-foreground text-sm font-normal">{{ batch.unit === 'each' ? '' : ' ' + batch.unit }}</span></div>
+                <div role="cell" class="text-muted-foreground px-3 text-right">{{ formatQuantity(batch.receivedMilli) }}</div>
+                <div role="cell" class="text-muted-foreground px-3 text-right">{{ batch.unitCost === null ? '-' : (batch.unitCost | money) }}</div>
+                <div role="cell" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ batch.receivedAt | date: 'MMM d, y' }}</div>
+              </div>
+            </app-swipe-actions>
+          </div>
+        }
+      </div>
+    </div>
+    @if (!visible().length) {
+      <p class="text-muted-foreground py-8 text-center text-sm">
+        {{ service.status() === 'error' ? 'Stock could not be loaded' : service.status() === 'loading' ? 'Loading stock' : 'No batches found' }}
+      </p>
+    }
+  </div>
+</section>
+
+<!-- Right-click (or long-press) menu of a batch row. The row is looked up by id (the trigger keeps its first data). -->
+<ng-template #rowMenu let-id>
+  @if (batchById(id); as batch) {
+    <div hlmDropdownMenu>
+      <button hlmDropdownMenuItem type="button" (click)="adjust(batch)">Adjust</button>
+      @if (batch.onHandMilli > 0) {
+        <button hlmDropdownMenuItem type="button" (click)="repackage(batch)">Repackage</button>
+        <button hlmDropdownMenuItem variant="destructive" type="button" (click)="askWriteOff(targetsFor(batch))">Write off</button>
+      }
+    </div>
+  }
+</ng-template>
+
+<!-- The one confirmation every write-off goes through (button, context menu, swipe). -->
+<hlm-alert-dialog [state]="pending() ? 'open' : 'closed'" (closed)="pending.set(null)">
+  <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+    <hlm-alert-dialog-header>
+      <h3 hlmAlertDialogTitle>{{ confirmTitle() }}</h3>
+      <p hlmAlertDialogDescription>All remaining stock is removed as expired or waste.</p>
+    </hlm-alert-dialog-header>
+    <hlm-alert-dialog-footer>
+      <button hlmAlertDialogCancel type="button">Cancel</button>
+      <button hlmAlertDialogAction variant="destructive" type="button" (click)="confirmWriteOff()">Write off</button>
+    </hlm-alert-dialog-footer>
+  </hlm-alert-dialog-content>
+</hlm-alert-dialog>

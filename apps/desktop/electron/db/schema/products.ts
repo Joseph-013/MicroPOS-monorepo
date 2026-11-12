@@ -10,6 +10,13 @@ import { createdAt, deletedAt, id, updatedAt } from './_columns';
 export const PRODUCT_UNITS = ['each', 'kg', 'g', 'lb', 'oz'] as const;
 export type ProductUnit = (typeof PRODUCT_UNITS)[number];
 
+/**
+ * How stock is tracked: not at all, as one quantity, by batch (lot number), or by batch with an expiry date.
+ * Keep in step with PRODUCT_TRACKING in @micropos/core (a test checks).
+ */
+export const PRODUCT_TRACKING = ['none', 'quantity', 'batch', 'expiry'] as const;
+export type ProductTracking = (typeof PRODUCT_TRACKING)[number];
+
 export const products = sqliteTable(
   'products',
   {
@@ -23,6 +30,9 @@ export const products = sqliteTable(
     /** Unit cost in cents, if tracked. */
     cost: integer(),
     unit: text({ enum: PRODUCT_UNITS }).notNull().default('each'),
+    tracking: text({ enum: PRODUCT_TRACKING }).notNull().default('none'),
+    /** Days from receiving to expiry; pre-fills the expiry date when stock arrives (tracking `expiry`). */
+    shelfLifeDays: integer(),
     active: integer({ mode: 'boolean' }).notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -34,6 +44,8 @@ export const products = sqliteTable(
     uniqueIndex('products_barcode_unique').on(t.barcode).where(sql`${t.deletedAt} IS NULL`),
     check('products_unit_valid', sql`${t.unit} IN ('each', 'kg', 'g', 'lb', 'oz')`),
     // A weighed product is found by its code (a PLU or the item code of a scale barcode).
+    check('products_tracking_valid', sql`${t.tracking} IN ('none', 'quantity', 'batch', 'expiry')`),
+    check('products_shelf_life_positive', sql`${t.shelfLifeDays} IS NULL OR ${t.shelfLifeDays} > 0`),
     check('products_weighed_has_code', sql`${t.unit} = 'each' OR ${t.barcode} IS NOT NULL`),
     check('products_price_non_negative', sql`${t.price} >= 0`),
   ],

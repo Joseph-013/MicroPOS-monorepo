@@ -22,6 +22,9 @@ describe('quantity helpers', () => {
   it('formats thousandths without trailing zeros', () => {
     expect(formatQuantity(1000)).toBe('1');
     expect(formatQuantity(1250)).toBe('1.25');
+    expect(formatQuantity(-500)).toBe('-0.5'); // a fraction below one keeps its sign
+    expect(formatQuantity(-1250)).toBe('-1.25');
+    expect(formatQuantity(-2000)).toBe('-2');
     expect(formatQuantity(500)).toBe('0.5');
     expect(formatQuantity(1)).toBe('0.001');
     expect(formatQuantity(12_340)).toBe('12.34');

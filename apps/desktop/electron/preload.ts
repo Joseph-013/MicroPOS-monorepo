@@ -17,7 +17,27 @@ const api: DesktopApi = {
     update: (id, input) => ipcRenderer.invoke(CHANNELS.products.update, id, input),
     remove: (ids) => ipcRenderer.invoke(CHANNELS.products.remove, ids),
     restore: (ids) => ipcRenderer.invoke(CHANNELS.products.restore, ids),
+    loadDraft: (form) => ipcRenderer.invoke(CHANNELS.products.loadDraft, form),
+    saveDraft: (form, draft) => ipcRenderer.invoke(CHANNELS.products.saveDraft, form, draft),
+    clearDraft: (form) => ipcRenderer.invoke(CHANNELS.products.clearDraft, form),
     setActive: (ids, active) => ipcRenderer.invoke(CHANNELS.products.setActive, ids, active),
+  },
+  categories: {
+    list: (options) => ipcRenderer.invoke(CHANNELS.categories.list, options),
+    create: (input) => ipcRenderer.invoke(CHANNELS.categories.create, input),
+    update: (id, input) => ipcRenderer.invoke(CHANNELS.categories.update, id, input),
+    remove: (ids) => ipcRenderer.invoke(CHANNELS.categories.remove, ids),
+    restore: (ids) => ipcRenderer.invoke(CHANNELS.categories.restore, ids),
+  },
+  inventory: {
+    listBatches: (options) => ipcRenderer.invoke(CHANNELS.inventory.listBatches, options),
+    overview: () => ipcRenderer.invoke(CHANNELS.inventory.overview),
+    receive: (input) => ipcRenderer.invoke(CHANNELS.inventory.receive, input),
+    adjust: (input) => ipcRenderer.invoke(CHANNELS.inventory.adjust, input),
+    repackage: (input) => ipcRenderer.invoke(CHANNELS.inventory.repackage, input),
+    loadRepackageDraft: () => ipcRenderer.invoke(CHANNELS.inventory.loadRepackageDraft),
+    saveRepackageDraft: (draft) => ipcRenderer.invoke(CHANNELS.inventory.saveRepackageDraft, draft),
+    clearRepackageDraft: () => ipcRenderer.invoke(CHANNELS.inventory.clearRepackageDraft),
   },
   scanner: {
     onScan: (listener) => {

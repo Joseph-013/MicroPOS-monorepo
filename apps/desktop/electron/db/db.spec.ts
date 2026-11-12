@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashPin, verifyPin } from '../auth/pin';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from './index';
 import { DUMMY_PIN, seedDatabase } from './factories';
-import { DESKTOP_API_VERSION, PRODUCT_UNITS as CORE_UNITS } from '@micropos/core';
+import { DESKTOP_API_VERSION, PRODUCT_TRACKING as CORE_TRACKING, PRODUCT_UNITS as CORE_UNITS } from '@micropos/core';
 import { API_VERSION } from '../ipc/channels';
 import { runMigrate } from './migrate';
 import {
@@ -19,12 +19,17 @@ import {
   orders,
   payments,
   productCategories,
+  PRODUCT_TRACKING,
   PRODUCT_UNITS,
   products,
   settings,
 } from './schema';
 import { listCategories, listProducts } from './queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from './queries/products';
+import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from './queries/categories';
+import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from './queries/repackage-draft';
+import { adjustStock, allocateSale, inventoryOverview, listBatches, receiveStock, repackageStock, restockSale } from './queries/inventory';
+import { clearProductDraft, loadProductDraft, sanitizeProductDraft, saveProductDraft } from './queries/product-draft';
 import { clearDraft, DRAFT_KEY, loadDraft, sanitizeDraft, saveDraft } from './queries/draft';
 import { uuid7 } from './uuid';
 
@@ -70,7 +75,7 @@ describe('migrations', () => {
       .map((r) => tables((r as { name: string }).name))
       .sort();
     expect(names).toEqual(
-      ['audit_log', 'categories', 'employees', 'login_sessions', 'order_lines', 'orders', 'payments', 'product_categories', 'products', 'settings'].sort(),
+      ['audit_log', 'categories', 'employees', 'login_sessions', 'order_lines', 'orders', 'payments', 'product_batches', 'product_categories', 'products', 'settings', 'stock_movements'].sort(),
     );
     // Opening the same file again must not re-apply or fail.
     expect(() => createDatabase(path.join(dir, 'test.db'), { migrationsFolder: SOURCE_MIGRATIONS_FOLDER }).close()).not.toThrow();
@@ -509,6 +514,32 @@ describe('product management', () => {
   });
 });
 
+describe('product form drafts', () => {
+  const draft = { name: 'Tea', unit: 'kg' as const, tracking: 'expiry' as const, shelfLifeDays: '7', sku: 'T-1', barcode: '4011', price: '12.5', cost: '', active: false, categoryIds: ['c1'] };
+
+  it('saves, replaces, loads and clears a draft per form', () => {
+    expect(loadProductDraft(db, 'new')).toBeNull();
+    saveProductDraft(db, 'new', draft);
+    saveProductDraft(db, 'p-1', { ...draft, name: 'Other' });
+    expect(loadProductDraft(db, 'new')).toEqual(draft);
+    expect(loadProductDraft(db, 'p-1')?.name).toBe('Other');
+    saveProductDraft(db, 'new', { ...draft, name: 'Tea 2' });
+    expect(loadProductDraft(db, 'new')?.name).toBe('Tea 2');
+    clearProductDraft(db, 'new');
+    expect(loadProductDraft(db, 'new')).toBeNull();
+    expect(loadProductDraft(db, 'p-1')).not.toBeNull(); // the other form's draft is untouched
+  });
+
+  it('sanitizes what the renderer sends and ignores malformed form keys', () => {
+    expect(sanitizeProductDraft({ name: 5, unit: 'stone', categoryIds: ['a', 'a', 7], active: 'x' })).toEqual({
+      name: '', unit: 'each', tracking: 'none', shelfLifeDays: '', sku: '', barcode: '', price: '', cost: '', active: true, categoryIds: ['a'],
+    });
+    saveProductDraft(db, 42, draft);
+    saveProductDraft(db, '', draft);
+    expect(loadProductDraft(db, 42)).toBeNull();
+  });
+});
+
 describe('weighed products', () => {
   it('keeps a weighed draft line unit and reads old lines as each', () => {
     saveDraft(db, { lines: [{ productId: 'a', name: 'Beef', quantityMilli: 350, unitPrice: 899, unit: 'kg' }] });
@@ -549,5 +580,355 @@ describe('weighed products', () => {
     }
     const lines = db.select().from(orderLines).all();
     expect(lines.some((l) => l.quantityMilli % 1000 !== 0)).toBe(true);
+  });
+});
+
+describe('inventory: batches, expiry and the stock ledger', () => {
+  const DAY = 86_400_000;
+  const product = (tracking: string, over: Record<string, unknown> = {}) => {
+    const r = createProduct(db, {
+      name: `P-${tracking}-${Math.random().toString(36).slice(2, 6)}`,
+      unit: 'each',
+      tracking,
+      shelfLifeDays: null,
+      sku: null,
+      barcode: null,
+      price: 100,
+      cost: 60,
+      active: true,
+      categoryIds: [],
+      ...over,
+    });
+    if (!r.ok) throw new Error(r.error);
+    return r.product;
+  };
+  const SOON_ISH = Date.now() + 5 * DAY;
+  const receive = (productId: string, over: Record<string, unknown> = {}) =>
+    receiveStock(db, { productId, batchNumber: 'L1', expiresAt: SOON_ISH, quantityMilli: 10_000, unitCost: 50, note: null, ...over });
+  /** A sale line to attach stock movements to (they reference real order lines). */
+  const saleLine = (id: string): string => {
+    db.$client.exec(`
+      INSERT OR IGNORE INTO employees (id, name, employee_number, pin_hash, created_at, updated_at) VALUES ('emp', 'E', '9', 'x', 1, 1);
+      INSERT OR IGNORE INTO orders (id, order_number, employee_id, subtotal, total, created_at, updated_at) VALUES ('ord', 'SO-1', 'emp', 0, 0, 1, 1);
+      INSERT INTO order_lines (id, order_id, name, unit_price, quantity_milli, line_total) VALUES ('${id}', 'ord', 'x', 1, 1000, 1);`);
+    return id;
+  };
+  const ok = <T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> => {
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    return r as Extract<T, { ok: true }>;
+  };
+
+  it('keeps the tracking list in step with core and stores it on the product', () => {
+    expect([...PRODUCT_TRACKING]).toEqual([...CORE_TRACKING]);
+    const milk = product('expiry', { shelfLifeDays: 7 });
+    expect(milk).toMatchObject({ tracking: 'expiry', shelfLifeDays: 7, onHandMilli: 0, nextExpiry: null });
+    // Shelf life only means something for expiring products.
+    expect(product('batch', { shelfLifeDays: 7 }).shelfLifeDays).toBeNull();
+    expect(product('none').onHandMilli).toBeNull();
+    expect(createProduct(db, { name: 'X', unit: 'each', tracking: 'weekly', price: 1, cost: null, active: true, categoryIds: [] })).toMatchObject({ ok: false, field: 'tracking' });
+    expect(createProduct(db, { name: 'X', unit: 'each', tracking: 'expiry', shelfLifeDays: 0, price: 1, cost: null, active: true, categoryIds: [] })).toMatchObject({ ok: false, field: 'shelfLifeDays' });
+  });
+
+  it('receiving creates a batch with its stock, and the same lot again tops it up', () => {
+    const milk = product('expiry');
+    const first = ok(receive(milk.id));
+    expect(first.batch).toMatchObject({ batchNumber: 'L1', onHandMilli: 10_000, receivedMilli: 10_000, unitCost: 50 });
+    const again = ok(receive(milk.id, { quantityMilli: 2_000 }));
+    expect(again.batch.id).toBe(first.batch.id);
+    expect(again.batch.onHandMilli).toBe(12_000);
+    expect(listProductRecords(db).find((p) => p.id === milk.id)).toMatchObject({ onHandMilli: 12_000 });
+    // A same-named lot with another expiry is a mistake.
+    expect(receive(milk.id, { expiresAt: Date.now() + 9 * DAY })).toMatchObject({ ok: false, field: 'expiresAt' });
+  });
+
+  it('asks for what the tracking level needs and nothing else', () => {
+    const milk = product('expiry');
+    expect(receive(milk.id, { batchNumber: '' })).toMatchObject({ ok: false, field: 'batchNumber' });
+    expect(receive(milk.id, { expiresAt: null })).toMatchObject({ ok: false, field: 'expiresAt' });
+    expect(receive(milk.id, { quantityMilli: 0 })).toMatchObject({ ok: false, field: 'quantity' });
+    expect(receive(milk.id, { quantityMilli: 1.5 })).toMatchObject({ ok: false, field: 'quantity' });
+    expect(receive('nope')).toMatchObject({ ok: false, field: 'product' });
+    expect(receive(product('none').id)).toMatchObject({ ok: false, field: 'product' });
+
+    const lot = product('batch');
+    const b = ok(receive(lot.id, { expiresAt: Date.now() + DAY }));
+    expect(b.batch.expiresAt).toBeNull(); // no expiry kept for a product that does not expire
+
+    const loose = product('quantity');
+    const q1 = ok(receive(loose.id, { batchNumber: 'ignored', expiresAt: 5 }));
+    const q2 = ok(receive(loose.id, { quantityMilli: 3_000 }));
+    expect(q1.batch.batchNumber).toBeNull();
+    expect(q2.batch.id).toBe(q1.batch.id); // one unnamed batch
+    expect(q2.batch.onHandMilli).toBe(13_000);
+  });
+
+  it('adjusts, wastes and expires stock but never below zero', () => {
+    const milk = product('expiry');
+    const batch = ok(receive(milk.id)).batch;
+    expect(ok(adjustStock(db, { batchId: batch.id, type: 'waste', quantityMilli: 2_000, note: 'dropped' })).batch.onHandMilli).toBe(8_000);
+    expect(ok(adjustStock(db, { batchId: batch.id, type: 'expired', quantityMilli: -1_000, note: null })).batch.onHandMilli).toBe(7_000); // sign ignored
+    expect(ok(adjustStock(db, { batchId: batch.id, type: 'adjust', quantityMilli: 500, note: 'recount' })).batch.onHandMilli).toBe(7_500);
+    expect(ok(adjustStock(db, { batchId: batch.id, type: 'adjust', quantityMilli: -500, note: null })).batch.onHandMilli).toBe(7_000);
+    expect(adjustStock(db, { batchId: batch.id, type: 'waste', quantityMilli: 99_000, note: null })).toMatchObject({ ok: false, field: 'quantity' });
+    expect(adjustStock(db, { batchId: batch.id, type: 'adjust', quantityMilli: 0, note: null })).toMatchObject({ ok: false, field: 'quantity' });
+    expect(adjustStock(db, { batchId: batch.id, type: 'oops', quantityMilli: 1, note: null })).toMatchObject({ ok: false });
+    expect(adjustStock(db, { batchId: 'nope', type: 'waste', quantityMilli: 1, note: null })).toMatchObject({ ok: false });
+    // Quantities on hand always equal the ledger's sum.
+    const sum = db.$client.prepare('SELECT SUM(quantity_milli) AS s FROM stock_movements WHERE batch_id = ?').get(batch.id) as { s: number };
+    expect(sum.s).toBe(7_000);
+  });
+
+  it('the ledger itself refuses a movement whose sign does not match its type', () => {
+    const milk = product('quantity');
+    const batch = ok(receive(milk.id)).batch;
+    const insert = (type: string, qty: number) =>
+      db.$client
+        .prepare("INSERT INTO stock_movements (id, product_id, batch_id, type, quantity_milli, at) VALUES (?, ?, ?, ?, ?, 1)")
+        .run(`m-${type}-${qty}`, milk.id, batch.id, type, qty);
+    expect(() => insert('receive', -5)).toThrow(/CHECK/);
+    expect(() => insert('sale', 5)).toThrow(/CHECK/);
+    expect(() => insert('waste', 0)).toThrow(/CHECK/);
+    expect(() => insert('adjust', -5)).not.toThrow();
+  });
+
+  it('sells first-expiring-first-out, skips expired batches, and costs the line from the batches used', () => {
+    const milk = product('expiry');
+    const now = Date.now();
+    ok(receive(milk.id, { batchNumber: 'OLD', expiresAt: now - DAY, quantityMilli: 5_000, unitCost: 10 })); // already expired
+    ok(receive(milk.id, { batchNumber: 'LATE', expiresAt: now + 20 * DAY, quantityMilli: 5_000, unitCost: 40 }));
+    ok(receive(milk.id, { batchNumber: 'SOON', expiresAt: now + 2 * DAY, quantityMilli: 3_000, unitCost: 20 }));
+
+    const sale = allocateSale(db, { productId: milk.id, orderLineId: saleLine('line-1'), quantityMilli: 4_000, at: now });
+    expect(sale.allocations.map((a) => [a.quantityMilli, a.unitCost])).toEqual([[3_000, 20], [1_000, 40]]); // SOON first, then LATE
+    expect(sale.shortfallMilli).toBe(0);
+    expect(sale.unitCost).toBe(25); // (3 x 20 + 1 x 40) / 4
+
+    const byLot = Object.fromEntries(listBatches(db, { includeEmpty: true }).filter((b) => b.productId === milk.id).map((b) => [b.batchNumber, b.onHandMilli]));
+    expect(byLot).toEqual({ OLD: 5_000, LATE: 4_000, SOON: 0 }); // the expired lot was left alone
+    expect(listBatches(db).some((b) => b.batchNumber === 'SOON')).toBe(false); // emptied batches are hidden
+
+    const more = allocateSale(db, { productId: milk.id, orderLineId: saleLine('line-2'), quantityMilli: 9_000, at: now });
+    expect(more.shortfallMilli).toBe(5_000); // only 4 left that may be sold
+  });
+
+  it('restocking a sale returns the stock to the same batches, once', () => {
+    const milk = product('expiry');
+    ok(receive(milk.id, { quantityMilli: 4_000 }));
+    allocateSale(db, { productId: milk.id, orderLineId: saleLine('line-9'), quantityMilli: 3_000 });
+    expect(listBatches(db)[0]?.onHandMilli).toBe(1_000);
+    expect(restockSale(db, 'line-9', 'refund')).toBe(1);
+    expect(listBatches(db)[0]?.onHandMilli).toBe(4_000);
+    expect(restockSale(db, 'line-9', 'refund')).toBe(0); // already put back
+    expect(restockSale(db, 'unknown-line', 'void')).toBe(0);
+  });
+
+  it('untracked products are not allocated', () => {
+    const plain = product('none');
+    expect(allocateSale(db, { productId: plain.id, orderLineId: 'l', quantityMilli: 1_000 })).toEqual({ allocations: [], shortfallMilli: 0, unitCost: null });
+  });
+
+  it('summarises stock for the overview: values, expiry, out of stock, waste and recent activity', () => {
+    const now = Date.now();
+    const milk = product('expiry', { price: 200 });
+    const eggs = product('quantity', { price: 100 });
+    product('quantity'); // tracked, never received: out of stock
+    product('none'); // not tracked: not counted
+    ok(receive(milk.id, { batchNumber: 'OLD', expiresAt: now - DAY, quantityMilli: 2_000, unitCost: 50 }));
+    ok(receive(milk.id, { batchNumber: 'SOON', expiresAt: now + DAY, quantityMilli: 3_000, unitCost: 60 }));
+    ok(receive(milk.id, { batchNumber: 'FINE', expiresAt: now + 30 * DAY, quantityMilli: 4_000, unitCost: 70 }));
+    ok(receive(eggs.id, { quantityMilli: 5_000, unitCost: 20 }));
+    const old = listBatches(db).find((b) => b.batchNumber === 'OLD')!;
+    ok(adjustStock(db, { batchId: old.id, type: 'expired', quantityMilli: 500, note: 'bin' })); // 0.5 x 50 = 25
+
+    const o = inventoryOverview(db, now);
+    expect(o.trackedProducts).toBe(3);
+    expect(o.outOfStockCount).toBe(1);
+    expect(o.outOfStockProducts).toHaveLength(1);
+    // Cost: OLD 1.5 x 50 + SOON 3 x 60 + FINE 4 x 70 + eggs 5 x 20 = 75 + 180 + 280 + 100
+    expect(o.stockValueCost).toBe(635);
+    // Retail: milk (1.5 + 3 + 4) x 200 + eggs 5 x 100
+    expect(o.stockValueRetail).toBe(1700 + 500);
+    expect(o.expired).toEqual({ batches: 1, valueCost: 75 });
+    expect(o.expiringSoon).toEqual({ batches: 1, valueCost: 180 });
+    expect(o.wasteLast30Days).toEqual({ entries: 1, valueCost: 25 });
+    expect(o.attention.map((b) => b.batchNumber)).toEqual(['OLD', 'SOON']); // expired first, then soonest
+    expect(o.recentMovements[0]).toMatchObject({ type: 'expired', quantityMilli: -500, note: 'bin' }); // newest first
+    expect(o.recentMovements[1]).toMatchObject({ type: 'receive', productName: eggs.name });
+  });
+
+  describe('repackaging (opening a pack)', () => {
+    const sack = () => product('expiry', { name: `Rice sack ${Math.random()}`, price: 2_000_00, cost: 1_500_00 });
+    const loose = (over: Record<string, unknown> = {}) =>
+      product('expiry', { unit: 'kg', barcode: String(1000 + Math.floor(Math.random() * 8999)), price: 50_00, cost: null, ...over });
+    const onHand = (id: string) => listBatches(db, { includeEmpty: true }).filter((b) => b.productId === id);
+
+    it('moves a sack into loose kilos, carrying lot, expiry and cost, and ties the movements together', () => {
+      const rice = sack();
+      const kilos = loose();
+      ok(receive(rice.id, { batchNumber: 'S1', quantityMilli: 3_000, unitCost: 1_500_00 }));
+      ok(receive(kilos.id, { batchNumber: 'OLD', quantityMilli: 25_500, unitCost: 30_00 }));
+
+      const r = ok(repackageStock(db, { productId: rice.id, quantityMilli: 1_000, targets: [{ productId: kilos.id, quantityMilli: 50_000, expiresAt: null }], note: null }));
+      expect(onHand(rice.id)[0]!.onHandMilli).toBe(2_000);
+      const batches = onHand(kilos.id);
+      expect(batches.reduce((sum, b) => sum + b.onHandMilli, 0)).toBe(75_500); // 25.5 kg became 75.5 kg
+      const made = batches.find((b) => b.batchNumber === 'S1')!;
+      expect(made).toMatchObject({ onHandMilli: 50_000, expiresAt: SOON_ISH, unitCost: 30_00 }); // 1 500 / 50 kg
+      const rows = db.$client.prepare('SELECT type, quantity_milli AS q FROM stock_movements WHERE repackage_id = ? ORDER BY quantity_milli').all(r.repackageId);
+      expect(rows).toEqual([
+        { type: 'repack_out', q: -1_000 },
+        { type: 'repack_in', q: 50_000 },
+      ]);
+    });
+
+    it('splits one sack into smaller bags and loose rice, sharing the cost by retail value', () => {
+      const rice = sack();
+      const bags = product('expiry', { name: `Rice 10 kg ${Math.random()}`, price: 500_00, cost: null });
+      const kilos = loose();
+      ok(receive(rice.id, { quantityMilli: 1_000, unitCost: 1_000_00 }));
+      ok(repackageStock(db, {
+        productId: rice.id,
+        quantityMilli: 1_000,
+        targets: [
+          { productId: bags.id, quantityMilli: 2_000, expiresAt: null }, // 2 bags worth 1 000
+          { productId: kilos.id, quantityMilli: 30_000, expiresAt: null }, // 30 kg worth 1 500
+        ],
+        note: 'opened',
+      }));
+      expect(onHand(rice.id)[0]!.onHandMilli).toBe(0);
+      // 1 000 shared 40 / 60: 400 over 2 bags, 600 over 30 kg.
+      expect(onHand(bags.id)[0]).toMatchObject({ onHandMilli: 2_000, unitCost: 200_00 });
+      expect(onHand(kilos.id)[0]).toMatchObject({ onHandMilli: 30_000, unitCost: 20_00 });
+    });
+
+    it('takes from the soonest-expiring batch first, never an expired one, and splits targets across source batches', () => {
+      const rice = sack();
+      const kilos = loose();
+      ok(receive(rice.id, { batchNumber: 'OLDEST', expiresAt: Date.now() - DAY, quantityMilli: 5_000 }));
+      ok(receive(rice.id, { batchNumber: 'A', expiresAt: Date.now() + 5 * DAY, quantityMilli: 1_000 }));
+      ok(receive(rice.id, { batchNumber: 'B', expiresAt: Date.now() + 9 * DAY, quantityMilli: 4_000 }));
+      ok(repackageStock(db, { productId: rice.id, quantityMilli: 3_000, targets: [{ productId: kilos.id, quantityMilli: 150_000, expiresAt: null }], note: null }));
+      const left = Object.fromEntries(onHand(rice.id).map((b) => [b.batchNumber, b.onHandMilli]));
+      expect(left).toEqual({ OLDEST: 5_000, A: 0, B: 2_000 });
+      const made = Object.fromEntries(onHand(kilos.id).map((b) => [b.batchNumber, b.onHandMilli]));
+      expect(made).toEqual({ A: 50_000, B: 100_000 }); // 1 of 3 sacks came from A, 2 from B
+    });
+
+    it('asks for an expiry when the source has none but the target expires, and allows loss', () => {
+      const plain = product('quantity', { name: `Sack ${Math.random()}` });
+      const kilos = loose();
+      ok(receive(plain.id, { batchNumber: null, expiresAt: null, quantityMilli: 1_000 }));
+      const t = { productId: kilos.id, quantityMilli: 48_500, expiresAt: null };
+      expect(repackageStock(db, { productId: plain.id, quantityMilli: 1_000, targets: [t], note: null })).toMatchObject({ ok: false, field: 'targets' });
+      expect(onHand(plain.id)[0]!.onHandMilli).toBe(1_000); // nothing was written
+      ok(repackageStock(db, { productId: plain.id, quantityMilli: 1_000, targets: [{ ...t, expiresAt: SOON_ISH }], note: null }));
+      expect(onHand(kilos.id)[0]).toMatchObject({ onHandMilli: 48_500, expiresAt: SOON_ISH });
+    });
+
+    it('rejects bad requests and writes nothing', () => {
+      const rice = sack();
+      const kilos = loose();
+      const untracked = product('none');
+      ok(receive(rice.id, { quantityMilli: 1_000 }));
+      const t = (productId: string, quantityMilli = 1_000) => ({ productId, quantityMilli, expiresAt: null });
+      const before = db.$client.prepare('SELECT COUNT(*) AS n FROM stock_movements').get();
+      const bad = (over: Record<string, unknown>) => repackageStock(db, { productId: rice.id, quantityMilli: 1_000, targets: [t(kilos.id)], note: null, ...over });
+      expect(bad({ quantityMilli: 2_000 })).toMatchObject({ ok: false, field: 'quantity' }); // only 1 sack
+      expect(bad({ quantityMilli: 0 })).toMatchObject({ ok: false, field: 'quantity' });
+      expect(bad({ targets: [] })).toMatchObject({ ok: false, field: 'targets' });
+      expect(bad({ targets: [t(rice.id)] })).toMatchObject({ ok: false, field: 'targets' }); // into itself
+      expect(bad({ targets: [t(kilos.id), t(kilos.id)] })).toMatchObject({ ok: false, field: 'targets' });
+      expect(bad({ targets: [t(untracked.id)] })).toMatchObject({ ok: false, field: 'targets' });
+      expect(bad({ productId: untracked.id })).toMatchObject({ ok: false, field: 'source' });
+      expect(bad({ productId: 'nope' })).toMatchObject({ ok: false, field: 'source' });
+      expect(db.$client.prepare('SELECT COUNT(*) AS n FROM stock_movements').get()).toEqual(before);
+    });
+
+  it('keeps a half-filled Repackage form as a draft, cleaned of anything malformed', () => {
+    expect(loadRepackageDraft(db)).toBeNull();
+    saveRepackageDraft(db, { productId: 'a', quantity: '1', targets: [{ productId: 'b', quantity: '48.5', expiry: '' }, 'junk'], note: 'n', extra: 1 });
+    expect(loadRepackageDraft(db)).toEqual({
+      productId: 'a',
+      quantity: '1',
+      targets: [{ productId: 'b', quantity: '48.5', expiry: '' }, { productId: null, quantity: '', expiry: '' }],
+      note: 'n',
+    });
+    clearRepackageDraft(db);
+    expect(loadRepackageDraft(db)).toBeNull();
+  });
+
+    it('keeps the sign rule: repack_out must remove and repack_in must add', () => {
+      const rice = sack();
+      ok(receive(rice.id));
+      const [b] = onHand(rice.id);
+      const insert = (type: string, q: number) =>
+        db.$client.prepare('INSERT INTO stock_movements (id, product_id, batch_id, type, quantity_milli, at) VALUES (?, ?, ?, ?, ?, 1)').run(`m-${type}-${q}`, rice.id, b!.id, type, q);
+      expect(() => insert('repack_out', 1_000)).toThrow();
+      expect(() => insert('repack_in', -1_000)).toThrow();
+      expect(() => insert('repack_in', 1_000)).not.toThrow();
+    });
+  });
+
+  it('seeded data is consistent: stock never negative, ledger sums match, sold lines carry costs', () => {
+    seedDatabase(db, { orders: 80, extraProducts: 4 });
+    const batches = listBatches(db, { includeEmpty: true });
+    expect(batches.length).toBeGreaterThan(0);
+    for (const b of batches) expect(b.onHandMilli).toBeGreaterThanOrEqual(0);
+    expect(batches.some((b) => b.expiresAt !== null && b.expiresAt < Date.now())).toBe(true); // an expired lot to demo
+    expect(batches.some((b) => b.expiresAt !== null && b.expiresAt > Date.now() && b.expiresAt < Date.now() + 3 * DAY)).toBe(true);
+    const costed = db.$client.prepare('SELECT COUNT(*) AS n FROM order_lines WHERE unit_cost IS NOT NULL').get() as { n: number };
+    expect(costed.n).toBeGreaterThan(0);
+    expect(db.$client.pragma('foreign_key_check')).toEqual([]);
+  });
+});
+
+describe('category management', () => {
+  const make = (name: string, sortOrder = 0) => {
+    const r = createCategory(db, { name, sortOrder });
+    if (!r.ok) throw new Error(r.error);
+    return r.category;
+  };
+
+  it('creates, lists in order, updates and counts live products', () => {
+    const b = make('Bakery', 2);
+    const a = make('  Dairy  ', 1); // spaces trimmed
+    expect(listCategoryRecords(db).map((c) => c.name)).toEqual(['Dairy', 'Bakery']); // by order, then name
+    const product = createProduct(db, { name: 'Milk', unit: 'each', tracking: 'none', shelfLifeDays: null, sku: null, barcode: null, price: 1, cost: null, active: true, categoryIds: [a.id] });
+    if (!product.ok) throw new Error('product');
+    createProduct(db, { name: 'Bread', unit: 'each', tracking: 'none', shelfLifeDays: null, sku: null, barcode: null, price: 1, cost: null, active: true, categoryIds: [a.id, b.id] });
+    expect(listCategoryRecords(db).find((c) => c.id === a.id)?.productCount).toBe(2);
+    deleteProducts(db, [product.product.id]);
+    expect(listCategoryRecords(db).find((c) => c.id === a.id)?.productCount).toBe(1); // a deleted product no longer counts
+    const renamed = updateCategory(db, a.id, { name: 'Milk and eggs', sortOrder: 5 });
+    expect(renamed).toMatchObject({ ok: true, category: { name: 'Milk and eggs', sortOrder: 5 } });
+  });
+
+  it('rejects empty, long and duplicate names (ignoring case) and bad orders', () => {
+    make('Dairy');
+    expect(createCategory(db, { name: '  ', sortOrder: 0 })).toMatchObject({ ok: false, field: 'name' });
+    expect(createCategory(db, { name: 'x'.repeat(101), sortOrder: 0 })).toMatchObject({ ok: false, field: 'name' });
+    expect(createCategory(db, { name: 'dairy', sortOrder: 0 })).toMatchObject({ ok: false, field: 'name', error: 'Name is already used' });
+    expect(createCategory(db, { name: 'Other', sortOrder: -1 })).toMatchObject({ ok: false, field: 'sortOrder' });
+    expect(createCategory(db, { name: 'Other', sortOrder: 1.5 })).toMatchObject({ ok: false, field: 'sortOrder' });
+    const d = make('Frozen');
+    expect(updateCategory(db, d.id, { name: 'Frozen', sortOrder: 3 }).ok).toBe(true); // keeps its own name
+    expect(updateCategory(db, d.id, { name: 'DAIRY', sortOrder: 3 })).toMatchObject({ ok: false, field: 'name' });
+    expect(updateCategory(db, 'nope', { name: 'Z', sortOrder: 0 })).toMatchObject({ ok: false });
+  });
+
+  it('deletes and restores, keeping the product links, and skips a restore whose name was taken', () => {
+    const a = make('Produce');
+    const b = make('Snacks');
+    const product = createProduct(db, { name: 'Apple', unit: 'each', tracking: 'none', shelfLifeDays: null, sku: null, barcode: null, price: 1, cost: null, active: true, categoryIds: [a.id] });
+    if (!product.ok) throw new Error('product');
+    deleteCategories(db, [a.id, b.id, 'nope', 7]); // unknown or malformed ids are ignored
+    expect(listCategoryRecords(db)).toHaveLength(0);
+    expect(listProductRecords(db)[0]?.categories).toEqual([]); // a deleted category is not shown on its product
+    expect(listCategoryRecords(db, true)).toHaveLength(2);
+    make('snacks'); // the name is free again, so it can be reused
+    expect(restoreCategories(db, [a.id, b.id])).toEqual({ restored: 1, conflicts: ['Snacks'] });
+    expect(listProductRecords(db)[0]?.categories.map((c) => c.name)).toEqual(['Produce']); // the link came back with it
+    expect(restoreCategories(db, [a.id])).toEqual({ restored: 0, conflicts: [] }); // already live
+    expect(restoreCategories(db, 'not a list')).toEqual({ restored: 0, conflicts: [] });
   });
 });

@@ -20,14 +20,14 @@ describe('TooSmallOverlay', () => {
     resizeTo(900, 900); // too narrow
     await fixture.whenStable();
     expect(el.textContent).toContain('Window too small');
-    expect(el.textContent).toContain('1024 × 600');
+    expect(el.textContent).toContain('1024 × 400');
     expect(el.textContent).toContain('Now 900 × 900');
 
-    resizeTo(1400, 500); // too short
+    resizeTo(1400, 350); // too short
     await fixture.whenStable();
     expect(el.querySelector('[role="alert"]')).not.toBeNull();
 
-    resizeTo(1024, 600); // exactly the minimum is fine
+    resizeTo(1024, 400); // exactly the minimum is fine
     await fixture.whenStable();
     expect(el.querySelector('[role="alert"]')).toBeNull();
   });

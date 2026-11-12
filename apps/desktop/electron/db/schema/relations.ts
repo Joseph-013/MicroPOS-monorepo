@@ -6,8 +6,10 @@ import { loginSessions } from './login-sessions';
 import { orderLines } from './order-lines';
 import { orders } from './orders';
 import { payments } from './payments';
+import { productBatches } from './product-batches';
 import { productCategories } from './product-categories';
 import { products } from './products';
+import { stockMovements } from './stock-movements';
 
 export const employeesRelations = relations(employees, ({ many }) => ({
   loginSessions: many(loginSessions),
@@ -33,6 +35,7 @@ export const productCategoriesRelations = relations(productCategories, ({ one })
 export const productsRelations = relations(products, ({ many }) => ({
   categoryLinks: many(productCategories),
   orderLines: many(orderLines),
+  batches: many(productBatches),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -50,4 +53,16 @@ export const orderLinesRelations = relations(orderLines, ({ one }) => ({
 
 export const paymentsRelations = relations(payments, ({ one }) => ({
   order: one(orders, { fields: [payments.orderId], references: [orders.id] }),
+}));
+
+export const productBatchesRelations = relations(productBatches, ({ one, many }) => ({
+  product: one(products, { fields: [productBatches.productId], references: [products.id] }),
+  movements: many(stockMovements),
+}));
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+  product: one(products, { fields: [stockMovements.productId], references: [products.id] }),
+  batch: one(productBatches, { fields: [stockMovements.batchId], references: [productBatches.id] }),
+  orderLine: one(orderLines, { fields: [stockMovements.orderLineId], references: [orderLines.id] }),
+  employee: one(employees, { fields: [stockMovements.employeeId], references: [employees.id] }),
 }));

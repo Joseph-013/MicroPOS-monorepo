@@ -1,0 +1,138 @@
+<section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
+  <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
+    <h1 class="text-2xl">Categories</h1>
+    <div class="flex items-center gap-3">
+      @if (selected().length) {
+        <span class="text-muted-foreground text-sm">{{ selected().length }} selected</span>
+        @if (selectedLive().length) {
+          <button hlmBtn variant="destructive" type="button" class="px-4" (click)="ask('delete', selectedLive())">Delete {{ selectedLive().length }}</button>
+        }
+        @if (selectedDeleted().length) {
+          <button hlmBtn variant="outline" type="button" class="px-4" (click)="ask('restore', selectedDeleted())">Restore {{ selectedDeleted().length }}</button>
+        }
+        <button hlmBtn variant="ghost" type="button" class="px-3" (click)="clearSelection()">Clear</button>
+      }
+      <label class="flex shrink-0 items-center gap-3 text-sm">
+        <hlm-switch [checked]="deletedOnly()" (checkedChange)="toggleDeleted($event)" />
+        <span>Deleted only</span>
+      </label>
+      <button hlmBtn type="button" class="px-4" (click)="add()">Add category</button>
+    </div>
+  </header>
+
+  <div class="min-h-0 flex-1 overflow-auto">
+    <div role="table" aria-label="Categories" class="min-w-[52rem] text-sm" [style.--cols]="columnsTemplate">
+      <div role="rowgroup" class="bg-background sticky top-0 z-10">
+        <!-- Row 1: column titles, click to sort -->
+        <div role="row" class="grid grid-cols-(--cols) border-b">
+          <div role="columnheader" class="flex h-(--control-height) items-center px-3">
+            <hlm-checkbox aria-label="Select all" [checked]="allSelected()" [indeterminate]="someSelected()" (checkedChange)="toggleAll($event)" />
+          </div>
+          @for (column of columns; track column.key) {
+            <div role="columnheader" [attr.aria-sort]="ariaSort(column.key)">
+              <button
+                type="button"
+                class="hover:bg-muted flex h-(--control-height) w-full items-center gap-1.5 px-3 font-medium {{ column.right ? 'justify-end' : '' }}"
+                (click)="sortBy(column.key)"
+              >
+                {{ column.label }}
+                <ng-icon
+                  size="14"
+                  [name]="sortKey() !== column.key ? 'lucideChevronsUpDown' : sortDirection() === 'asc' ? 'lucideArrowUp' : 'lucideArrowDown'"
+                  [class.opacity-40]="sortKey() !== column.key"
+                />
+              </button>
+            </div>
+          }
+        </div>
+        <!-- Row 2: the filter for each column -->
+        <div role="row" class="grid grid-cols-(--cols) items-center border-b [--control-height:var(--control-height-sm)]">
+          <div role="columnheader" class="flex items-center px-3">
+            <button hlmBtn variant="outline" size="icon" type="button" aria-label="Reset filters" title="Reset filters" [disabled]="!filtered()" (click)="resetFilters()">
+              <ng-icon name="lucideFilterX" size="18" />
+            </button>
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="nameFilter" placeholder="Name" label="Filter name" />
+          </div>
+          <div role="columnheader"></div>
+          <div role="columnheader"></div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-date-range-filter label="Created" [(from)]="createdFrom" [(to)]="createdTo" />
+          </div>
+        </div>
+      </div>
+
+      <div role="rowgroup">
+        @for (category of visible(); track category.id) {
+          <div
+            class="border-b"
+            [animate.enter]="animateRows() ? 'row-enter' : ''"
+            animate.leave="row-leave"
+            [hlmContextMenuTrigger]="rowMenu"
+            [hlmContextMenuTriggerData]="{ $implicit: category.id }"
+          >
+            <app-swipe-actions [swipeLeft]="swipeFor(category)" [distance]="56" [step]="56" (action)="onSwipe($event, category)">
+              <div
+                role="row"
+                class="hover:bg-muted/40 grid min-h-(--control-height) grid-cols-(--cols) items-center {{ category.deletedAt ? 'opacity-60' : 'cursor-pointer' }}"
+                [class.bg-muted]="isSelected(category)"
+                [attr.aria-selected]="isSelected(category)"
+                [attr.tabindex]="category.deletedAt ? null : 0"
+                (click)="edit(category)"
+                (keydown.enter)="onRowEnter($event, category)"
+              >
+                <div role="cell" class="flex items-center px-3" (click)="$event.stopPropagation()">
+                  <hlm-checkbox [aria-label]="'Select ' + category.name" [checked]="isSelected(category)" (checkedChange)="toggleRow(category, $event)" />
+                </div>
+                <div role="cell" class="truncate px-3 text-base">{{ category.name }}</div>
+                <div role="cell" class="px-3 text-right" (click)="$event.stopPropagation()">
+                  @if (category.productCount && !category.deletedAt) {
+                    <a class="text-primary underline-offset-4 hover:underline" routerLink="/items/products" [queryParams]="{ category: category.name }">{{ category.productCount }}</a>
+                  } @else {
+                    <span class="text-muted-foreground">{{ category.productCount }}</span>
+                  }
+                </div>
+                <div role="cell" class="text-muted-foreground px-3 text-right">{{ category.sortOrder }}</div>
+                <div role="cell" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ category.createdAt | date: 'MMM d, y, h:mm a' }}</div>
+              </div>
+            </app-swipe-actions>
+          </div>
+        }
+      </div>
+    </div>
+    @if (!visible().length) {
+      <p class="text-muted-foreground py-8 text-center text-sm">
+        {{ service.status() === 'error' ? 'Categories could not be loaded' : service.status() === 'loading' ? 'Loading categories' : 'No categories found' }}
+      </p>
+    }
+  </div>
+</section>
+
+<!-- Right-click (or long-press) menu of a category row. -->
+<ng-template #rowMenu let-id>
+  @if (categoryById(id); as category) {
+    <div hlmDropdownMenu>
+      @if (category.deletedAt) {
+        <button hlmDropdownMenuItem type="button" (click)="ask('restore', targetsFor(category))">Restore</button>
+      } @else {
+        <button hlmDropdownMenuItem type="button" (click)="edit(category)">Edit</button>
+        <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(category))">Delete</button>
+      }
+    </div>
+  }
+</ng-template>
+
+<!-- The one confirmation every delete and restore goes through (button, context menu, swipe). -->
+<hlm-alert-dialog [state]="pending() ? 'open' : 'closed'" (closed)="pending.set(null)">
+  <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+    <hlm-alert-dialog-header>
+      <h3 hlmAlertDialogTitle>{{ confirmTitle() }}</h3>
+      <p hlmAlertDialogDescription>{{ confirmText() }}</p>
+    </hlm-alert-dialog-header>
+    <hlm-alert-dialog-footer>
+      <button hlmAlertDialogCancel type="button">Cancel</button>
+      <button hlmAlertDialogAction [variant]="confirmLabel() === 'Delete' ? 'destructive' : 'default'" type="button" (click)="confirm()">{{ confirmLabel() }}</button>
+    </hlm-alert-dialog-footer>
+  </hlm-alert-dialog-content>
+</hlm-alert-dialog>

@@ -1,8 +1,9 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2, lucideUndo2 } from '@ng-icons/lucide';
-import { isPlu, isWeighed, type ProductRecord } from '@micropos/core';
+import { expiryState, formatQuantity, isPlu, isWeighed, type ProductRecord } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -16,26 +17,34 @@ import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { BannerService } from '../../core/banner';
+import { InventoryService } from '../../core/data/inventory.service';
+import { openRepackage } from '../inventory/repackage-form';
 import { CatalogService } from '../../core/data/catalog.service';
+import { ProductDraftService } from '../../core/data/product-draft.service';
 import { ProductsService } from '../../core/data/products.service';
 import { MoneyPipe } from '../../core/money.pipe';
 import { claimScanner } from '../../core/scanner';
+import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
+import { ReceiveStockForm, type ReceiveStockContext } from '../inventory/receive-stock-form';
 import { ProductForm, type ProductFormContext } from './product-form';
 
 export const ALL_CATEGORIES = 'All categories';
 const STATUSES = { all: 'All', active: 'Active', inactive: 'Inactive' } as const;
 type Status = keyof typeof STATUSES;
 
-export type SortKey = 'name' | 'sku' | 'barcode' | 'categories' | 'cost' | 'price' | 'status' | 'created';
+const STOCK_FILTERS = { all: 'All stock', in: 'In stock', out: 'Out of stock', expiring: 'Expiring', untracked: 'Not tracked' } as const;
+type StockFilter = keyof typeof STOCK_FILTERS;
+
+export type SortKey = 'name' | 'sku' | 'barcode' | 'categories' | 'cost' | 'price' | 'stock' | 'status' | 'created';
 type SortDirection = 'asc' | 'desc';
 
 type BulkKind = 'delete' | 'restore';
 
 /** Column widths shared by the title row, the filter row and every product row. */
 export const COLUMNS_TEMPLATE =
-  '3.5rem minmax(12rem,2fr) minmax(8rem,1fr) minmax(9rem,1fr) minmax(12rem,1.5fr) minmax(7rem,.8fr) minmax(8rem,.9fr) 9rem 17rem';
+  '3.5rem minmax(12rem,2fr) minmax(8rem,1fr) minmax(9rem,1fr) minmax(12rem,1.5fr) minmax(7rem,.8fr) minmax(8rem,.9fr) minmax(12rem,1fr) 9rem 13rem';
 
 /** What each column sorts by. Empty values (no SKU, no cost) always sort last. */
 const SORT_VALUES: Record<SortKey, (p: ProductRecord) => string | number | null> = {
@@ -45,6 +54,7 @@ const SORT_VALUES: Record<SortKey, (p: ProductRecord) => string | number | null>
   categories: (p) => p.categories.map((c) => c.name).join(', ') || null,
   cost: (p) => p.cost,
   price: (p) => p.price,
+  stock: (p) => p.onHandMilli,
   status: (p) => (p.deletedAt ? 2 : p.active ? 0 : 1),
   created: (p) => p.createdAt,
 };
@@ -53,6 +63,7 @@ const SORT_VALUES: Record<SortKey, (p: ProductRecord) => string | number | null>
 @Component({
   imports: [
     DatePipe,
+    DateRangeFilter,
     FilterInput,
     NgIcon,
     MoneyPipe,
@@ -77,6 +88,9 @@ export class ProductsPage {
   private readonly catalog = inject(CatalogService);
   private readonly dialogs = inject(HlmDialogService);
   private readonly banner = inject(BannerService);
+  private readonly drafts = inject(ProductDraftService);
+  private readonly inventory = inject(InventoryService);
+  private readonly route = inject(ActivatedRoute);
 
   // Column filters (second header row); they combine.
   protected readonly nameFilter = signal('');
@@ -88,6 +102,10 @@ export class ProductsPage {
   protected readonly allCategories = ALL_CATEGORIES;
   protected readonly category = signal<string | null>(ALL_CATEGORIES);
   protected readonly status = signal<Status>('all');
+  protected readonly stockFilter = signal<StockFilter>('all');
+  protected readonly stockFilters = Object.keys(STOCK_FILTERS) as StockFilter[];
+  protected readonly stockFilterLabel = (f: StockFilter): string => STOCK_FILTERS[f] ?? '';
+  protected readonly formatQuantity = formatQuantity;
   protected readonly statusLabel = (status: Status): string => STATUSES[status] ?? '';
   protected readonly statuses = Object.keys(STATUSES) as Status[];
 
@@ -106,6 +124,7 @@ export class ProductsPage {
     { key: 'categories', label: 'Categories' },
     { key: 'cost', label: 'Cost', right: true },
     { key: 'price', label: 'Price', right: true },
+    { key: 'stock', label: 'Stock', right: true },
     { key: 'status', label: 'Status' },
     { key: 'created', label: 'Created' },
   ];
@@ -149,6 +168,7 @@ export class ProductsPage {
       (p) =>
         !!p.deletedAt === deletedOnly &&
         (category === ALL_CATEGORIES || p.categories.some((c) => c.name === category)) &&
+        this.matchesStock(p) &&
         (deletedOnly || status === 'all' || (!p.deletedAt && p.active === (status === 'active'))) &&
         has(p.name, name) &&
         has(p.sku, sku) &&
@@ -165,7 +185,8 @@ export class ProductsPage {
     () =>
       !!(this.nameFilter() || this.skuFilter() || this.codeFilter() || this.createdFrom() || this.createdTo()) ||
       (this.category() ?? ALL_CATEGORIES) !== ALL_CATEGORIES ||
-      this.status() !== 'all',
+      this.status() !== 'all' ||
+      this.stockFilter() !== 'all',
   );
 
   protected resetFilters(): void {
@@ -176,6 +197,7 @@ export class ProductsPage {
     this.createdTo.set('');
     this.category.set(ALL_CATEGORIES);
     this.status.set('all');
+    this.stockFilter.set('all');
   }
 
   // Selection (leftmost column). Only rows that are on screen count, so a filter can never hide a selected row
@@ -304,6 +326,11 @@ export class ProductsPage {
         this.flashTimer = setTimeout(() => this.flashing.set(new Set()), 1500);
       }
     });
+    // The inventory overview links here with a stock filter (`?stock=out`) already set.
+    const category = this.route.snapshot.queryParamMap.get('category'); // the Categories page links here
+    if (category) this.category.set(category);
+    const wanted = this.route.snapshot.queryParamMap.get('stock');
+    if (wanted && wanted in STOCK_FILTERS) this.stockFilter.set(wanted as StockFilter);
     void this.service.load();
     void this.catalog.load();
 
@@ -329,6 +356,44 @@ export class ProductsPage {
   /** Deleted only: lists just the deleted products (the others are hidden), so they can be restored. */
   protected readonly deletedOnly = signal(false);
 
+  /** The stock filter: untracked products have no quantity, tracked ones are in, out or about to expire. */
+  private matchesStock(p: ProductRecord): boolean {
+    switch (this.stockFilter()) {
+      case 'in':
+        return (p.onHandMilli ?? 0) > 0;
+      case 'out':
+        return p.onHandMilli !== null && p.onHandMilli <= 0;
+      case 'expiring':
+        return ['soon', 'expired'].includes(expiryState(p.nextExpiry));
+      case 'untracked':
+        return p.onHandMilli === null;
+      default:
+        return true;
+    }
+  }
+
+  /** How a product's soonest expiry stands, shown beside its stock. */
+  protected expiry(p: ProductRecord): 'soon' | 'expired' | null {
+    const state = expiryState(p.nextExpiry);
+    return state === 'soon' || state === 'expired' ? state : null;
+  }
+
+  protected receiveStock(product: ProductRecord): void {
+    this.dialogs
+      .open<boolean, ReceiveStockContext>(ReceiveStockForm, {
+        id: 'receive-stock',
+        contentClass: 'w-[min(34rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
+        context: { product },
+      })
+      .closed$.subscribe((saved) => {
+        if (saved) this.banner.success('Stock received', { key: 'inventory-saved' });
+      });
+  }
+
+  protected repackage(product: ProductRecord): void {
+    void openRepackage(this.dialogs, this.banner, this.inventory, product);
+  }
+
   protected toggleDeleted(on: boolean): void {
     this.deletedOnly.set(on);
     this.clearSelection(); // a selection from the other list must not carry over
@@ -336,7 +401,7 @@ export class ProductsPage {
   }
 
   protected add(): void {
-    this.open();
+    void this.open();
   }
 
   /**
@@ -348,16 +413,18 @@ export class ProductsPage {
   }
 
   protected edit(product: ProductRecord): void {
-    if (!product.deletedAt) this.open(product); // deleted products are read-only here
+    if (!product.deletedAt) void this.open(product); // deleted products are read-only here
   }
 
-  private open(product?: ProductRecord): void {
+  private async open(product?: ProductRecord): Promise<void> {
+    // A form left half-filled earlier comes back as it was (its draft is read before the dialog opens).
+    const draft = await this.drafts.load(product?.id ?? 'new');
     const ref = this.dialogs.open<boolean, ProductFormContext>(ProductForm, {
       // Service dialogs count their ids separately from <hlm-dialog>/<hlm-alert-dialog>; a clash ("brn-dialog-3")
       // stops the Delete confirmation inside this form from opening, so give this one an id of its own.
       id: 'product-form',
       contentClass: 'w-[min(40rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
-      context: { product },
+      context: { product, draft },
     });
     void ref.closed$.subscribe((saved) => {
       if (saved) this.banner.success(product ? 'Product saved' : 'Product added', { key: 'product-saved' });

@@ -16,10 +16,19 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/products/products').then((m) => m.ProductsPage),
   },
   {
+    path: 'items/overview',
+    title: 'Inventory overview',
+    loadComponent: () => import('./pages/inventory-overview/inventory-overview').then((m) => m.InventoryOverviewPage),
+  },
+  {
+    path: 'items/inventory',
+    title: 'Inventory',
+    loadComponent: () => import('./pages/inventory/inventory').then((m) => m.InventoryPage),
+  },
+  {
     path: 'items/categories',
     title: 'Categories',
-    loadComponent: placeholder,
-    data: { title: 'Categories' },
+    loadComponent: () => import('./pages/categories/categories').then((m) => m.CategoriesPage),
   },
   {
     path: 'orders',

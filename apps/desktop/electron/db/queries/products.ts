@@ -1,8 +1,9 @@
 import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import type { ProductField, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from '@micropos/core';
 import type { AppDatabase } from '../index';
-import { categories, PRODUCT_UNITS, type ProductUnit, productCategories, products } from '../schema';
+import { categories, PRODUCT_TRACKING, type ProductTracking, PRODUCT_UNITS, type ProductUnit, productCategories, products } from '../schema';
 import { categoriesByProduct } from './catalog';
+import { stockSummary } from './inventory';
 
 const MAX_CENTS = 100_000_000_00;
 const MAX_CATEGORIES = 100;
@@ -36,6 +37,17 @@ export function sanitizeProductInput(value: unknown): ProductInput | Invalid {
   const unit = v['unit'] ?? 'each';
   if (!PRODUCT_UNITS.includes(unit as ProductUnit)) return { field: 'unit', error: 'Choose how it is sold' };
   if (unit !== 'each' && !barcode) return { field: 'barcode', error: 'A weighed product needs a barcode or PLU' };
+  const tracking = v['tracking'] ?? 'none';
+  if (!PRODUCT_TRACKING.includes(tracking as ProductTracking)) return { field: 'tracking', error: 'Choose how stock is tracked' };
+  // The shelf life only means something for products that expire.
+  let shelfLifeDays: number | null = null;
+  if (tracking === 'expiry' && v['shelfLifeDays'] !== null && v['shelfLifeDays'] !== undefined) {
+    const days = v['shelfLifeDays'];
+    if (typeof days !== 'number' || !Number.isInteger(days) || days < 1 || days > 3650) {
+      return { field: 'shelfLifeDays', error: 'Enter a number of days' };
+    }
+    shelfLifeDays = days;
+  }
   const ids = v['categoryIds'];
   if (!Array.isArray(ids) || ids.length > MAX_CATEGORIES || ids.some((id) => typeof id !== 'string')) {
     return { field: null, error: 'Categories are not valid' };
@@ -43,6 +55,8 @@ export function sanitizeProductInput(value: unknown): ProductInput | Invalid {
   return {
     name,
     unit: unit as ProductUnit,
+    tracking: tracking as ProductTracking,
+    shelfLifeDays,
     sku,
     barcode,
     price: v['price'],
@@ -64,6 +78,8 @@ function selectRecords(db: AppDatabase, where: ReturnType<typeof and> | undefine
       price: products.price,
       cost: products.cost,
       unit: products.unit,
+      tracking: products.tracking,
+      shelfLifeDays: products.shelfLifeDays,
       active: products.active,
       createdAt: products.createdAt,
       deletedAt: products.deletedAt,
@@ -76,7 +92,16 @@ function selectRecords(db: AppDatabase, where: ReturnType<typeof and> | undefine
     db,
     rows.map((r) => r.id),
   );
-  return rows.map((row) => ({ ...row, categories: byProduct.get(row.id) ?? [] }));
+  const stock = stockSummary(db);
+  return rows.map((row) => {
+    const s = row.tracking === 'none' ? undefined : stock.get(row.id);
+    return {
+      ...row,
+      categories: byProduct.get(row.id) ?? [],
+      onHandMilli: row.tracking === 'none' ? null : (s?.onHandMilli ?? 0),
+      nextExpiry: s?.nextExpiry ?? null,
+    };
+  });
 }
 
 /** Every live product (active or not) with cost and categories, sorted by name; deleted ones too when asked. */

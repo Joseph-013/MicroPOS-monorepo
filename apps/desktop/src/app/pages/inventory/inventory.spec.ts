@@ -1,0 +1,358 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import {
+  type AdjustStockInput,
+  type BatchRecord,
+  DESKTOP_API_VERSION,
+  type DesktopApi,
+  type ProductRecord,
+  type ReceiveStockInput,
+  type RepackageDraft,
+  type RepackageInput,
+} from '@micropos/core';
+import { DESKTOP_API } from '../../core/api/desktop-api';
+import { provideRouter } from '@angular/router';
+import { ScannerService } from '../../core/scanner';
+import { InventoryPage } from './inventory';
+
+// jsdom has no ResizeObserver (overlay code watches element sizes).
+globalThis.ResizeObserver ??= class {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+};
+
+// jsdom has no scrollIntoView (the combobox scrolls its highlighted option into view).
+Element.prototype.scrollIntoView ??= () => undefined;
+
+const DAY = 86_400_000;
+const batch = (id: string, name: string, over: Partial<BatchRecord> = {}): BatchRecord => ({
+  id,
+  productId: `p-${name}`,
+  productName: name,
+  productCode: null,
+  unit: 'each',
+  tracking: 'expiry',
+  batchNumber: `L-${id}`,
+  receivedAt: Date.now() - 10 * DAY,
+  expiresAt: Date.now() + 20 * DAY,
+  unitCost: 250,
+  unitPrice: 429,
+  receivedMilli: 10_000,
+  onHandMilli: 6_000,
+  ...over,
+});
+
+const product = (id: string, name: string, over: Partial<ProductRecord> = {}): ProductRecord => ({
+  id,
+  name,
+  sku: null,
+  barcode: `590${id}`,
+  categories: [],
+  price: 429,
+  cost: 250,
+  unit: 'each',
+  tracking: 'expiry',
+  shelfLifeDays: 7,
+  onHandMilli: 0,
+  nextExpiry: null,
+  active: true,
+  createdAt: 1,
+  deletedAt: null,
+  ...over,
+});
+
+function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = []) {
+  const rows = [...initial];
+  const drafts = { saved: null as RepackageDraft | null };
+  const calls = { adjust: [] as AdjustStockInput[], receive: [] as ReceiveStockInput[], repackage: [] as RepackageInput[] };
+  const api = {
+    platform: 'linux',
+    version: () => Promise.resolve(DESKTOP_API_VERSION),
+    scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
+    products: { list: () => Promise.resolve(catalog) },
+    inventory: {
+      listBatches: (options?: { includeEmpty?: boolean }) => Promise.resolve(rows.filter((b) => options?.includeEmpty || b.onHandMilli > 0)),
+      receive: (input: ReceiveStockInput) => {
+        calls.receive.push(input);
+        const created = batch(`new-${rows.length}`, 'Milk', { batchNumber: input.batchNumber, expiresAt: input.expiresAt, onHandMilli: input.quantityMilli, receivedMilli: input.quantityMilli });
+        rows.push(created);
+        return Promise.resolve({ ok: true as const, batch: created });
+      },
+      loadRepackageDraft: () => Promise.resolve(drafts.saved),
+      saveRepackageDraft: (draft: RepackageDraft) => {
+        drafts.saved = draft;
+        return Promise.resolve();
+      },
+      clearRepackageDraft: () => {
+        drafts.saved = null;
+        return Promise.resolve();
+      },
+      repackage: (input: RepackageInput) => {
+        calls.repackage.push(input);
+        return Promise.resolve({ ok: true as const, repackageId: 'rp-1' });
+      },
+      adjust: (input: AdjustStockInput) => {
+        calls.adjust.push(input);
+        const row = rows.find((b) => b.id === input.batchId)!;
+        row.onHandMilli += input.type === 'adjust' ? input.quantityMilli : -Math.abs(input.quantityMilli);
+        return Promise.resolve({ ok: true as const, batch: row });
+      },
+    },
+  } as unknown as DesktopApi;
+  return { api, calls, drafts };
+}
+
+const buttonByText = (root: ParentNode, text: string): HTMLButtonElement =>
+  [...root.querySelectorAll('button')].find((b) => b.textContent?.trim() === text)!;
+
+describe('InventoryPage', () => {
+  let fixture: ComponentFixture<InventoryPage>;
+  let el: HTMLElement;
+  let calls: ReturnType<typeof fakeApi>['calls'];
+  let drafts: ReturnType<typeof fakeApi>['drafts'];
+
+  async function open(rows: BatchRecord[], catalog: ProductRecord[] = []): Promise<void> {
+    const fake = fakeApi(rows, catalog);
+    calls = fake.calls;
+    drafts = fake.drafts;
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }] });
+    TestBed.inject(ScannerService);
+    fixture = TestBed.createComponent(InventoryPage);
+    await fixture.whenStable();
+    el = fixture.nativeElement as HTMLElement;
+  }
+  const settle = async (): Promise<void> => {
+    for (let i = 0; i < 3; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await fixture.whenStable();
+    }
+  };
+  const bodyRows = (): HTMLElement[] => [...el.querySelectorAll<HTMLElement>('[role="row"]')].filter((r) => r.querySelector('[role="cell"]'));
+  const cells = (row: HTMLElement): string[] => [...row.querySelectorAll('[role="cell"]')].map((c) => c.textContent!.trim());
+  const names = (): string[] => bodyRows().map((r) => cells(r)[1]!);
+  const type = async (root: ParentNode, selector: string, value: string): Promise<void> => {
+    const input = root.querySelector(selector) as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await fixture.whenStable();
+  };
+  const dialog = (): HTMLElement => document.querySelector('hlm-dialog-content') as HTMLElement;
+  const tick = (label: string): HTMLElement => el.querySelector(`[aria-label="${label}"]`) as HTMLElement;
+
+  beforeEach(() => localStorage.clear());
+  afterEach(() => {
+    fixture.destroy();
+    document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
+  });
+
+  it('lists batches soonest-expiring first, with a status for each expiry', async () => {
+    await open([
+      batch('1', 'Cheese', { expiresAt: Date.now() + 30 * DAY }),
+      batch('2', 'Milk', { expiresAt: Date.now() - 2 * DAY }),
+      batch('3', 'Yogurt', { expiresAt: Date.now() + 1 * DAY }),
+      batch('4', 'Rice', { expiresAt: null, tracking: 'batch' }),
+    ]);
+    expect(names()).toEqual(['Milk', 'Yogurt', 'Cheese', 'Rice']); // no expiry last
+    const status = (row: number): string => cells(bodyRows()[row]!)[4]!;
+    expect(status(0)).toBe('Expired');
+    expect(status(1)).toBe('Expiring soon');
+    expect(status(2)).toBe('OK');
+    expect(status(3)).toBe('No expiry');
+    expect(el.textContent).toContain('6'); // on hand
+  });
+
+  it('hides used-up batches until Show empty is on', async () => {
+    await open([batch('1', 'Milk'), batch('2', 'Old', { onHandMilli: 0 })]);
+    expect(names()).toEqual(['Milk']);
+    (el.querySelector('hlm-switch button') as HTMLElement).click();
+    await settle();
+    expect(names().sort()).toEqual(['Milk', 'Old']);
+    expect(el.textContent).toContain('Empty');
+  });
+
+  it('has a filter under each title and a reset button', async () => {
+    await open([batch('1', 'Milk'), batch('2', 'Cheese', { expiresAt: Date.now() - DAY })]);
+    const reset = (): HTMLButtonElement => el.querySelector('button[aria-label="Reset filters"]') as HTMLButtonElement;
+    expect(reset().disabled).toBe(true);
+    await type(el, 'input[aria-label="Filter product"]', 'chee');
+    expect(names()).toEqual(['Cheese']);
+    expect(reset().disabled).toBe(false);
+    reset().click();
+    await fixture.whenStable();
+    expect(names()).toHaveLength(2);
+    await type(el, 'input[aria-label="Filter batch"]', 'L-1');
+    expect(names()).toEqual(['Milk']);
+  });
+
+  it('sorts by a column and reverses on a second click', async () => {
+    await open([batch('1', 'Milk', { onHandMilli: 9_000 }), batch('2', 'Eggs', { onHandMilli: 3_000 })]);
+    const header = (label: string): HTMLButtonElement => [...el.querySelectorAll('[role="columnheader"] button')].find((b) => b.textContent?.trim() === label) as HTMLButtonElement;
+    header('On hand').click();
+    await fixture.whenStable();
+    expect(names()).toEqual(['Eggs', 'Milk']);
+    header('On hand').click();
+    await fixture.whenStable();
+    expect(names()).toEqual(['Milk', 'Eggs']);
+  });
+
+  it('opens the adjust form from a row and removes the quantity as waste', async () => {
+    await open([batch('1', 'Milk')]);
+    bodyRows()[0]!.click();
+    await settle();
+    expect(dialog().textContent).toContain('Adjust stock');
+    await type(dialog(), '#a-qty', '2');
+    buttonByText(dialog(), 'Save').click();
+    await settle();
+    expect(calls.adjust).toEqual([{ batchId: '1', type: 'waste', quantityMilli: 2000, note: null }]);
+    expect(document.querySelector('hlm-dialog-content')).toBeNull();
+    expect(cells(bodyRows()[0]!)[5]).toContain('4'); // 6 - 2
+  });
+
+  it('writes off a selection only after a confirmation, taking the whole remaining quantity', async () => {
+    await open([batch('1', 'Milk', { expiresAt: Date.now() - DAY }), batch('2', 'Cheese'), batch('3', 'Eggs')]);
+    tick('Select Milk L-1').click();
+    tick('Select Cheese L-2').click();
+    await settle();
+    expect(el.textContent).toContain('2 selected');
+    buttonByText(el, 'Write off 2').click();
+    await settle();
+    expect(calls.adjust).toHaveLength(0); // asks first
+    expect(document.querySelector('hlm-alert-dialog-content')?.textContent).toContain('Write off 2 batches?');
+    ([...document.querySelectorAll('[hlmAlertDialogAction]')].pop() as HTMLButtonElement).click();
+    await settle();
+    expect(calls.adjust.map((a) => [a.batchId, a.type, a.quantityMilli])).toEqual([['1', 'expired', 6000], ['2', 'waste', 6000]]);
+    expect(names()).toEqual(['Eggs']);
+  });
+
+  it('receives stock for a tracked product, pre-filling cost and expiry from the product', async () => {
+    await open([], [product('1', 'Milk', { shelfLifeDays: 7, cost: 250 })]);
+    buttonByText(el, 'Receive stock').click();
+    await settle();
+    expect(dialog().textContent).toContain('Receive stock');
+    // Pick the product the way a scan does.
+    TestBed.inject(ScannerService).receive('5901');
+    await settle();
+    expect((dialog().querySelector('#r-cost') as HTMLInputElement).value).toBe('2.50');
+    expect((dialog().querySelector('#r-expiry') as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    await type(dialog(), '#r-lot', 'L99');
+    await type(dialog(), '#r-qty', '12');
+    buttonByText(dialog(), 'Receive').click();
+    await settle();
+    expect(calls.receive).toHaveLength(1);
+    expect(calls.receive[0]).toMatchObject({ productId: '1', batchNumber: 'L99', quantityMilli: 12_000, unitCost: 250 });
+    expect(calls.receive[0]!.expiresAt).toBeGreaterThan(Date.now());
+    expect(names()).toEqual(['Milk']);
+  });
+
+  it('takes an expiry given as a month only, as the last day of that month', async () => {
+    await open([], [product('1', 'Milk', { shelfLifeDays: null })]);
+    buttonByText(el, 'Receive stock').click();
+    await settle();
+    TestBed.inject(ScannerService).receive('5901');
+    await settle();
+    buttonByText(dialog(), 'Month').click();
+    await settle();
+    await type(dialog(), '#r-expiry-month', '2027-02');
+    await type(dialog(), '#r-lot', 'L5');
+    await type(dialog(), '#r-qty', '3');
+    buttonByText(dialog(), 'Receive').click();
+    await settle();
+    const expiresAt = calls.receive[0]!.expiresAt!;
+    expect(new Date(expiresAt).getFullYear()).toBe(2027);
+    expect(new Date(expiresAt).getMonth()).toBe(1); // February
+    expect(new Date(expiresAt).getDate()).toBe(28); // its last day (2027 is not a leap year)
+  });
+
+  it('the Expires filter treats a first date as a single day until the end date is changed or cleared', async () => {
+    await open([
+      batch('1', 'A', { expiresAt: new Date(2026, 5, 10, 9).getTime() }),
+      batch('2', 'B', { expiresAt: new Date(2026, 5, 11, 9).getTime() }),
+      batch('3', 'C', { expiresAt: new Date(2026, 5, 12, 9).getTime() }),
+    ]);
+    (el.querySelector('button[aria-label="Expires date range"]') as HTMLElement).click();
+    await fixture.whenStable();
+    await type(document, 'input[aria-label="Expires from"]', '2026-06-11');
+    expect(names()).toEqual(['B']); // exactly that day
+    await type(document, 'input[aria-label="Expires to"]', '2026-06-12');
+    expect(names()).toEqual(['B', 'C']);
+    await type(document, 'input[aria-label="Expires to"]', '');
+    expect(names()).toEqual(['B', 'C']); // from the 11th on
+  });
+
+  it('asks for the expiry date and a valid quantity before receiving', async () => {
+    await open([], [product('1', 'Milk', { shelfLifeDays: null })]);
+    buttonByText(el, 'Receive stock').click();
+    await settle();
+    TestBed.inject(ScannerService).receive('5901');
+    await settle();
+    await type(dialog(), '#r-lot', 'L1');
+    buttonByText(dialog(), 'Receive').click();
+    await settle();
+    expect(dialog().textContent).toContain('Enter a valid quantity');
+    await type(dialog(), '#r-qty', '3');
+    buttonByText(dialog(), 'Receive').click();
+    await settle();
+    expect(dialog().textContent).toContain('Enter an expiry date');
+    expect(calls.receive).toHaveLength(0);
+  });
+  it('repackages a scanned product into another one and sends both quantities', async () => {
+    await open([], [product('1', 'Rice sack', { unit: 'each' }), product('2', 'Rice', { unit: 'kg' })]);
+    buttonByText(el, 'Repackage').click();
+    await settle();
+    expect(dialog().textContent).toContain('Repackage');
+    TestBed.inject(ScannerService).receive('5901'); // picks the sack to open
+    await settle();
+    await type(dialog(), '#rp-qty', '1');
+    // Choose the target in the second combobox.
+    const targetInput = dialog().querySelector('#rp-target-0') as HTMLInputElement;
+    targetInput.focus();
+    const trigger = targetInput.closest('hlm-combobox')!.querySelector('button[data-slot="input-group-button"]') as HTMLElement;
+    trigger.click();
+    await settle();
+    const option = [...document.querySelectorAll('hlm-combobox-item')].find((i) => i.textContent?.trim() === 'Rice') as HTMLElement;
+    option.click();
+    await settle();
+    await type(dialog(), 'input[aria-label="Quantity (kg)"]', '48.5');
+    buttonByText(dialog(), 'Repackage').click();
+    await settle();
+    expect(calls.repackage).toEqual([
+      { productId: '1', quantityMilli: 1_000, targets: [{ productId: '2', quantityMilli: 48_500, expiresAt: null }], note: null },
+    ]);
+  });
+
+  it('asks for a quantity and a target before repackaging', async () => {
+    await open([], [product('1', 'Rice sack'), product('2', 'Rice', { unit: 'kg' })]);
+    buttonByText(el, 'Repackage').click();
+    await settle();
+    TestBed.inject(ScannerService).receive('5901');
+    await settle();
+    buttonByText(dialog(), 'Repackage').click();
+    await settle();
+    expect(dialog().textContent).toContain('Enter a valid quantity');
+    await type(dialog(), '#rp-qty', '1');
+    buttonByText(dialog(), 'Repackage').click();
+    await settle();
+    expect(dialog().textContent).toContain('Choose the product to repackage into');
+    expect(calls.repackage).toHaveLength(0);
+  });
+  it('saves the Repackage form as a draft, restores it, and drops it once saved', async () => {
+    await open([], [product('1', 'Rice sack'), product('2', 'Rice', { unit: 'kg' })]);
+    buttonByText(el, 'Repackage').click();
+    await settle();
+    TestBed.inject(ScannerService).receive('5901');
+    await type(dialog(), '#rp-qty', '2');
+    await new Promise((resolve) => setTimeout(resolve, 400)); // the save is debounced
+    await settle();
+    expect(drafts.saved).toMatchObject({ productId: '1', quantity: '2' });
+    buttonByText(dialog(), 'Close').click(); // closing keeps the draft
+    await settle();
+    expect(drafts.saved).toMatchObject({ quantity: '2' });
+    buttonByText(el, 'Repackage').click();
+    await settle();
+    expect((dialog().querySelector('#rp-qty') as HTMLInputElement).value).toBe('2');
+    buttonByText(dialog(), 'Reset').click(); // reset drops it
+    await settle();
+    expect((dialog().querySelector('#rp-qty') as HTMLInputElement).value).toBe('');
+    expect(drafts.saved).toBeNull();
+  });
+});

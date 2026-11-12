@@ -9,14 +9,17 @@ import {
   orderLines,
   orders,
   payments,
+  productBatches,
   productCategories,
   products,
   settings,
+  stockMovements,
 } from '../schema';
 import { seedAdmin } from '../seeders/admin.seeder';
 import { uuid7 } from '../uuid';
 import { buildCategory, buildProduct, SAMPLE_CATEGORIES, SAMPLE_PRODUCTS } from './catalog.factory';
 import { buildEmployee, DUMMY_PIN } from './employee.factory';
+import { SeedStock } from './inventory.factory';
 import { buildRefund, buildSale, type SaleDraft } from './sale.factory';
 
 const HOUR = 3_600_000;
@@ -78,7 +81,7 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
   const productRows = [
     ...SAMPLE_PRODUCTS.map((p, i) => buildProduct(
         i + 1,
-        { name: p.name, price: p.price, unit: p.unit ?? 'each', ...(p.unit && p.unit !== 'each' ? { barcode: String(4000 + i) } : {}) },
+        { name: p.name, price: p.price, unit: p.unit ?? 'each', tracking: p.tracking ?? 'none', shelfLifeDays: p.shelfLifeDays ?? null, ...(p.unit && p.unit !== 'each' ? { barcode: String(4000 + i) } : {}) },
         start - DAY,
       )),
     ...Array.from({ length: options.extraProducts ?? 24 }, (_, i) => buildProduct(SAMPLE_PRODUCTS.length + i + 1, {}, start - DAY)),
@@ -121,6 +124,37 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
 
   // Number everything in creation order.
   const all = [...drafts, ...refunds].sort((a, b) => a.order.createdAt! - b.order.createdAt!);
+
+  // Stock: opening deliveries before the first sale, then every sale draws from them first-expiring-first-out and
+  // every refund puts its stock back, so quantities on hand are consistent with the sales history.
+  const stock = new SeedStock(
+    productRows.map((p) => ({
+      id: p.id!,
+      tracking: p.tracking ?? 'none',
+      unit: p.unit ?? 'each',
+      cost: p.cost ?? null,
+      shelfLifeDays: p.shelfLifeDays ?? null,
+    })),
+    now,
+    start,
+  );
+  const linesByOrder = new Map(all.map((d) => [d.order.id!, d.lines]));
+  for (const d of all) {
+    if (d.order.status === 'voided') continue; // never sold
+    const at = d.order.completedAt ?? d.order.createdAt!;
+    for (const line of d.lines) {
+      if (!line.productId) continue;
+      if (line.quantityMilli > 0) {
+        line.unitCost = stock.allocate(line.productId, line.id, line.quantityMilli, at);
+      } else if (d.order.refundOfOrderId) {
+        const original = linesByOrder.get(d.order.refundOfOrderId)?.find((l) => l.productId === line.productId);
+        if (original) {
+          stock.restock(original.id, line.id, at);
+          line.unitCost = original.unitCost ?? null;
+        }
+      }
+    }
+  }
   all.forEach((draft, i) => (draft.order.orderNumber = `SO-${1001 + i}`));
 
   // Login sessions: one closed session per employee per working day, plus the manager signed in now.
@@ -181,6 +215,8 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
     for (const rows of chunks(productCategoryRows)) tx.insert(productCategories).values(rows).run();
     for (const rows of chunks(all.map((d) => d.order))) tx.insert(orders).values(rows).run();
     for (const rows of chunks(all.flatMap((d) => d.lines))) tx.insert(orderLines).values(rows).run();
+    for (const rows of chunks(stock.batches)) tx.insert(productBatches).values(rows).run();
+    for (const rows of chunks(stock.movements)) tx.insert(stockMovements).values(rows).run();
     for (const rows of chunks(all.flatMap((d) => d.payments))) tx.insert(payments).values(rows).run();
     for (const rows of chunks(sessionRows)) tx.insert(loginSessions).values(rows).run();
     for (const rows of chunks(auditRows)) tx.insert(auditLog).values(rows).run();

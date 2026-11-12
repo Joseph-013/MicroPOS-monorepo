@@ -4,6 +4,11 @@ erDiagram
     employees |o--o{ audit_log : "performs"
     settings }o..o{ products : "checkout.draft lines (JSON, no FK)"
     products ||--o{ product_categories : "in"
+    products ||--o{ product_batches : "delivered as"
+    product_batches ||--o{ stock_movements : "ledger"
+    products ||--o{ stock_movements : "moves"
+    order_lines |o--o{ stock_movements : "draws from"
+    employees |o--o{ stock_movements : "records"
     categories ||--o{ product_categories : "groups"
     orders ||--|{ order_lines : "has"
     products |o--o{ order_lines : "sold as"
@@ -58,10 +63,34 @@ erDiagram
         int price
         int cost
         text unit
+        text tracking "none, quantity, batch, expiry"
+        int shelf_life_days
         int active
         int created_at
         int updated_at
         int deleted_at
+    }
+    product_batches {
+        text id PK
+        text product_id FK
+        text batch_number UK "null for the unnamed batch"
+        int received_at
+        int expires_at
+        int unit_cost
+        int created_at
+        int updated_at
+    }
+    stock_movements {
+        text id PK
+        text product_id FK
+        text batch_id FK
+        text type "receive, sale, refund, void, adjust, waste, expired, repack_out, repack_in"
+        int quantity_milli "signed"
+        text order_line_id FK
+        text employee_id FK
+        int at
+        text repackage_id "groups the movements of one repackage"
+        text note
     }
     orders {
         text id PK
@@ -82,6 +111,7 @@ erDiagram
         text product_id FK
         text name
         int unit_price
+        int unit_cost
         int quantity_milli
         int line_total
     }
@@ -96,7 +126,7 @@ erDiagram
         int created_at
     }
     settings {
-        text key PK "store.name, receipt.footer, checkout.draft"
+        text key PK "store.name, receipt.footer, checkout.draft, product.draft.*"
         text value "JSON"
         int updated_at
     }

@@ -1,4 +1,34 @@
 import type { Money } from './index.js';
+import type { ProductTracking } from './inventory.js';
+
+/** A category as managed on the Categories page: with how many live products it holds. */
+export interface CategoryRecord {
+  id: string;
+  name: string;
+  /** Lower numbers come first where categories are listed in order. */
+  sortOrder: number;
+  /** Live products in this category. */
+  productCount: number;
+  /** Epoch milliseconds. */
+  createdAt: number;
+  /** Epoch milliseconds when it was deleted, or null while it is in use. */
+  deletedAt: number | null;
+}
+
+export interface CategoryInput {
+  name: string;
+  sortOrder: number;
+}
+
+export type CategoryField = 'name' | 'sortOrder';
+
+export type SaveCategoryResult = { ok: true; category: CategoryRecord } | { ok: false; field: CategoryField | null; error: string };
+
+/** Outcome of restoring deleted categories; one whose name a live category now uses is skipped. */
+export interface RestoreCategoriesResult {
+  restored: number;
+  conflicts: string[];
+}
 
 /** How a product is sold: counted (`each`) or weighed (the price is per kg, g, lb or oz). */
 export const PRODUCT_UNITS = ['each', 'kg', 'g', 'lb', 'oz'] as const;
@@ -25,6 +55,8 @@ export interface CatalogProduct {
   /** Price in cents per `unit`. */
   price: Money;
   unit: ProductUnit;
+  /** How stock is tracked; checkout may warn about empty or expired stock for tracked products. */
+  tracking: ProductTracking;
 }
 
 export interface CatalogCategory {
@@ -39,6 +71,12 @@ export interface ProductRecord extends Omit<CatalogProduct, 'price'> {
   cost: Money | null;
   /** Inactive products stay on file but are not offered at checkout. */
   active: boolean;
+  /** Days from receiving to expiry, to pre-fill the expiry date of new stock; null when not set. */
+  shelfLifeDays: number | null;
+  /** Stock left across all batches, in thousandths of the unit; null when stock is not tracked. */
+  onHandMilli: number | null;
+  /** The soonest expiry among batches that still have stock; null when none. */
+  nextExpiry: number | null;
   /** Epoch milliseconds. */
   createdAt: number;
   /** Epoch milliseconds when it was deleted, or null while it is in the catalog. */
@@ -49,6 +87,8 @@ export interface ProductRecord extends Omit<CatalogProduct, 'price'> {
 export interface ProductInput {
   name: string;
   unit: ProductUnit;
+  tracking: ProductTracking;
+  shelfLifeDays: number | null;
   sku: string | null;
   barcode: string | null;
   price: Money;
@@ -57,7 +97,24 @@ export interface ProductInput {
   categoryIds: string[];
 }
 
-export type ProductField = 'name' | 'unit' | 'sku' | 'barcode' | 'price' | 'cost';
+export type ProductField = 'name' | 'unit' | 'tracking' | 'shelfLifeDays' | 'sku' | 'barcode' | 'price' | 'cost';
+
+/**
+ * A product form that was left half-filled, as the form holds it (money as the text typed, not cents), so it can be
+ * put back exactly as it was.
+ */
+export interface ProductDraft {
+  name: string;
+  unit: ProductUnit;
+  tracking: ProductTracking;
+  shelfLifeDays: string;
+  sku: string;
+  barcode: string;
+  price: string;
+  cost: string;
+  active: boolean;
+  categoryIds: string[];
+}
 
 /** Outcome of restoring deleted products. Ones whose SKU or barcode a live product now uses are skipped. */
 export interface RestoreProductsResult {

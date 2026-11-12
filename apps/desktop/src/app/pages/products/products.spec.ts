@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
   DESKTOP_API_VERSION,
+  type ProductDraft,
   type DesktopApi,
   type ProductInput,
   type ProductRecord,
@@ -8,6 +9,7 @@ import {
 } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
+import { provideRouter } from '@angular/router';
 import { ScannerService } from '../../core/scanner';
 import { ProductsPage } from './products';
 
@@ -18,6 +20,9 @@ globalThis.ResizeObserver ??= class {
   disconnect(): void {}
 };
 
+// jsdom has no scrollIntoView (the select scrolls its highlighted option into view).
+Element.prototype.scrollIntoView ??= () => undefined;
+
 const DAIRY = { id: 'c1', name: 'Dairy' };
 const record = (id: string, name: string, over: Partial<ProductRecord> = {}): ProductRecord => ({
   id,
@@ -27,6 +32,10 @@ const record = (id: string, name: string, over: Partial<ProductRecord> = {}): Pr
   price: 429,
   cost: 300,
   unit: 'each',
+  tracking: 'none',
+  shelfLifeDays: null,
+  onHandMilli: null,
+  nextExpiry: null,
   active: true,
   createdAt: Date.UTC(2026, 0, 15, 8, 30),
   deletedAt: null,
@@ -37,12 +46,16 @@ const record = (id: string, name: string, over: Partial<ProductRecord> = {}): Pr
 /** In-memory stand-in for the products bridge; duplicates SKUs the way the real one does. */
 function fakeApi(initial: ProductRecord[]) {
   const rows = [...initial];
+  const drafts = new Map<string, ProductDraft>();
   const calls = { create: [] as ProductInput[], update: [] as [string, ProductInput][], remove: [] as string[], restore: [] as string[], setActive: [] as [string[], boolean][] };
   const save = (id: string | null, input: ProductInput): SaveProductResult => {
     if (input.sku && rows.some((r) => r.sku === input.sku && r.id !== id)) return { ok: false, field: 'sku', error: 'SKU is already used' };
     const product: ProductRecord = {
       ...input,
       id: id ?? `new-${rows.length}`,
+      shelfLifeDays: input.shelfLifeDays,
+      onHandMilli: null,
+      nextExpiry: null,
       createdAt: Date.now(),
       deletedAt: null,
       categories: input.categoryIds.map((c) => ({ id: c, name: c === DAIRY.id ? DAIRY.name : c })),
@@ -55,6 +68,23 @@ function fakeApi(initial: ProductRecord[]) {
   const api: DesktopApi = {
     platform: 'linux',
     version: () => Promise.resolve(DESKTOP_API_VERSION),
+    categories: {
+      list: () => Promise.resolve([]),
+      create: () => Promise.reject(new Error('unused')),
+      update: () => Promise.reject(new Error('unused')),
+      remove: () => Promise.resolve(),
+      restore: () => Promise.resolve({ restored: 0, conflicts: [] }),
+    },
+    inventory: {
+      listBatches: () => Promise.resolve([]),
+      overview: () => Promise.reject(new Error('unused')),
+      receive: () => Promise.reject(new Error('unused')),
+      adjust: () => Promise.reject(new Error('unused')),
+      repackage: () => Promise.reject(new Error('unused')),
+      loadRepackageDraft: () => Promise.resolve(null),
+      saveRepackageDraft: () => Promise.resolve(),
+      clearRepackageDraft: () => Promise.resolve(),
+    },
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: { listProducts: () => Promise.resolve([]), listCategories: () => Promise.resolve([DAIRY]) },
     products: {
@@ -69,6 +99,9 @@ function fakeApi(initial: ProductRecord[]) {
         }
         return Promise.resolve();
       },
+      loadDraft: (form) => Promise.resolve(drafts.get(form) ?? null),
+      saveDraft: (form, draft) => (drafts.set(form, draft), Promise.resolve()),
+      clearDraft: (form) => (drafts.delete(form), Promise.resolve()),
       setActive: (ids, active) => {
         calls.setActive.push([ids, active]);
         for (const row of rows) if (ids.includes(row.id)) row.active = active;
@@ -85,7 +118,7 @@ function fakeApi(initial: ProductRecord[]) {
     },
     checkout: { loadDraft: () => Promise.resolve(null), saveDraft: () => Promise.resolve(), clearDraft: () => Promise.resolve() },
   };
-  return { api, calls };
+  return { api, calls, drafts };
 }
 
 const buttonByText = (root: ParentNode, text: string): HTMLButtonElement =>
@@ -95,11 +128,13 @@ describe('ProductsPage', () => {
   let fixture: ComponentFixture<ProductsPage>;
   let el: HTMLElement;
   let calls: ReturnType<typeof fakeApi>['calls'];
+  let drafts: ReturnType<typeof fakeApi>['drafts'];
 
   async function open(rows: ProductRecord[]): Promise<void> {
     const fake = fakeApi(rows);
     calls = fake.calls;
-    TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: fake.api }] });
+    drafts = fake.drafts;
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }] });
     TestBed.inject(ScannerService); // started at launch by the app root; its keydown listener must exist first
     fixture = TestBed.createComponent(ProductsPage);
     await fixture.whenStable();
@@ -118,6 +153,11 @@ describe('ProductsPage', () => {
     const input = root.querySelector(selector) as HTMLInputElement;
     input.value = value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    await fixture.whenStable();
+  };
+  /** The date range filter is a button that opens a panel; open it so its date fields can be used. */
+  const openDates = async (): Promise<void> => {
+    (el.querySelector('button[aria-label="Created date range"]') as HTMLElement).click();
     await fixture.whenStable();
   };
   const dialog = (): HTMLElement => document.querySelector('hlm-dialog-content') as HTMLElement;
@@ -169,12 +209,19 @@ describe('ProductsPage', () => {
       record('2', 'Mid', { createdAt: day(15, 23) }),
       record('3', 'Late', { createdAt: day(20, 0) }),
     ]);
-    await type(el, 'input[aria-label="Created from"]', '2026-01-15');
-    expect(rowNames()).toEqual(['Late', 'Mid']); // newest first
-    await type(el, 'input[aria-label="Created to"]', '2026-01-15');
-    expect(rowNames()).toEqual(['Mid']); // the whole last day counts
-    await type(el, 'input[aria-label="Created from"]', '');
-    expect(rowNames()).toEqual(['Mid', 'Early']); // newest first
+    expect(el.querySelector('button[aria-label="Created date range"]')!.textContent).toContain('Any date');
+    await openDates();
+    await type(document, 'input[aria-label="Created from"]', '2026-01-15');
+    expect(rowNames()).toEqual(['Mid']); // a first date is a single day: the end date follows it
+    expect(el.querySelector('button[aria-label="Created date range"]')!.textContent).toContain('Jan 15, 2026');
+    await type(document, 'input[aria-label="Created to"]', '2026-01-20');
+    expect(rowNames()).toEqual(['Late', 'Mid']); // the whole last day counts, newest first
+    await type(document, 'input[aria-label="Created to"]', '');
+    expect(rowNames()).toEqual(['Late', 'Mid']); // no end date: from the 15th on
+    expect(el.querySelector('button[aria-label="Created date range"]')!.textContent).toContain('From Jan 15, 2026');
+    el.querySelector<HTMLElement>('button[aria-label="Clear created dates"]')!.click();
+    await fixture.whenStable();
+    expect(rowNames()).toEqual(['Late', 'Mid', 'Early']);
   });
 
   it('resets every filter at once from the button in the select column', async () => {
@@ -182,7 +229,9 @@ describe('ProductsPage', () => {
     const reset = (): HTMLButtonElement => el.querySelector('button[aria-label="Reset filters"]') as HTMLButtonElement;
     expect(reset().disabled).toBe(true); // nothing to reset
     await type(el, 'input[aria-label="Filter name"]', 'eg');
-    await type(el, 'input[aria-label="Created from"]', '2020-01-01');
+    await openDates();
+    await type(document, 'input[aria-label="Created from"]', '2020-01-01');
+    await type(document, 'input[aria-label="Created to"]', '2099-01-01');
     expect(reset().disabled).toBe(false);
     expect(rowNames()).toEqual(['Eggs']);
     reset().click();
@@ -263,7 +312,7 @@ describe('ProductsPage', () => {
       await open([record('1', 'Milk', { barcode: '5900000000107' }), record('2', 'Eggs', { barcode: '5900000000015' })]);
       bodyRows()[0]!.click();
       await settle();
-      buttonByText(dialog(), 'Cancel').click();
+      buttonByText(dialog(), 'Close').click();
       await settle();
       await scan('5900000000015');
       expect(rowNames()).toEqual(['Eggs']);
@@ -285,6 +334,78 @@ describe('ProductsPage', () => {
     row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     await settle();
     expect(dialog()).not.toBeNull();
+  });
+
+  describe('stock', () => {
+    const stockCell = (row: number): string => bodyRows()[row]!.querySelectorAll('[role="cell"]')[7]!.textContent!.replace(/\s+/g, ' ').trim();
+
+    it('shows how much is in stock, flagging products that are out or expiring, and "-" when not tracked', async () => {
+      await open([
+        record('1', 'Beef', { tracking: 'expiry', unit: 'kg', barcode: '4011', onHandMilli: 12_500 }),
+        record('2', 'Eggs', { tracking: 'quantity', onHandMilli: 0 }),
+        record('3', 'Milk', { tracking: 'expiry', onHandMilli: 6_000, nextExpiry: Date.now() + 86_400_000 }),
+        record('4', 'Bags'),
+      ]);
+      expect(rowNames()).toEqual(['Beef', 'Eggs', 'Milk', 'Bags']);
+      expect(stockCell(0)).toBe('12.5 kg');
+      expect(stockCell(1)).toBe('Out');
+      expect(stockCell(2)).toBe('Expiring6');
+      expect(stockCell(3)).toBe('-');
+    });
+
+    it('filters by stock level', async () => {
+      await open([
+        record('1', 'Beef', { tracking: 'expiry', onHandMilli: 3_000 }),
+        record('2', 'Eggs', { tracking: 'quantity', onHandMilli: 0 }),
+        record('3', 'Milk', { tracking: 'expiry', onHandMilli: 6_000, nextExpiry: Date.now() - 86_400_000 }),
+        record('4', 'Bags'),
+      ]);
+      const pick = async (label: string): Promise<void> => {
+        (el.querySelector('hlm-select-trigger[aria-label="Filter stock"] button') as HTMLElement).click();
+        await settle();
+        ([...document.querySelectorAll('hlm-select-item')].find((i) => i.textContent?.trim() === label) as HTMLElement).click();
+        await settle();
+      };
+      await pick('In stock');
+      expect(rowNames().sort()).toEqual(['Beef', 'Milk']);
+      await pick('Out of stock');
+      expect(rowNames()).toEqual(['Eggs']);
+      await pick('Expiring');
+      expect(rowNames()).toEqual(['Milk']); // past expiry counts
+      await pick('Not tracked');
+      expect(rowNames()).toEqual(['Bags']);
+    });
+
+    it('offers Receive stock in the row menu for tracked products only', async () => {
+      await open([record('1', 'Milk', { tracking: 'expiry', onHandMilli: 0 }), record('2', 'Bags')]);
+      const menu = async (row: number): Promise<string[]> => {
+        bodyRows()[row]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 }));
+        await settle();
+        const items = [...document.querySelectorAll('[hlmDropdownMenuItem]')].map((i) => i.textContent!.trim());
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await settle();
+        return items;
+      };
+      expect(await menu(0)).toContain('Receive stock');
+      expect(await menu(1)).not.toContain('Receive stock');
+    });
+
+    it('the form tracks stock levels, and asks for a shelf life only when stock expires', async () => {
+      await open([record('1', 'Milk')]);
+      buttonByText(el, 'Add product').click();
+      await settle();
+      expect(dialog().querySelector('#p-shelf')).toBeNull();
+      (dialog().querySelector('hlm-select-trigger[aria-label="Track stock"] button') as HTMLElement).click();
+      await settle();
+      ([...document.querySelectorAll('hlm-select-item')].find((i) => i.textContent?.trim() === 'By batch with expiry') as HTMLElement).click();
+      await settle();
+      await type(dialog(), '#p-name', 'Yogurt');
+      await type(dialog(), '#p-price', '5');
+      await type(dialog(), '#p-shelf', '14');
+      buttonByText(dialog(), 'Save').click();
+      await settle();
+      expect(calls.create[0]).toMatchObject({ tracking: 'expiry', shelfLifeDays: 14 });
+    });
   });
 
   it('italicizes a PLU and leaves a barcode regular', async () => {
@@ -555,6 +676,95 @@ describe('ProductsPage', () => {
     buttonByText(dialog(), 'Save').click();
     await settle();
     expect(calls.update[0]?.[1]).toMatchObject({ categoryIds: ['c1'] });
+  });
+
+  describe('form drafts', () => {
+    const openForm = async (row?: number): Promise<void> => {
+      if (row === undefined) buttonByText(el, 'Add product').click();
+      else bodyRows()[row]!.click();
+      await settle();
+    };
+    const closeForm = async (): Promise<void> => {
+      buttonByText(dialog(), 'Close').click();
+      await settle();
+      await new Promise((resolve) => setTimeout(resolve, 400)); // the draft save is debounced
+    };
+
+    it('a half-filled new product is saved when the form is closed and comes back when it is reopened', async () => {
+      await open([record('1', 'Milk')]);
+      await openForm();
+      await type(dialog(), '#p-name', 'Cheese');
+      await type(dialog(), '#p-price', '12.5');
+      await closeForm();
+      expect(document.querySelector('hlm-dialog-content')).toBeNull();
+      expect(drafts.get('new')).toMatchObject({ name: 'Cheese', price: '12.5' });
+
+      await openForm();
+      expect((dialog().querySelector('#p-name') as HTMLInputElement).value).toBe('Cheese');
+      expect((dialog().querySelector('#p-price') as HTMLInputElement).value).toBe('12.5');
+      expect(calls.create).toHaveLength(0); // nothing was saved to the catalog
+    });
+
+    it('keeps a ticked category in the draft', async () => {
+      await open([record('1', 'Milk')]);
+      await openForm();
+      await type(dialog(), '#p-name', 'Cheese');
+      const dairy = [...dialog().querySelectorAll('label')].find((l) => l.textContent?.trim() === 'Dairy')!;
+      (dairy.querySelector('brn-checkbox') as HTMLElement).click();
+      await settle();
+      await closeForm();
+      expect(drafts.get('new')?.categoryIds).toEqual(['c1']);
+    });
+
+    it('saving clears the draft, so the next new product starts empty', async () => {
+      await open([record('1', 'Milk')]);
+      await openForm();
+      await type(dialog(), '#p-name', 'Cheese');
+      await type(dialog(), '#p-price', '3');
+      buttonByText(dialog(), 'Save').click();
+      await settle();
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(drafts.has('new')).toBe(false);
+      await openForm();
+      expect((dialog().querySelector('#p-name') as HTMLInputElement).value).toBe('');
+    });
+
+    it('Reset puts the form back to its starting values and drops the draft', async () => {
+      await open([record('1', 'Milk')]);
+      await openForm(0);
+      expect(buttonByText(dialog(), 'Reset')).toBeUndefined(); // nothing changed yet
+      await type(dialog(), '#p-name', 'Milkshake');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(drafts.get('1')?.name).toBe('Milkshake');
+      buttonByText(dialog(), 'Reset').click();
+      await settle();
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect((dialog().querySelector('#p-name') as HTMLInputElement).value).toBe('Milk');
+      expect(drafts.has('1')).toBe(false);
+    });
+
+    it('an edit draft is kept per product and restored with a notice', async () => {
+      await open([record('1', 'Milk'), record('2', 'Eggs')]);
+      await openForm(0);
+      await type(dialog(), '#p-name', 'Oat Milk');
+      await closeForm();
+      await openForm(1);
+      expect((dialog().querySelector('#p-name') as HTMLInputElement).value).toBe('Eggs'); // other product unaffected
+      await closeForm();
+      await openForm(0);
+      expect((dialog().querySelector('#p-name') as HTMLInputElement).value).toBe('Oat Milk');
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Draft restored');
+    });
+
+    it('drops a draft category that was deleted in the meantime', async () => {
+      await open([record('1', 'Milk')]);
+      drafts.set('new', { name: 'Cheese', unit: 'each', tracking: 'none', shelfLifeDays: '', sku: '', barcode: '', price: '1', cost: '', active: true, categoryIds: ['c1', 'gone'] });
+      await openForm();
+      expect((dialog().querySelector('#p-name') as HTMLInputElement).value).toBe('Cheese');
+      buttonByText(dialog(), 'Save').click();
+      await settle();
+      expect(calls.create[0]?.categoryIds).toEqual(['c1']);
+    });
   });
 
   it('deletes a product after confirming', async () => {

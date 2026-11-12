@@ -2,7 +2,11 @@ import { ipcMain } from 'electron';
 import type { AppDatabase } from '../db';
 import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
+import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from '../db/queries/categories';
+import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock } from '../db/queries/inventory';
 import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
+import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../db/queries/repackage-draft';
+import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/queries/product-draft';
 import { setScannerEnabled } from '../scanner';
 import { API_VERSION, CHANNELS } from './channels';
 
@@ -21,8 +25,30 @@ export function registerIpcHandlers(db: AppDatabase): void {
   ipcMain.handle(CHANNELS.products.create, (_event, input: unknown) => createProduct(db, input));
   ipcMain.handle(CHANNELS.products.update, (_event, id: unknown, input: unknown) => updateProduct(db, id, input));
   ipcMain.handle(CHANNELS.products.remove, (_event, ids: unknown) => deleteProducts(db, ids));
+  ipcMain.handle(CHANNELS.products.loadDraft, (_event, form: unknown) => loadProductDraft(db, form));
+  ipcMain.handle(CHANNELS.products.saveDraft, (_event, form: unknown, draft: unknown) => saveProductDraft(db, form, draft));
+  ipcMain.handle(CHANNELS.products.clearDraft, (_event, form: unknown) => clearProductDraft(db, form));
   ipcMain.handle(CHANNELS.products.setActive, (_event, ids: unknown, active: unknown) => setProductsActive(db, ids, active));
   ipcMain.handle(CHANNELS.products.restore, (_event, ids: unknown) => restoreProducts(db, ids));
+  // Category payloads come from the renderer: create/update validate them before writing.
+  ipcMain.handle(CHANNELS.categories.list, (_event, options: unknown) =>
+    listCategoryRecords(db, (options as { includeDeleted?: unknown } | undefined)?.includeDeleted === true),
+  );
+  ipcMain.handle(CHANNELS.categories.create, (_event, input: unknown) => createCategory(db, input));
+  ipcMain.handle(CHANNELS.categories.update, (_event, id: unknown, input: unknown) => updateCategory(db, id, input));
+  ipcMain.handle(CHANNELS.categories.remove, (_event, ids: unknown) => deleteCategories(db, ids));
+  ipcMain.handle(CHANNELS.categories.restore, (_event, ids: unknown) => restoreCategories(db, ids));
+  // Stock calls validate their input (receiveStock / adjustStock) before writing.
+  ipcMain.handle(CHANNELS.inventory.listBatches, (_event, options: unknown) =>
+    listBatches(db, { includeEmpty: (options as { includeEmpty?: unknown } | undefined)?.includeEmpty === true }),
+  );
+  ipcMain.handle(CHANNELS.inventory.overview, () => inventoryOverview(db));
+  ipcMain.handle(CHANNELS.inventory.receive, (_event, input: unknown) => receiveStock(db, input));
+  ipcMain.handle(CHANNELS.inventory.adjust, (_event, input: unknown) => adjustStock(db, input));
+  ipcMain.handle(CHANNELS.inventory.repackage, (_event, input: unknown) => repackageStock(db, input));
+  ipcMain.handle(CHANNELS.inventory.loadRepackageDraft, () => loadRepackageDraft(db));
+  ipcMain.handle(CHANNELS.inventory.saveRepackageDraft, (_event, draft: unknown) => saveRepackageDraft(db, draft));
+  ipcMain.handle(CHANNELS.inventory.clearRepackageDraft, () => clearRepackageDraft(db));
   ipcMain.handle(CHANNELS.scanner.setEnabled, (_event, on: unknown) => setScannerEnabled(on !== false));
   ipcMain.handle(CHANNELS.checkout.loadDraft, () => loadDraft(db));
   // The payload comes from the renderer, so it is validated (sanitizeDraft) before it is stored.

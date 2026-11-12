@@ -13,6 +13,7 @@ export function listProducts(db: AppDatabase): CatalogProduct[] {
       barcode: products.barcode,
       price: products.price,
       unit: products.unit,
+      tracking: products.tracking,
     })
     .from(products)
     .where(and(isNull(products.deletedAt), eq(products.active, true)))

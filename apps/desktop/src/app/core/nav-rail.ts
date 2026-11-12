@@ -74,7 +74,9 @@ export class NavRail {
       label: 'Items',
       icon: 'lucidePackage',
       children: [
+        { id: 'items-overview', path: '/items/overview', label: 'Overview' },
         { id: 'items-products', path: '/items/products', label: 'Products' },
+        { id: 'items-inventory', path: '/items/inventory', label: 'Inventory' },
         { id: 'items-categories', path: '/items/categories', label: 'Categories' },
       ],
     },
@@ -102,8 +104,9 @@ export class NavRail {
       )
       .subscribe(() => {
         this.openActiveGroups();
-        // A rail that opened on hover folds away once you pick a page; pinned stays open. Hovering again reopens it.
-        this.hovered.set(false);
+        // After a touch the rail folds away once you pick a page (there is no pointer to leave it). With a mouse it
+        // stays open while the pointer is over it and folds when the pointer leaves, as usual.
+        if (this.lastPointerType !== 'mouse') this.hovered.set(false);
       });
   }
 
@@ -112,10 +115,14 @@ export class NavRail {
    * otherwise follow the icon under the finger) and the next tap picks an entry. A tap outside folds it again.
    * Capture listeners, so this runs before the links' own click handlers.
    */
+  /** How the rail was last pressed: `mouse`, `touch` or `pen`. */
+  private lastPointerType = 'mouse';
+
   private watchTouch(): void {
     const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
     let swallowNextClick = false;
     const onPointerDown = (event: PointerEvent): void => {
+      this.lastPointerType = event.pointerType;
       swallowNextClick = event.pointerType !== 'mouse' && !this.expanded();
       if (swallowNextClick) this.hovered.set(true);
     };

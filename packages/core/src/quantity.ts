@@ -27,7 +27,10 @@ export function parseQuantityMilli(text: string): number | null {
 
 /** 1000 -> "1", 1250 -> "1.25", 500 -> "0.5". */
 export function formatQuantity(quantityMilli: number): string {
-  const whole = Math.trunc(quantityMilli / MILLI);
-  const fraction = String(Math.abs(quantityMilli) % MILLI).padStart(MAX_QUANTITY_DECIMALS, '0').replace(/0+$/, '');
-  return fraction ? `${whole}.${fraction}` : String(whole);
+  // Work on the magnitude and add the sign last: the whole part of -0.5 is -0, which would print without a sign.
+  const sign = quantityMilli < 0 ? '-' : '';
+  const magnitude = Math.abs(quantityMilli);
+  const whole = Math.trunc(magnitude / MILLI);
+  const fraction = String(magnitude % MILLI).padStart(MAX_QUANTITY_DECIMALS, '0').replace(/0+$/, '');
+  return `${sign}${fraction ? `${whole}.${fraction}` : whole}`;
 }

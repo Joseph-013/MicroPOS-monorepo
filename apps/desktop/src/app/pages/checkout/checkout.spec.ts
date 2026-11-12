@@ -19,6 +19,7 @@ const p = (id: string, name: string, price: number, categoryNames: string[], n: 
   price,
   categories: categoryNames.map((name) => ({ id: name, name })),
   unit: 'each',
+  tracking: 'none',
   sku: `PRD-0000${n}`,
   barcode: `59000000000${n}${n}`,
 });
@@ -34,6 +35,23 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
   const api: DesktopApi = {
     platform: 'linux',
     version: () => Promise.resolve(DESKTOP_API_VERSION),
+    categories: {
+      list: () => Promise.resolve([]),
+      create: () => Promise.reject(new Error('unused')),
+      update: () => Promise.reject(new Error('unused')),
+      remove: () => Promise.resolve(),
+      restore: () => Promise.resolve({ restored: 0, conflicts: [] }),
+    },
+    inventory: {
+      listBatches: () => Promise.resolve([]),
+      overview: () => Promise.reject(new Error('unused')),
+      receive: () => Promise.reject(new Error('unused')),
+      adjust: () => Promise.reject(new Error('unused')),
+      repackage: () => Promise.reject(new Error('unused')),
+      loadRepackageDraft: () => Promise.resolve(null),
+      saveRepackageDraft: () => Promise.resolve(),
+      clearRepackageDraft: () => Promise.resolve(),
+    },
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: {
       listProducts: () => Promise.resolve(PRODUCTS),
@@ -46,6 +64,9 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       remove: () => Promise.resolve(),
       restore: () => Promise.resolve({ restored: 0, conflicts: [] }),
       setActive: () => Promise.resolve(),
+      loadDraft: () => Promise.resolve(null),
+      saveDraft: () => Promise.resolve(),
+      clearDraft: () => Promise.resolve(),
     },
     checkout: {
       loadDraft: () => Promise.resolve(store.draft),

@@ -2,7 +2,7 @@ import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, vi
 import { isPopoverOpen, keepOnTop } from './top-layer';
 
 /** Smallest window the layouts are designed for (CSS pixels). */
-export const MIN_WINDOW = { width: 1024, height: 600 } as const;
+export const MIN_WINDOW = { width: 1024, height: 400 } as const;
 
 /**
  * Full-window warning that covers the app while the window is smaller than `MIN_WINDOW`.

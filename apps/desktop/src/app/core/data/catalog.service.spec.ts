@@ -12,6 +12,9 @@ const noProducts = {
   remove: () => Promise.resolve(),
   restore: () => Promise.resolve({ restored: 0, conflicts: [] }),
   setActive: () => Promise.resolve(),
+  loadDraft: () => Promise.resolve(null),
+  saveDraft: () => Promise.resolve(),
+  clearDraft: () => Promise.resolve(),
 };
 
 const product = (over: Partial<CatalogProduct>): CatalogProduct => ({
@@ -22,6 +25,7 @@ const product = (over: Partial<CatalogProduct>): CatalogProduct => ({
   categories: [],
   price: 100,
   unit: 'each',
+  tracking: 'none',
   ...over,
 });
 
@@ -35,6 +39,15 @@ describe('CatalogService', () => {
     const service = setup({
       platform: 'linux',
       version: () => Promise.resolve(DESKTOP_API_VERSION),
+      categories: {
+        list: () => Promise.resolve([]),
+        create: () => Promise.reject(new Error('unused')),
+        update: () => Promise.reject(new Error('unused')),
+        remove: () => Promise.resolve(),
+        restore: () => Promise.resolve({ restored: 0, conflicts: [] }),
+      },
+      inventory: { listBatches: () => Promise.resolve([]),
+      overview: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), adjust: () => Promise.reject(new Error('unused')), repackage: () => Promise.reject(new Error('unused')), loadRepackageDraft: () => Promise.resolve(null), saveRepackageDraft: () => Promise.resolve(), clearRepackageDraft: () => Promise.resolve() },
       scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
       checkout: noDraft,
       products: noProducts,
@@ -58,6 +71,14 @@ describe('CatalogService', () => {
     const failing = setup({
       platform: 'linux',
       version: () => Promise.resolve(DESKTOP_API_VERSION),
+      categories: {
+        list: () => Promise.resolve([]),
+        create: () => Promise.reject(new Error('unused')),
+        update: () => Promise.reject(new Error('unused')),
+        remove: () => Promise.resolve(),
+        restore: () => Promise.resolve({ restored: 0, conflicts: [] }),
+      },
+      inventory: { listBatches: () => Promise.resolve([]), overview: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), adjust: () => Promise.reject(new Error('unused')), repackage: () => Promise.reject(new Error('unused')), loadRepackageDraft: () => Promise.resolve(null), saveRepackageDraft: () => Promise.resolve(), clearRepackageDraft: () => Promise.resolve() },
       scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
       checkout: noDraft,
       products: noProducts,

@@ -24,7 +24,7 @@
   <!-- A grid laid out like a table (roles keep it a table for assistive tech) so rows can be swiped. -->
   <!-- No side padding on the scroller: the swipe actions stick to its edge, and padding there would show row content beside them. -->
   <div class="min-h-0 flex-1 overflow-auto">
-    <div role="table" aria-label="Products" class="min-w-[85rem] text-sm" [style.--cols]="columnsTemplate">
+    <div role="table" aria-label="Products" class="min-w-[94rem] text-sm" [style.--cols]="columnsTemplate">
       <div role="rowgroup" class="bg-background sticky top-0 z-10">
         <!-- Row 1: column titles, click to sort -->
         <div role="row" class="grid grid-cols-(--cols) border-b">
@@ -89,6 +89,18 @@
           <div role="columnheader"></div>
           <div role="columnheader"></div>
           <div role="columnheader" class="px-3 py-2">
+            <hlm-select [(value)]="stockFilter" [itemToString]="stockFilterLabel" class="block">
+              <hlm-select-trigger size="sm" class="w-full" aria-label="Filter stock">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (f of stockFilters; track f) {
+                  <hlm-select-item [value]="f">{{ stockFilterLabel(f) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+          <div role="columnheader" class="px-3 py-2">
             <hlm-select [(value)]="status" [itemToString]="statusLabel" class="block">
               <hlm-select-trigger size="sm" class="w-full" aria-label="Filter status">
                 <hlm-select-value />
@@ -101,11 +113,7 @@
             </hlm-select>
           </div>
           <div role="columnheader" class="px-3 py-2">
-            <div class="flex items-center gap-1">
-              <app-filter-input class="w-32" type="date" [(value)]="createdFrom" [max]="createdTo()" label="Created from" />
-              <span class="text-muted-foreground">&ndash;</span>
-              <app-filter-input class="w-32" type="date" [(value)]="createdTo" [min]="createdFrom()" label="Created to" />
-            </div>
+            <app-date-range-filter label="Created" [(from)]="createdFrom" [(to)]="createdTo" />
           </div>
         </div>
       </div>
@@ -148,6 +156,20 @@
                 </div>
                 <div role="cell" class="text-muted-foreground px-3 text-right">{{ product.cost === null ? '-' : (product.cost | money) }}{{ per(product) }}</div>
                 <div role="cell" class="px-3 text-right text-base font-medium">{{ product.price | money }}<span class="text-muted-foreground text-sm font-normal">{{ per(product) }}</span></div>
+                <div role="cell" class="flex items-center justify-end gap-2 px-3 whitespace-nowrap">
+                  @if (product.onHandMilli === null) {
+                    <span class="text-muted-foreground">-</span>
+                  } @else {
+                    @if (product.onHandMilli <= 0) {
+                      <span hlmBadge variant="destructive">Out</span>
+                    } @else {
+                      @if (expiry(product); as state) {
+                        <span hlmBadge [variant]="state === 'expired' ? 'destructive' : 'warning'">{{ state === 'expired' ? 'Expired' : 'Expiring' }}</span>
+                      }
+                      <span class="text-base">{{ formatQuantity(product.onHandMilli) }}<span class="text-muted-foreground text-sm">{{ product.unit === 'each' ? '' : ' ' + product.unit }}</span></span>
+                    }
+                  }
+                </div>
                 <div role="cell" class="px-3">
                   @if (product.deletedAt) {
                     <span hlmBadge variant="outline">Deleted</span>
@@ -180,6 +202,10 @@
       <button hlmDropdownMenuItem type="button" (click)="ask('restore', targetsFor(product))">Restore</button>
     } @else {
       <button hlmDropdownMenuItem type="button" (click)="edit(product)">Edit</button>
+      @if (product.tracking !== 'none') {
+        <button hlmDropdownMenuItem type="button" (click)="receiveStock(product)">Receive stock</button>
+        <button hlmDropdownMenuItem type="button" (click)="repackage(product)">Repackage</button>
+      }
       @if (hasStatus(product, false)) {
         <button hlmDropdownMenuItem type="button" (click)="setActive(targetsFor(product), true)">Set <span hlmBadge variant="success" class="text-success!">Active</span></button>
       }
