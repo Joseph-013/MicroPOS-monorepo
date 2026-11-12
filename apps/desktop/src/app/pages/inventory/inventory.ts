@@ -161,9 +161,11 @@ export class InventoryPage {
 
   // Selection (leftmost column): only rows on screen count.
   protected readonly selection = new RowSelection(() => this.visible());
+  /** How many rows of the current page are ticked: the header checkbox reflects this page only. */
+  private readonly pageSelected = computed(() => this.pager.rows().filter((row) => this.selection.has(row.id)).length);
   protected readonly selected = computed(() => this.visible().filter((b) => this.selection.has(b.id)));
-  protected readonly allSelected = computed(() => this.visible().length > 0 && this.selected().length === this.visible().length);
-  protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
+  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.pageSelected() === this.pager.rows().length);
+  protected readonly someSelected = computed(() => this.pageSelected() > 0 && !this.allSelected());
   /** Selected batches that still hold stock: what a write-off can act on. */
   protected readonly selectedWithStock = computed(() => this.selected().filter((b) => b.onHandMilli > 0));
 
@@ -174,7 +176,7 @@ export class InventoryPage {
     this.selection.toggle(batch.id, on);
   }
   protected toggleAll(on: boolean): void {
-    this.selection.selectAll(on);
+    this.selection.setMany(this.pager.rows().map((row) => row.id), on); // this page only; other pages keep theirs
   }
   /** A click on a row: Shift or Ctrl/Cmd selects (like a file explorer); a plain click opens it. */
   protected onRowClick(event: MouseEvent, row: BatchRecord): void {

@@ -130,11 +130,13 @@ export class CategoriesPage {
 
   // Selection (leftmost column): only rows on screen count.
   protected readonly selection = new RowSelection(() => this.visible());
+  /** How many rows of the current page are ticked: the header checkbox reflects this page only. */
+  private readonly pageSelected = computed(() => this.pager.rows().filter((row) => this.selection.has(row.id)).length);
   protected readonly selected = computed(() => this.visible().filter((c) => this.selection.has(c.id)));
   protected readonly selectedLive = computed(() => this.selected().filter((c) => !c.deletedAt));
   protected readonly selectedDeleted = computed(() => this.selected().filter((c) => !!c.deletedAt));
-  protected readonly allSelected = computed(() => this.visible().length > 0 && this.selected().length === this.visible().length);
-  protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
+  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.pageSelected() === this.pager.rows().length);
+  protected readonly someSelected = computed(() => this.pageSelected() > 0 && !this.allSelected());
 
   protected isSelected(category: CategoryRecord): boolean {
     return this.selection.has(category.id);
@@ -143,7 +145,7 @@ export class CategoriesPage {
     this.selection.toggle(category.id, on);
   }
   protected toggleAll(on: boolean): void {
-    this.selection.selectAll(on);
+    this.selection.setMany(this.pager.rows().map((row) => row.id), on); // this page only; other pages keep theirs
   }
   /** A click on a row: Shift or Ctrl/Cmd selects (like a file explorer); a plain click opens it. */
   protected onRowClick(event: MouseEvent, row: CategoryRecord): void {

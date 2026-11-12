@@ -223,12 +223,14 @@ export class ProductsPage {
   // Selection (leftmost column). Only rows that are on screen count, so a filter can never hide a selected row
   // that a bulk action would still hit.
   protected readonly selection = new RowSelection(() => this.visible());
+  /** How many rows of the current page are ticked: the header checkbox reflects this page only. */
+  private readonly pageSelected = computed(() => this.pager.rows().filter((row) => this.selection.has(row.id)).length);
   protected readonly selected = computed(() => this.visible().filter((p) => this.selection.has(p.id)));
   protected readonly selectedLive = computed(() => this.selected().filter((p) => !p.deletedAt));
   protected readonly selectedDeleted = computed(() => this.selected().filter((p) => !!p.deletedAt));
   /** Some, but not every, visible row is ticked: the select-all checkbox shows a dash. */
-  protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
-  protected readonly allSelected = computed(() => this.visible().length > 0 && this.selected().length === this.visible().length);
+  protected readonly someSelected = computed(() => this.pageSelected() > 0 && !this.allSelected());
+  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.pageSelected() === this.pager.rows().length);
 
   protected isSelected(product: ProductRecord): boolean {
     return this.selection.has(product.id);
@@ -239,7 +241,7 @@ export class ProductsPage {
   }
 
   protected toggleAll(on: boolean): void {
-    this.selection.selectAll(on);
+    this.selection.setMany(this.pager.rows().map((row) => row.id), on); // this page only; other pages keep theirs
   }
 
   /** A click on a row: Shift or Ctrl/Cmd selects (like a file explorer); a plain click opens it. */

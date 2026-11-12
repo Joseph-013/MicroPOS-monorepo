@@ -713,6 +713,23 @@ describe('ProductsPage', () => {
       expect(items()).toEqual(['Eggs']);
     });
 
+    it('the header checkbox selects the rows of the current page only, and reflects only this page', async () => {
+      await open(Array.from({ length: 70 }, (_, i) => record(`p${i + 1}`, `Item ${String(i + 1).padStart(2, '0')}`, { createdAt: 1000 - i })));
+      const header = (): HTMLElement => tick('Select all');
+      header().click();
+      await settle();
+      expect(el.textContent).toContain('50 selected'); // not 70
+      (el.querySelector('button[aria-label="Next page"]') as HTMLButtonElement).click();
+      await settle();
+      expect(rowNames()).toHaveLength(20);
+      expect(el.textContent).toContain('50 selected'); // page 1's rows stay selected
+      expect(header().getAttribute('aria-checked')).toBe('false'); // nothing on this page is ticked
+
+      header().click();
+      await settle();
+      expect(el.textContent).toContain('70 selected');
+    });
+
     it('a selection survives changing pages, so the bulk buttons stay', async () => {
       await open(Array.from({ length: 70 }, (_, i) => record(`p${i + 1}`, `Item ${String(i + 1).padStart(2, '0')}`, { createdAt: 1000 - i })));
       tick('Select Item 01').click();

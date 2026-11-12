@@ -60,12 +60,16 @@ describe('RowSelection', () => {
     expect(ids(s)).toEqual(['d', 'e']);
   });
 
-  it('select all, clear and remove', () => {
+  it('setMany ticks or unticks just the rows given and keeps the others; clear and remove', () => {
     const s = make();
-    s.selectAll(true);
-    expect(ids(s)).toHaveLength(5);
+    s.click('a', ctrl); // selected earlier, on another page say
+    s.setMany(['c', 'd', 'e'], true);
+    expect(ids(s)).toEqual(['a', 'c', 'd', 'e']);
+    s.setMany(['c', 'd', 'e'], false);
+    expect(ids(s)).toEqual(['a']);
+    s.setMany(['b', 'c'], true);
     s.remove(['a', 'b']);
-    expect(ids(s)).toEqual(['c', 'd', 'e']);
+    expect(ids(s)).toEqual(['c']);
     s.clear();
     expect(ids(s)).toEqual([]);
   });

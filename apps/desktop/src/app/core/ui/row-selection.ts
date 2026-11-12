@@ -65,13 +65,22 @@ export class RowSelection<T extends { id: string }> {
     return true;
   }
 
-  selectAll(on: boolean): void {
-    this.ids.set(on ? new Set(this.rows().map((row) => row.id)) : new Set());
+  /** Ticks or unticks the given rows (the header checkbox passes the rows of the current page) and leaves the rest. */
+  setMany(ids: string[], on: boolean): void {
+    this.ids.update((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
     this.anchor = null;
   }
 
   clear(): void {
-    this.selectAll(false);
+    this.ids.set(new Set());
+    this.anchor = null;
   }
 
   /** Drops rows from the selection (after a bulk action took them away). */
