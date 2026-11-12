@@ -1,13 +1,22 @@
 <section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
   <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
     <h1 class="text-2xl">Sales Orders</h1>
+    @if (selected().length) {
+      <div class="flex items-center gap-3">
+        <span class="text-muted-foreground text-sm">{{ selected().length }} selected</span>
+        <button hlmBtn variant="ghost" type="button" class="px-3" (click)="clearSelection()">Clear</button>
+      </div>
+    }
   </header>
 
   <div class="min-h-0 flex-1 overflow-auto">
-    <div role="table" aria-label="Sales Orders" class="min-w-[62rem] text-sm" [style.--cols]="columnsTemplate">
+    <div role="table" aria-label="Sales Orders" class="min-w-[66rem] text-sm" [style.--cols]="columnsTemplate">
       <div role="rowgroup" class="bg-background sticky top-0 z-10">
         <!-- Row 1: column titles, click to sort -->
         <div role="row" class="grid grid-cols-(--cols) border-b">
+          <div role="columnheader" class="flex h-(--control-height) items-center px-3">
+            <hlm-checkbox aria-label="Select all" [checked]="allSelected()" [indeterminate]="someSelected()" (checkedChange)="toggleAll($event)" />
+          </div>
           @for (column of columns; track column.key) {
             <div role="columnheader" [attr.aria-sort]="ariaSort(column.key)">
               <button
@@ -27,10 +36,12 @@
         </div>
         <!-- Row 2: the filter for each column -->
         <div role="row" class="grid grid-cols-(--cols) items-center border-b [--control-height:var(--control-height-sm)]">
-          <div role="columnheader" class="flex items-center gap-2 px-3 py-2">
-            <button hlmBtn variant="outline" size="icon" type="button" class="shrink-0" aria-label="Reset filters" title="Reset filters" [disabled]="!filtered()" (click)="resetFilters()">
+          <div role="columnheader" class="flex items-center px-3">
+            <button hlmBtn variant="outline" size="icon" type="button" aria-label="Reset filters" title="Reset filters" [disabled]="!filtered()" (click)="resetFilters()">
               <ng-icon name="lucideFilterX" size="18" />
             </button>
+          </div>
+          <div role="columnheader" class="px-3 py-2">
             <app-filter-input [(value)]="numberFilter" placeholder="Order" label="Filter order" />
           </div>
           <div role="columnheader" class="px-3 py-2">
@@ -82,10 +93,15 @@
               role="row"
               [class.row-target]="target() === order.id"
               class="hover:bg-muted/40 grid min-h-(--control-height) cursor-pointer grid-cols-(--cols) items-center"
+              [class.bg-muted]="isSelected(order)"
+              [attr.aria-selected]="isSelected(order)"
               tabindex="0"
-              (click)="view(order)"
+              (click)="onRowClick($event, order)"
               (keydown.enter)="view(order)"
             >
+              <div role="cell" class="flex items-center px-3" (pointerdown)="selection.noteModifiers($event)" (click)="$event.stopPropagation()">
+                <hlm-checkbox [aria-label]="'Select ' + order.orderNumber" [checked]="isSelected(order)" (checkedChange)="toggleRow(order, $event)" />
+              </div>
               <div role="cell" class="truncate px-3 text-base">{{ order.orderNumber }}</div>
               <div role="cell" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ order.createdAt | date: 'MMM d, y, h:mm a' }}</div>
               <div role="cell" class="text-muted-foreground truncate px-3">{{ order.employeeName }}</div>

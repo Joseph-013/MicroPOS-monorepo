@@ -8,6 +8,7 @@ import type { OrderPaymentMethod, SalesOrderSummary } from '@micropos/core';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
@@ -17,6 +18,7 @@ import { HIGHLIGHT_PARAM, scrollToRow, rowTarget } from '../../core/row-target';
 import { SalesOrderViewer, VIEW_SALES_ORDER_PARAM } from '../../core/sales-order-viewer';
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
+import { RowSelection } from '../../core/ui/row-selection';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { METHOD_LABELS, STATUS_LABELS } from './sales-order-form';
 
@@ -43,7 +45,7 @@ const SORT_VALUES: Record<SortKey, (o: SalesOrderSummary) => string | number> = 
 };
 
 /** Column widths shared by the title row, the filter row and every row. */
-export const COLUMNS_TEMPLATE = 'minmax(8rem,1fr) 13rem minmax(9rem,1.4fr) 6rem minmax(8rem,1fr) 9rem 8rem';
+export const COLUMNS_TEMPLATE = '3.5rem minmax(8rem,1fr) 13rem minmax(9rem,1.4fr) 6rem minmax(8rem,1fr) 9rem 8rem';
 
 /** Sales Orders: every recorded sale, newest first. Open one to see its lines and payment. */
 @Component({
@@ -57,6 +59,7 @@ export const COLUMNS_TEMPLATE = 'minmax(8rem,1fr) 13rem minmax(9rem,1.4fr) 6rem 
     HlmBadgeImports,
     HlmButtonImports,
     HlmCardImports,
+    HlmCheckboxImports,
     HlmContextMenuImports,
     HlmDropdownMenuImports,
     HlmSelectImports,
@@ -145,6 +148,33 @@ export class OrdersPage {
   );
   /** The row that is the target of a link or of the order dialog: highlighted, not selected. */
   protected readonly target = rowTarget();
+
+  // Selection (leftmost column), the same as the other tables: Ctrl/Cmd + click and Shift + click on rows, Shift + click
+  // on checkboxes, the header checkbox for the current page. It counts rows that match the filters, on any page.
+  // There are no bulk actions on orders yet (void and refund come later), so for now it only marks rows.
+  protected readonly selection = new RowSelection(() => this.visible());
+  private readonly pageSelected = computed(() => this.pager.rows().filter((o) => this.selection.has(o.id)).length);
+  protected readonly selected = computed(() => this.visible().filter((o) => this.selection.has(o.id)));
+  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.pageSelected() === this.pager.rows().length);
+  protected readonly someSelected = computed(() => this.pageSelected() > 0 && !this.allSelected());
+
+  protected isSelected(order: SalesOrderSummary): boolean {
+    return this.selection.has(order.id);
+  }
+  protected toggleRow(order: SalesOrderSummary, on: boolean): void {
+    this.selection.toggle(order.id, on);
+  }
+  protected toggleAll(on: boolean): void {
+    this.selection.setMany(this.pager.rows().map((o) => o.id), on);
+  }
+  protected clearSelection(): void {
+    this.selection.clear();
+  }
+
+  /** A click on a row: Shift or Ctrl/Cmd selects (like a file explorer); a plain click opens the order. */
+  protected onRowClick(event: MouseEvent, order: SalesOrderSummary): void {
+    if (!this.selection.click(order.id, event)) this.view(order);
+  }
 
   protected resetFilters(): void {
     this.numberFilter.set('');

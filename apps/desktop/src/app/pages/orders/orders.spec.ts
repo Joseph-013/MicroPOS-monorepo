@@ -56,7 +56,7 @@ describe('OrdersPage', () => {
     document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
   });
 
-  const numbers = (): string[] => Array.from(el.querySelectorAll('[role="row"] [role="cell"]:first-child')).map((c) => c.textContent!.trim());
+  const numbers = (): string[] => Array.from(el.querySelectorAll('[role="row"] [role="cell"]:nth-child(2)')).map((c) => c.textContent!.trim());
   const type = async (label: string, text: string): Promise<void> => {
     const input = el.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement;
     input.value = text;
@@ -101,6 +101,48 @@ describe('OrdersPage', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(TestBed.inject(Router).url).toBe('/orders?view-sales-order=c');
     expect(document.querySelector('#sales-order')?.textContent).toContain('SO-3'); // the dialog is over the list
+  });
+
+  describe('selection', () => {
+    const rowOf = (n: number): HTMLElement => Array.from(el.querySelectorAll<HTMLElement>('[role="row"]')).find((r) => r.textContent?.includes(`SO-${n}`))!;
+    const selectedNumbers = (): string[] => Array.from(el.querySelectorAll<HTMLElement>('[role="row"][aria-selected="true"]')).map((r) => r.querySelectorAll('[role="cell"]')[1]!.textContent!.trim());
+    const click = (target: HTMLElement, init: MouseEventInit = {}): void => {
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ...init }));
+    };
+
+    it('has a checkbox column with a header checkbox for the current page', async () => {
+      (el.querySelector('[aria-label="Select SO-2"]') as HTMLElement).click();
+      await fixture.whenStable();
+      expect(selectedNumbers()).toEqual(['SO-2']);
+      expect(el.textContent).toContain('1 selected');
+
+      (el.querySelector('[aria-label="Select all"]') as HTMLElement).click();
+      await fixture.whenStable();
+      expect(selectedNumbers()).toHaveLength(4);
+      expect(el.textContent).toContain('4 selected');
+      (Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Clear') as HTMLElement).click();
+      await fixture.whenStable();
+      expect(selectedNumbers()).toEqual([]);
+    });
+
+    it('Ctrl + click toggles a row and Shift + click selects a range, without opening the order', async () => {
+      click(rowOf(4), { ctrlKey: true }); // newest first: SO-4, SO-3, SO-2, SO-1
+      click(rowOf(2), { shiftKey: true });
+      await fixture.whenStable();
+      expect(selectedNumbers()).toEqual(['SO-4', 'SO-3', 'SO-2']);
+      click(rowOf(3), { ctrlKey: true });
+      await fixture.whenStable();
+      expect(selectedNumbers()).toEqual(['SO-4', 'SO-2']);
+      expect(TestBed.inject(Router).url).toBe('/orders'); // nothing was opened
+    });
+
+    it('a plain click still opens the order', async () => {
+      click(rowOf(3));
+      await fixture.whenStable();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(TestBed.inject(Router).url).toBe('/orders?view-sales-order=c');
+      expect(selectedNumbers()).toEqual([]);
+    });
   });
 
   it('says when there are no orders', async () => {
@@ -187,7 +229,7 @@ describe('OrdersPage paging and highlighting', () => {
     const row = rows().find((r) => r.dataset['rowId'] === 'o10')!;
     expect(row.querySelector('.row-target')).not.toBeNull();
     expect(el.querySelectorAll('.row-target')).toHaveLength(1);
-    expect(row.querySelector('[aria-selected]')).toBeNull();
+    expect(row.querySelector('.row-target')!.getAttribute('aria-selected')).toBe('false');
     expect(TestBed.inject(Router).url).toBe('/orders'); // the parameter is used up
   });
 
