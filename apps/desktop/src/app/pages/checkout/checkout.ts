@@ -1,7 +1,7 @@
 import { Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideFilterX, lucideX, lucideMinus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
-import { type CatalogProduct, type DraftLine, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
+import { type CatalogProduct, type DraftLine, gramsToQuantityMilli, parseScaleBarcode, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -137,9 +137,32 @@ export class CheckoutPage {
     // Take control of the scanner while checkout is open; released automatically when the page is destroyed.
     claimScanner(({ code }) => {
       const product = this.catalog.findByCode(code);
-      if (product) this.add(product);
-      else this.banner.warning(`Unknown barcode ${code}`, { duration: 'long', key: 'unknown-barcode' });
+      if (product) return this.add(product);
+      if (this.addScaleLabel(code)) return;
+      this.banner.warning(`Unknown barcode ${code}`, { duration: 'long', key: 'unknown-barcode' });
     });
+  }
+
+  /**
+   * A scale label (EAN-13 starting with 2) carries a PLU and a weight: the weighed product with that PLU is added
+   * with that weight, and a second label for the same product adds its weight to the line. Returns false when the
+   * code is not a scale label; a label whose PLU is unknown is reported here.
+   */
+  private addScaleLabel(code: string): boolean {
+    const label = parseScaleBarcode(code);
+    if (!label) return false;
+    const product = this.catalog.products().find((p) => p.barcode === label.plu && isWeighed(p.unit));
+    const quantityMilli = product ? gramsToQuantityMilli(label.grams, product.unit) : null;
+    if (!product || quantityMilli === null) {
+      this.banner.warning(`Unknown PLU ${label.plu}`, { duration: 'long', key: 'unknown-barcode' });
+      return true;
+    }
+    this.lines.update((lines) =>
+      lines.some((l) => l.productId === product.id)
+        ? lines.map((l) => (l.productId === product.id ? { ...l, quantityMilli: this.clamp(l.quantityMilli + quantityMilli) } : l))
+        : [...lines, { productId: product.id, name: product.name, quantityMilli: this.clamp(quantityMilli), unitPrice: product.price, unit: product.unit }],
+    );
+    return true;
   }
 
   /** The Add button in the item browser: add the item and confirm it in a banner. */

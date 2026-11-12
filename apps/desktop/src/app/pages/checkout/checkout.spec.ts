@@ -472,6 +472,46 @@ describe('CheckoutPage', () => {
     });
   });
 
+  describe('scale labels', () => {
+    // 2 + PLU 04011 + 0 + weight 00405 g (+ check digit); PLU "4011" is the product's code.
+    const BEEF_LABEL = '2040110004053';
+    beforeEach(async () => {
+      PRODUCTS[3] = { ...PRODUCTS[3], barcode: '4011' };
+      await open();
+    });
+    afterEach(() => {
+      PRODUCTS[3] = { ...PRODUCTS[3], barcode: '59000000000' + '44' };
+    });
+
+    it('adds the weighed product with the weight on the label, priced per kg', async () => {
+      scan(BEEF_LABEL);
+      await fixture.whenStable();
+      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.textContent?.replace(/\s+/g, ' ')).toContain('Ground Beef');
+      expect(el.textContent?.replace(/\s+/g, ' ')).toContain('0.405 kg'); // 405 g
+      expect(el.textContent).toContain('₱3.64'); // 8.99 x 0.405 = 3.640
+    });
+
+    it('adds the weight of a second label to the same line', async () => {
+      scan(BEEF_LABEL);
+      scan(BEEF_LABEL);
+      await fixture.whenStable();
+      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.textContent?.replace(/\s+/g, ' ')).toContain('0.81 kg');
+    });
+
+    it('reports a label whose PLU matches no weighed product, and ignores one with a bad check digit as an unknown code', async () => {
+      scan('2999990004052'); // valid check digit, unknown PLU 99999
+      await fixture.whenStable();
+      expect(el.querySelectorAll('li')).toHaveLength(0);
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Unknown PLU 99999');
+      scan('2040110004050'); // wrong check digit
+      await fixture.whenStable();
+      expect(el.querySelectorAll('li')).toHaveLength(0);
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Unknown barcode 2040110004050');
+    });
+  });
+
   describe('weighed products', () => {
     it('adding one opens the weight field; the line shows the price and weight per unit', async () => {
       scan(PRODUCTS[3].barcode!);
