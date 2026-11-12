@@ -2,6 +2,7 @@ import { faker } from '@faker-js/faker';
 import type { NewCategory, NewProduct, ProductTracking, ProductUnit } from '../schema';
 import { uuid7 } from '../uuid';
 import { ean13 } from './ean13';
+import { isScaleBarcode, KNOWN_BARCODES, scalePlu } from './known-barcodes';
 
 export const SAMPLE_CATEGORIES = ['Produce', 'Dairy', 'Bakery', 'Beverages', 'Snacks', 'Household', 'Frozen'] as const;
 
@@ -61,4 +62,31 @@ export function buildProduct(serial: number, overrides: Partial<NewProduct> = {}
     updatedAt: now,
     ...overrides,
   };
+}
+
+/**
+ * One product per known barcode with faker-generated details: a name, a price, a category choice (made by the
+ * seeder) and a mix of stock tracking so the inventory pages have something to show.
+ */
+export function buildKnownProducts(firstSerial: number, now = Date.now()): NewProduct[] {
+  return KNOWN_BARCODES.map((barcode, i) => {
+    const tracking = faker.helpers.weightedArrayElement<ProductTracking>([
+      { weight: 6, value: 'none' },
+      { weight: 2, value: 'quantity' },
+      { weight: 2, value: 'expiry' },
+    ]);
+    // A scale label stands for a product sold by weight: its code is the PLU inside the label, priced per kg.
+    const weighed = isScaleBarcode(barcode);
+    return buildProduct(
+      firstSerial + i,
+      {
+        barcode: weighed ? scalePlu(barcode) : barcode,
+        unit: weighed ? 'kg' : 'each',
+        ...(weighed ? { price: faker.number.int({ min: 199, max: 2499 }) } : {}),
+        tracking,
+        shelfLifeDays: tracking === 'expiry' ? faker.number.int({ min: 5, max: 90 }) : null,
+      },
+      now,
+    );
+  });
 }

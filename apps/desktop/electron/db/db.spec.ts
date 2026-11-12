@@ -32,6 +32,8 @@ import { adjustStock, allocateSale, inventoryOverview, listBatches, receiveStock
 import { clearProductDraft, loadProductDraft, sanitizeProductDraft, saveProductDraft } from './queries/product-draft';
 import { completeOrder, nextOrderNumber } from './queries/orders';
 import { clearDraft, DRAFT_KEY, loadDraft, sanitizeDraft, saveDraft } from './queries/draft';
+import { isScaleBarcode, KNOWN_BARCODES, scalePlu, scaleWeightGrams } from './factories/known-barcodes';
+import { ean13CheckDigit } from './factories/ean13';
 import { uuid7 } from './uuid';
 
 let dir: string;
@@ -529,6 +531,35 @@ describe('weighed products', () => {
     }
     const lines = db.select().from(orderLines).all();
     expect(lines.some((l) => l.quantityMilli % 1000 !== 0)).toBe(true);
+  });
+});
+
+describe('seeding known barcodes', () => {
+  it('starts the catalog with a product for every known barcode, then adds the dummy data', () => {
+    expect(new Set(KNOWN_BARCODES).size).toBe(KNOWN_BARCODES.length);
+    for (const code of KNOWN_BARCODES) expect(ean13CheckDigit(code.slice(0, 12))).toBe(Number(code[12]));
+
+    const summary = seedDatabase(db, { orders: 10, extraProducts: 3 });
+    const rows = db.select().from(products).all();
+    const byCode = new Map(rows.map((p) => [p.barcode, p]));
+    for (const code of KNOWN_BARCODES.filter((c) => !isScaleBarcode(c))) expect(byCode.get(code)).toMatchObject({ unit: 'each' });
+    // A scale label becomes a weighed product known by its PLU, not by the whole label.
+    const scale = KNOWN_BARCODES.filter(isScaleBarcode);
+    expect(scale).toHaveLength(12);
+    for (const code of scale) {
+      expect(byCode.get(code)).toBeUndefined();
+      expect(byCode.get(scalePlu(code))).toMatchObject({ unit: 'kg' });
+    }
+    expect(summary.products).toBe(KNOWN_BARCODES.length + 18 + 3); // known, the 18 sample products, extras
+    expect(new Set(rows.map((p) => p.sku)).size).toBe(rows.length);
+    expect(new Set(rows.map((p) => p.barcode)).size).toBe(rows.length);
+  });
+
+  it('reads the PLU and weight out of a scale label', () => {
+    expect(scalePlu('2459550081706')).toBe('45955');
+    expect(scalePlu('2089890075709')).toBe('8989'); // leading zero dropped
+    expect(scaleWeightGrams('2459550081706')).toBe(8170);
+    expect(isScaleBarcode('4801520204635')).toBe(false);
   });
 });
 

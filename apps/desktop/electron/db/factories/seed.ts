@@ -17,7 +17,7 @@ import {
 } from '../schema';
 import { seedAdmin } from '../seeders/admin.seeder';
 import { uuid7 } from '../uuid';
-import { buildCategory, buildProduct, SAMPLE_CATEGORIES, SAMPLE_PRODUCTS } from './catalog.factory';
+import { buildCategory, buildKnownProducts, buildProduct, SAMPLE_CATEGORIES, SAMPLE_PRODUCTS } from './catalog.factory';
 import { buildEmployee, DUMMY_PIN } from './employee.factory';
 import { SeedStock } from './inventory.factory';
 import { buildRefund, buildSale, type SaleDraft } from './sale.factory';
@@ -78,20 +78,23 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
   // Catalog ------------------------------------------------------------------------
   const categoryRows = SAMPLE_CATEGORIES.map((name, i) => buildCategory({ name, sortOrder: i }, start - DAY));
   const categoryByName = new Map(categoryRows.map((c) => [c.name, c.id!]));
-  const productRows = [
-    ...SAMPLE_PRODUCTS.map((p, i) => buildProduct(
-        i + 1,
-        { name: p.name, price: p.price, unit: p.unit ?? 'each', tracking: p.tracking ?? 'none', shelfLifeDays: p.shelfLifeDays ?? null, ...(p.unit && p.unit !== 'each' ? { barcode: String(4000 + i) } : {}) },
-        start - DAY,
-      )),
-    ...Array.from({ length: options.extraProducts ?? 24 }, (_, i) => buildProduct(SAMPLE_PRODUCTS.length + i + 1, {}, start - DAY)),
-  ];
-  // Every product belongs to one to three categories.
+  // The known barcodes come first (faker details), then the hand-written sample products, then random extras.
+  const knownRows = buildKnownProducts(1, start - DAY);
+  const sampleRows = SAMPLE_PRODUCTS.map((p, i) =>
+    buildProduct(
+      knownRows.length + i + 1,
+      { name: p.name, price: p.price, unit: p.unit ?? 'each', tracking: p.tracking ?? 'none', shelfLifeDays: p.shelfLifeDays ?? null, ...(p.unit && p.unit !== 'each' ? { barcode: String(4000 + i) } : {}) },
+      start - DAY,
+    ),
+  );
+  const extraRows = Array.from({ length: options.extraProducts ?? 24 }, (_, i) => buildProduct(knownRows.length + SAMPLE_PRODUCTS.length + i + 1, {}, start - DAY));
+  const productRows = [...knownRows, ...sampleRows, ...extraRows];
+  // Every product belongs to one to three categories (the sample products have theirs written out).
   const productCategoryRows: NewProductCategory[] = productRows.flatMap((product, i) => {
-    const names =
-      i < SAMPLE_PRODUCTS.length
-        ? SAMPLE_PRODUCTS[i].categories
-        : faker.helpers.arrayElements(categoryRows, { min: 1, max: 3 }).map((c) => c.name);
+    const sample = SAMPLE_PRODUCTS[i - knownRows.length];
+    const names = sample
+      ? sample.categories
+      : faker.helpers.arrayElements(categoryRows, { min: 1, max: 3 }).map((c) => c.name);
     return names.map((name) => ({ productId: product.id!, categoryId: categoryByName.get(name)! }));
   });
   const sellable = productRows.map((p) => ({ id: p.id!, name: p.name, price: p.price, unit: p.unit ?? 'each' }));
