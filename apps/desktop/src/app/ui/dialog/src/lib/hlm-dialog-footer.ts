@@ -10,7 +10,7 @@ export class HlmDialogFooter {
   constructor() {
     classes(
       () =>
-        'bg-muted/50 -mx-4 -mb-4 border-t p-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+        '-mx-4 -mb-4 border-t p-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
     );
   }
 }

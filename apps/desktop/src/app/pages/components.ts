@@ -17,6 +17,7 @@ import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 import { HlmTextareaImports } from '@spartan-ng/helm/textarea';
 import { provideIcons } from '@ng-icons/core';
 import { lucideArchive, lucideFlag, lucidePencil, lucideTrash2 } from '@ng-icons/lucide';
+import { BannerService } from '../core/banner';
 import { ScanInputDirective, ScannerClaimDirective, ScannerService } from '../core/scanner';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../core/ui/swipe-actions';
 
@@ -59,6 +60,21 @@ export class ComponentsPage {
   protected readonly lastSwipe = signal('');
   protected onSwipe(event: SwipeActionEvent): void {
     this.lastSwipe.set(`${event.action.label} (swiped ${event.side})`);
+  }
+
+  private readonly banner = inject(BannerService);
+  protected showTimed(): void {
+    this.banner.success('Saved');
+  }
+  protected showNotice(dismissible: boolean): void {
+    this.banner.warning('System update at 22:00. Finish open orders.', {
+      duration: 'persistent',
+      key: 'demo-update',
+      dismissible,
+    });
+  }
+  protected removeNotice(): void {
+    this.banner.remove('demo-update');
   }
 
   protected readonly scanner = inject(ScannerService);

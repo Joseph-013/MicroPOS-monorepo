@@ -1,4 +1,4 @@
-<div class="grid h-[calc(100svh-1.5rem)] grid-cols-[minmax(0,1fr)_22rem] gap-4">
+<div class="grid h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] grid-cols-[minmax(0,1fr)_22rem] gap-4">
   <!-- Line items -->
   <section hlmCard class="min-h-0 gap-0">
     <header class="flex items-center justify-between gap-3 border-b px-4 pb-3">
@@ -22,8 +22,8 @@
               #search
               hlmInput
               type="text"
-              placeholder="Search name, barcode, SKU or PLU"
-              aria-label="Search name, barcode, SKU or PLU"
+              placeholder="Search name, barcode, PLU or SKU"
+              aria-label="Search name, barcode, PLU or SKU"
               [value]="query()"
               (input)="query.set(search.value)"
             />
@@ -85,7 +85,7 @@
                 <div class="grid grid-cols-[minmax(0,1fr)_auto_6rem] items-center gap-4 px-3 py-3">
               <div class="min-w-0">
                 <p class="truncate text-base">{{ line.name }}</p>
-                <p class="text-muted-foreground text-sm">{{ line.unitPrice | money }}</p>
+                <p class="text-muted-foreground text-sm">{{ line.unitPrice | money }}@if (unitLabel(line.unit)) { / {{ unitLabel(line.unit) }} }</p>
               </div>
               <div class="flex items-center gap-1">
                 <button
@@ -95,8 +95,8 @@
                   type="button"
                   appHoldRepeat
                   aria-label="Decrease quantity"
-                  (click)="change(line.productId, -1000)"
-                  (held)="change(line.productId, -1000, true)"
+                  (click)="change(line, -1)"
+                  (held)="change(line, -1, true)"
                 >
                   <ng-icon name="lucideMinus" size="18" strokeWidth="1.5" />
                 </button>
@@ -123,7 +123,7 @@
                   />
                 } @else {
                   <button hlmBtn variant="ghost" type="button" class="min-w-14 px-2 text-lg" aria-label="Edit quantity" (click)="editQuantity(line)">
-                    {{ quantityLabel(line.quantityMilli) }}
+                    {{ quantityLabel(line.quantityMilli) }}@if (unitLabel(line.unit)) { {{ unitLabel(line.unit) }} }
                   </button>
                 }
                 <button
@@ -133,8 +133,8 @@
                   type="button"
                   appHoldRepeat
                   aria-label="Increase quantity"
-                  (click)="change(line.productId, 1000)"
-                  (held)="change(line.productId, 1000, true)"
+                  (click)="change(line, 1)"
+                  (held)="change(line, 1, true)"
                 >
                   <ng-icon name="lucidePlus" size="18" strokeWidth="1.5" />
                 </button>
@@ -214,7 +214,7 @@
     <div hlmCardContent class="grid grid-cols-[1fr_auto] gap-2 border-t pt-3">
       <button hlmBtn type="button" size="lg">Complete sale</button>
       <hlm-alert-dialog>
-        <button hlmAlertDialogTrigger hlmBtn variant="outline" type="button" size="lg" class="px-5" [disabled]="!lines().length">Clear</button>
+        <button hlmAlertDialogTrigger hlmBtn variant="destructive" type="button" size="lg" class="px-5" [disabled]="!lines().length">Clear</button>
         <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
           <hlm-alert-dialog-header>
             <h3 hlmAlertDialogTitle>Clear this order?</h3>
@@ -222,7 +222,7 @@
           </hlm-alert-dialog-header>
           <hlm-alert-dialog-footer>
             <button hlmAlertDialogCancel type="button">Cancel</button>
-            <button hlmAlertDialogAction type="button" (click)="clearOrder()">Clear</button>
+            <button hlmAlertDialogAction variant="destructive" type="button" (click)="clearOrder()">Clear</button>
           </hlm-alert-dialog-footer>
         </hlm-alert-dialog-content>
       </hlm-alert-dialog>
@@ -233,6 +233,6 @@
 <!-- Right-click (or long-press) menu of an order line. -->
 <ng-template #lineMenu let-line>
   <div hlmDropdownMenu>
-    <button hlmDropdownMenuItem type="button" (click)="removeLine(line.productId)">Remove item</button>
+    <button hlmDropdownMenuItem variant="destructive" type="button" (click)="removeLine(line.productId)">Remove item</button>
   </div>
 </ng-template>

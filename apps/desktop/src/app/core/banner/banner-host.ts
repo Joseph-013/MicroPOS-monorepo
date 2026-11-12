@@ -19,10 +19,10 @@ import { BannerService } from './banner.service';
       @if (banner.current(); as message) {
         <button
           type="button"
-          class="animate-in fade-in-0 slide-in-from-top-2 pointer-events-auto flex min-h-9 w-full items-center justify-center px-4 py-1.5 text-center text-sm font-medium duration-150 {{ severityClass(message.severity) }}"
+          class="animate-in fade-in-0 slide-in-from-top-2 pointer-events-auto flex h-9 w-full items-center justify-center truncate px-4 text-center text-sm font-medium duration-150 {{ severityClass(message.severity) }}"
           [attr.role]="message.severity === 'error' || message.severity === 'warning' ? 'alert' : 'status'"
           [attr.data-severity]="message.severity"
-          (click)="banner.dismiss()"
+          (click)="message.dismissible && banner.dismiss()"
         >
           {{ message.text }}
         </button>

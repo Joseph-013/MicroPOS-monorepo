@@ -2,18 +2,27 @@ import { sql } from 'drizzle-orm';
 import { check, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { createdAt, deletedAt, id, updatedAt } from './_columns';
 
+/**
+ * How a product is sold. `each` is counted (the price is per item); the others are weighed, and the price is
+ * per that unit with the quantity a decimal weight (stored in thousandths). Keep in step with PRODUCT_UNITS in
+ * @micropos/core (a test checks).
+ */
+export const PRODUCT_UNITS = ['each', 'kg', 'g', 'lb', 'oz'] as const;
+export type ProductUnit = (typeof PRODUCT_UNITS)[number];
+
 export const products = sqliteTable(
   'products',
   {
     id: id(),
     name: text().notNull(),
     sku: text(),
+    /** The scannable or keyed code: an EAN/UPC barcode, or a short PLU for loose goods. */
     barcode: text(),
-    plu: text(),
-    /** Unit price in cents. */
+    /** Price in cents per `unit` (per item, or per kg, lb, ... for weighed products). */
     price: integer().notNull(),
     /** Unit cost in cents, if tracked. */
     cost: integer(),
+    unit: text({ enum: PRODUCT_UNITS }).notNull().default('each'),
     active: integer({ mode: 'boolean' }).notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -23,7 +32,9 @@ export const products = sqliteTable(
     // Unique among live products only, so a deleted product never blocks reusing its code.
     uniqueIndex('products_sku_unique').on(t.sku).where(sql`${t.deletedAt} IS NULL`),
     uniqueIndex('products_barcode_unique').on(t.barcode).where(sql`${t.deletedAt} IS NULL`),
-    uniqueIndex('products_plu_unique').on(t.plu).where(sql`${t.deletedAt} IS NULL`),
+    check('products_unit_valid', sql`${t.unit} IN ('each', 'kg', 'g', 'lb', 'oz')`),
+    // A weighed product is found by its code (a PLU or the item code of a scale barcode).
+    check('products_weighed_has_code', sql`${t.unit} = 'each' OR ${t.barcode} IS NOT NULL`),
     check('products_price_non_negative', sql`${t.price} >= 0`),
   ],
 );

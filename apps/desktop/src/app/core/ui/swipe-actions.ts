@@ -27,7 +27,7 @@ const TONE_CLASS: Record<SwipeTone, string> = {
   primary: 'bg-primary text-primary-foreground',
   success: 'bg-success text-success-foreground',
   warning: 'bg-warning text-warning-foreground',
-  destructive: 'bg-destructive text-destructive-foreground',
+  destructive: 'bg-destructive text-white',
   neutral: 'bg-secondary text-secondary-foreground',
 };
 
@@ -49,12 +49,15 @@ const TONE_CLASS: Record<SwipeTone, string> = {
 @Component({
   selector: 'app-swipe-actions',
   imports: [NgIcon],
-  host: { class: 'relative block overflow-hidden' },
+  // A one-cell grid stacks the revealed actions with the row. `overflow-clip` (not hidden) keeps the host from
+  // becoming a scroll container, so the actions can stick to the visible edge of a wider, scrolling parent.
+  host: { class: 'relative grid grid-cols-[minmax(0,1fr)] overflow-clip' },
   template: `
     @if (side(); as side) {
-      <!-- Revealed behind the row, anchored to the edge the row is sliding away from. -->
+      <!-- Revealed at the edge the row is sliding away from. Sticky, so when the row is wider than the visible area
+           (a horizontally scrolling table) the actions stay at the edge you can see, not at the far end of the row. -->
       <div
-        class="absolute inset-y-0 flex overflow-hidden {{ side === 'left' ? 'right-0 flex-row-reverse' : 'left-0' }} {{ highlightedClass() }}"
+        class="sticky z-10 col-start-1 row-start-1 flex overflow-hidden {{ side === 'left' ? 'right-0 flex-row-reverse justify-self-end' : 'left-0 justify-self-start' }} {{ highlightedClass() }}"
         [style.width.px]="revealed()"
         aria-hidden="true"
       >
@@ -66,15 +69,16 @@ const TONE_CLASS: Record<SwipeTone, string> = {
             [style.width.px]="step()"
           >
             @if (action.icon) {
-              <ng-icon [name]="action.icon" size="22" strokeWidth="1.75" class="transition-transform" [class.scale-125]="i === highlighted()" />
+              <ng-icon [name]="action.icon" size="22" strokeWidth="1.75" />
             }
-            <span>{{ action.label }}</span>
+            <!-- The icon alone is the visible cue; the name stays in the DOM (hidden) for tests and tooling. -->
+            <span class="sr-only">{{ action.label }}</span>
           </div>
         }
       </div>
     }
     <div
-      class="bg-background relative"
+      class="bg-background relative col-start-1 row-start-1"
       style="touch-action: pan-y"
       [style.transform]="'translateX(' + offset() + 'px)'"
       [style.transition]="dragging() ? 'none' : 'transform ' + animationMs + 'ms ease-out'"

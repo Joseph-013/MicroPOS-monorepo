@@ -11,8 +11,8 @@ export function listProducts(db: AppDatabase): CatalogProduct[] {
       name: products.name,
       sku: products.sku,
       barcode: products.barcode,
-      plu: products.plu,
       price: products.price,
+      unit: products.unit,
     })
     .from(products)
     .where(and(isNull(products.deletedAt), eq(products.active, true)))
@@ -20,20 +20,25 @@ export function listProducts(db: AppDatabase): CatalogProduct[] {
     .all();
   if (rows.length === 0) return [];
 
-  // One query for every link, then group in memory: a product can have any number of categories.
+  const byProduct = categoriesByProduct(db, rows.map((r) => r.id));
+  return rows.map((row) => ({ ...row, categories: byProduct.get(row.id) ?? [] }));
+}
+
+/** Live categories of each given product, sorted by name; one query for any number of products. */
+export function categoriesByProduct(db: AppDatabase, productIds: string[]): Map<string, CatalogCategory[]> {
+  const byProduct = new Map<string, CatalogCategory[]>();
+  if (productIds.length === 0) return byProduct;
   const links = db
     .select({ productId: productCategories.productId, id: categories.id, name: categories.name })
     .from(productCategories)
     .innerJoin(categories, and(eq(productCategories.categoryId, categories.id), isNull(categories.deletedAt)))
-    .where(inArray(productCategories.productId, rows.map((r) => r.id)))
+    .where(inArray(productCategories.productId, productIds))
     .orderBy(sql`lower(${categories.name})`)
     .all();
-
-  const byProduct = new Map<string, CatalogCategory[]>();
   for (const { productId, ...category } of links) {
     byProduct.set(productId, [...(byProduct.get(productId) ?? []), category]);
   }
-  return rows.map((row) => ({ ...row, categories: byProduct.get(row.id) ?? [] }));
+  return byProduct;
 }
 
 /** Live categories, sorted by name (case-insensitive). */

@@ -1,7 +1,7 @@
 import { Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideMinus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
-import { type CatalogProduct, type DraftLine, formatQuantity, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
+import { type CatalogProduct, type DraftLine, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -68,7 +68,7 @@ export class CheckoutPage {
   protected readonly paymentLabel = (method: PaymentMethod): string => PAYMENT_METHODS[method] ?? '';
   protected readonly total = computed(() => this.subtotal() - this.discount());
 
-  // Item browser (dialog). One search box matches name, barcode, SKU and PLU.
+  // Item browser (dialog). One search box matches name, barcode/PLU and SKU.
   protected readonly category = signal<string | null>(ALL_CATEGORIES);
   protected readonly query = signal('');
   protected readonly categoryNames = computed(() => [
@@ -86,7 +86,7 @@ export class CheckoutPage {
       .filter(
         (p) =>
           (category === ALL_CATEGORIES || p.categories.some((c) => c.name === category)) &&
-          (!query || [p.name, p.barcode, p.sku, p.plu].some((field) => field?.toLowerCase().includes(query))),
+          (!query || [p.name, p.barcode, p.sku].some((field) => field?.toLowerCase().includes(query))),
       );
   });
 
@@ -124,19 +124,36 @@ export class CheckoutPage {
 
   protected readonly quantityLabel = formatQuantity;
 
+  /** "kg" next to a quantity or price of a weighed line; nothing for counted items. */
+  protected unitLabel(unit: ProductUnit): string {
+    return isWeighed(unit) ? unit : '';
+  }
+
+  /** How much +/- changes a line, in thousandths: whole items, or a sensible weight step. */
+  protected stepMilli(unit: ProductUnit): number {
+    return { each: MILLI, kg: 100, lb: 100, oz: MILLI, g: 50 * MILLI }[unit];
+  }
+
   protected add(product: CatalogProduct): void {
+    const weighed = isWeighed(product.unit);
     this.lines.update((lines) =>
       lines.some((l) => l.productId === product.id)
-        ? lines.map((l) => (l.productId === product.id ? { ...l, quantityMilli: this.clamp(l.quantityMilli + MILLI) } : l))
-        : [...lines, { productId: product.id, name: product.name, quantityMilli: MILLI, unitPrice: product.price }],
+        ? weighed
+          ? lines // a weighed item is one line with one weight: asking for it again edits that weight
+          : lines.map((l) => (l.productId === product.id ? { ...l, quantityMilli: this.clamp(l.quantityMilli + MILLI) } : l))
+        : [...lines, { productId: product.id, name: product.name, quantityMilli: MILLI, unitPrice: product.price, unit: product.unit }],
     );
+    // Weighed items need their weight: open the quantity field right away.
+    if (weighed) this.inlineEditing.set(product.id);
   }
 
   /**
    * Steps a line's quantity by `deltaMilli`. A tap that reaches zero removes the line; a held press
    * (`repeating`) stops at the last unit instead, so holding "-" cannot wipe a line out by accident.
    */
-  protected change(productId: string, deltaMilli: number, repeating = false): void {
+  protected change(line: DraftLine, direction: 1 | -1, repeating = false): void {
+    const productId = line.productId;
+    const deltaMilli = direction * this.stepMilli(line.unit);
     this.lines.update((lines) =>
       lines
         .map((l) => {

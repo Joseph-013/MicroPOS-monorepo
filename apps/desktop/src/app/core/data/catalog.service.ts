@@ -33,8 +33,8 @@ export class CatalogService {
     }
   }
 
-  /** Exact match on barcode, SKU or PLU (what a scanner or a typed code identifies). */
+  /** Exact match on barcode (or PLU) or SKU (what a scanner or a typed code identifies). */
   findByCode(code: string): CatalogProduct | undefined {
-    return this.products().find((p) => p.barcode === code || p.sku === code || p.plu === code);
+    return this.products().find((p) => p.barcode === code || p.sku === code);
   }
 }

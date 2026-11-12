@@ -76,7 +76,11 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
   const categoryRows = SAMPLE_CATEGORIES.map((name, i) => buildCategory({ name, sortOrder: i }, start - DAY));
   const categoryByName = new Map(categoryRows.map((c) => [c.name, c.id!]));
   const productRows = [
-    ...SAMPLE_PRODUCTS.map((p, i) => buildProduct(i + 1, { name: p.name, price: p.price }, start - DAY)),
+    ...SAMPLE_PRODUCTS.map((p, i) => buildProduct(
+        i + 1,
+        { name: p.name, price: p.price, unit: p.unit ?? 'each', ...(p.unit && p.unit !== 'each' ? { barcode: String(4000 + i) } : {}) },
+        start - DAY,
+      )),
     ...Array.from({ length: options.extraProducts ?? 24 }, (_, i) => buildProduct(SAMPLE_PRODUCTS.length + i + 1, {}, start - DAY)),
   ];
   // Every product belongs to one to three categories.
@@ -87,7 +91,7 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
         : faker.helpers.arrayElements(categoryRows, { min: 1, max: 3 }).map((c) => c.name);
     return names.map((name) => ({ productId: product.id!, categoryId: categoryByName.get(name)! }));
   });
-  const sellable = productRows.map((p) => ({ id: p.id!, name: p.name, price: p.price }));
+  const sellable = productRows.map((p) => ({ id: p.id!, name: p.name, price: p.price, unit: p.unit ?? 'each' }));
 
   // Sales --------------------------------------------------------------------------
   const times = Array.from({ length: options.orders ?? 120 }, () => {

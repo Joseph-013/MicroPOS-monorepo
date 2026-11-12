@@ -5,14 +5,23 @@ import { CatalogService } from './catalog.service';
 
 const noDraft = { loadDraft: () => Promise.resolve(null), saveDraft: () => Promise.resolve(), clearDraft: () => Promise.resolve() };
 
+const noProducts = {
+  list: () => Promise.resolve([]),
+  create: () => Promise.reject(new Error('unused')),
+  update: () => Promise.reject(new Error('unused')),
+  remove: () => Promise.resolve(),
+  restore: () => Promise.resolve({ restored: 0, conflicts: [] }),
+  setActive: () => Promise.resolve(),
+};
+
 const product = (over: Partial<CatalogProduct>): CatalogProduct => ({
   id: 'x',
   name: 'Item',
   sku: null,
   barcode: null,
-  plu: null,
   categories: [],
   price: 100,
+  unit: 'each',
   ...over,
 });
 
@@ -26,9 +35,11 @@ describe('CatalogService', () => {
     const service = setup({
       platform: 'linux',
       version: () => Promise.resolve(DESKTOP_API_VERSION),
+      scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
       checkout: noDraft,
+      products: noProducts,
       catalog: {
-        listProducts: () => Promise.resolve([product({ id: 'a', name: 'Milk', barcode: '111', sku: 'S-1', plu: '4' })]),
+        listProducts: () => Promise.resolve([product({ id: 'a', name: 'Milk', barcode: '111', sku: 'S-1' })]),
         listCategories: () => Promise.resolve([{ id: 'c', name: 'Dairy' }]),
       },
     });
@@ -39,7 +50,6 @@ describe('CatalogService', () => {
     expect(service.categories()[0].name).toBe('Dairy');
     expect(service.findByCode('111')?.name).toBe('Milk');
     expect(service.findByCode('S-1')?.name).toBe('Milk');
-    expect(service.findByCode('4')?.name).toBe('Milk');
     expect(service.findByCode('nope')).toBeUndefined();
   });
 
@@ -48,7 +58,9 @@ describe('CatalogService', () => {
     const failing = setup({
       platform: 'linux',
       version: () => Promise.resolve(DESKTOP_API_VERSION),
+      scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
       checkout: noDraft,
+      products: noProducts,
       catalog: { listProducts: () => Promise.reject(new Error('boom')), listCategories: () => Promise.resolve([]) },
     });
     await failing.load();

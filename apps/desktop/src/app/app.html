@@ -1,4 +1,4 @@
-<div class="flex min-h-svh">
+<div class="flex min-h-svh pt-(--banner-offset,0px)" [style.--banner-offset]="bannerOffset() ? '2.25rem' : '0px'">
   <app-nav-rail />
   <main class="min-w-0 flex-1 p-3">
     <router-outlet />

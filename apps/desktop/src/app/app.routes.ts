@@ -13,8 +13,7 @@ export const routes: Routes = [
   {
     path: 'items/products',
     title: 'Products',
-    loadComponent: placeholder,
-    data: { title: 'Products' },
+    loadComponent: () => import('./pages/products/products').then((m) => m.ProductsPage),
   },
   {
     path: 'items/categories',

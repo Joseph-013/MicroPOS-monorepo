@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashPin, verifyPin } from '../auth/pin';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from './index';
 import { DUMMY_PIN, seedDatabase } from './factories';
-import { DESKTOP_API_VERSION } from '@micropos/core';
+import { DESKTOP_API_VERSION, PRODUCT_UNITS as CORE_UNITS } from '@micropos/core';
 import { API_VERSION } from '../ipc/channels';
 import { runMigrate } from './migrate';
 import {
@@ -19,10 +19,12 @@ import {
   orders,
   payments,
   productCategories,
+  PRODUCT_UNITS,
   products,
   settings,
 } from './schema';
 import { listCategories, listProducts } from './queries/catalog';
+import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from './queries/products';
 import { clearDraft, DRAFT_KEY, loadDraft, sanitizeDraft, saveDraft } from './queries/draft';
 import { uuid7 } from './uuid';
 
@@ -177,7 +179,7 @@ describe('catalog queries', () => {
     const [banana, apple, milk, loose] = db
       .insert(products)
       .values([
-        { name: 'banana', price: 179, barcode: '1', sku: 'S1', plu: '1001' },
+        { name: 'banana', price: 179, barcode: '1', sku: 'S1' },
         { name: 'Apple', price: 349 },
         { name: 'Milk', price: 429 },
         { name: 'Loose item', price: 100 },
@@ -197,7 +199,7 @@ describe('catalog queries', () => {
 
     const list = listProducts(db);
     expect(list.map((p) => p.name)).toEqual(['Apple', 'banana', 'Loose item', 'Milk']); // case-insensitive order
-    expect(list.find((p) => p.id === banana.id)).toMatchObject({ barcode: '1', sku: 'S1', plu: '1001', price: 179 });
+    expect(list.find((p) => p.id === banana.id)).toMatchObject({ barcode: '1', sku: 'S1', price: 179 });
     expect(list.find((p) => p.id === banana.id)?.categories.map((c) => c.name)).toEqual(['Produce', 'Snacks']); // many, sorted
     expect(list.find((p) => p.id === apple.id)?.categories.map((c) => c.name)).toEqual(['Produce']);
     expect(list.find((p) => p.id === loose.id)?.categories).toEqual([]); // no category is fine
@@ -240,8 +242,8 @@ describe('migrating a database that already has data', () => {
     old.db.$client.exec(`
       INSERT INTO employees (id, name, employee_number, pin_hash, created_at, updated_at) VALUES ('e1', 'E', '1', 'x', 1, 1);
       INSERT INTO categories (id, name, created_at, updated_at) VALUES ('c1', 'Dairy', 1, 1), ('c2', 'Bakery', 1, 1);
-      INSERT INTO products (id, name, price, category_id, created_at, updated_at) VALUES
-        ('p1', 'Milk', 429, 'c1', 1, 1), ('p2', 'Bread', 299, 'c2', 1, 1), ('p3', 'Loose', 100, NULL, 1, 1);
+      INSERT INTO products (id, name, price, category_id, barcode, plu, created_at, updated_at) VALUES
+        ('p1', 'Milk', 429, 'c1', '590111', '9', 1, 1), ('p2', 'Bread', 299, 'c2', NULL, NULL, 1, 1), ('p3', 'Loose', 100, NULL, NULL, '4011', 1, 1);
       INSERT INTO orders (id, order_number, employee_id, subtotal, total, created_at, updated_at) VALUES ('o1', 'SO-1', 'e1', 429, 429, 1, 1);
       INSERT INTO order_lines (id, order_id, product_id, name, unit_price, quantity_milli, line_total) VALUES ('l1', 'o1', 'p1', 'Milk', 429, 1000, 429);
     `);
@@ -256,6 +258,13 @@ describe('migrating a database that already has data', () => {
     ]); // p3 had no category, so no link
     expect(q("SELECT product_id FROM order_lines WHERE id = 'l1'")).toEqual([{ product_id: 'p1' }]); // not nulled by the rebuild
     expect(q('SELECT id, name, price FROM products ORDER BY id')).toHaveLength(3);
+    expect(q('SELECT DISTINCT unit FROM products')).toEqual([{ unit: 'each' }]); // existing products are counted items
+    // PLU and barcode became one code: a PLU-only product keeps it as its barcode, a product with both keeps the barcode.
+    expect(q('SELECT id, barcode FROM products ORDER BY id')).toEqual([
+      { id: 'p1', barcode: '590111' },
+      { id: 'p2', barcode: null },
+      { id: 'p3', barcode: '4011' },
+    ]);
     expect(q('PRAGMA table_info(products)').some((c) => (c as { name: string }).name === 'category_id')).toBe(false);
     expect(upgraded.db.$client.pragma('foreign_key_check')).toEqual([]);
     expect(upgraded.db.$client.pragma('foreign_keys', { simple: true })).toBe(1); // restored afterwards
@@ -323,7 +332,7 @@ describe('db:migrate command', () => {
 });
 
 describe('checkout draft', () => {
-  const line = (n: number) => ({ productId: `p${n}`, name: `Item ${n}`, quantityMilli: 1000 * n, unitPrice: 100 * n });
+  const line = (n: number) => ({ productId: `p${n}`, name: `Item ${n}`, quantityMilli: 1000 * n, unitPrice: 100 * n, unit: 'each' as const });
 
   it('saves, replaces, loads and clears the draft', () => {
     expect(loadDraft(db)).toBeNull();
@@ -378,7 +387,7 @@ describe('checkout draft', () => {
     expect(sanitizeDraft(null).lines).toEqual([]);
     // A draft written before decimals existed keeps working: whole units become thousandths.
     expect(sanitizeDraft({ lines: [{ productId: 'a', name: 'Old', quantity: 3, unitPrice: 100 }] }).lines).toEqual([
-      { productId: 'a', name: 'Old', quantityMilli: 3000, unitPrice: 100 },
+      { productId: 'a', name: 'Old', quantityMilli: 3000, unitPrice: 100, unit: 'each' },
     ]);
     // Decimal quantities are fine.
     expect(sanitizeDraft({ lines: [{ productId: 'a', name: 'Rice', quantityMilli: 1250, unitPrice: 100 }] }).lines).toHaveLength(1);
@@ -390,5 +399,155 @@ describe('checkout draft', () => {
 describe('API version', () => {
   it('is the same number in the main process and in the shared contract the page checks against', () => {
     expect(API_VERSION).toBe(DESKTOP_API_VERSION);
+  });
+});
+
+describe('product management', () => {
+  const input = (over: Record<string, unknown> = {}) => ({
+    name: 'Tea',
+    sku: 'TEA-1',
+    barcode: '111',
+    price: 250,
+    cost: null,
+    active: true,
+    categoryIds: [] as string[],
+    ...over,
+  });
+  const category = (name: string) => db.insert(categories).values({ name }).returning({ id: categories.id }).get().id;
+
+  it('creates, lists (including inactive) and updates with categories', () => {
+    const a = category('Drinks');
+    const b = category('Hot');
+    const created = createProduct(db, input({ categoryIds: [a, b] }));
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(created.product.categories.map((c) => c.name)).toEqual(['Drinks', 'Hot']);
+
+    const updated = updateProduct(db, created.product.id, input({ name: 'Green Tea', active: false, cost: 100, categoryIds: [b] }));
+    expect(updated.ok).toBe(true);
+    const [row] = listProductRecords(db);
+    expect(row).toMatchObject({ name: 'Green Tea', active: false, cost: 100 });
+    expect(row?.categories.map((c) => c.name)).toEqual(['Hot']);
+    // Inactive products are managed here but not offered at checkout.
+    expect(listProducts(db)).toHaveLength(0);
+  });
+
+  it('reports invalid input and duplicate codes against the field', () => {
+    expect(createProduct(db, input({ name: '  ' }))).toMatchObject({ ok: false, field: 'name' });
+    expect(createProduct(db, input({ price: -1 }))).toMatchObject({ ok: false, field: 'price' });
+    expect(createProduct(db, input({ price: 1.5 }))).toMatchObject({ ok: false, field: 'price' });
+    expect(createProduct(db, input())).toMatchObject({ ok: true });
+    expect(createProduct(db, input({ name: 'Other', barcode: '222' }))).toMatchObject({ ok: false, field: 'sku' });
+    expect(createProduct(db, input({ name: 'Other', sku: 'X', barcode: '111' }))).toMatchObject({ ok: false, field: 'barcode' });
+    // Empty codes never collide with each other.
+    expect(createProduct(db, input({ name: 'A', sku: '', barcode: '' })).ok).toBe(true);
+    expect(createProduct(db, input({ name: 'B', sku: '', barcode: '' })).ok).toBe(true);
+  });
+
+  it('lets a product keep its own codes and rejects unknown categories', () => {
+    const created = createProduct(db, input());
+    if (!created.ok) throw new Error('create failed');
+    expect(updateProduct(db, created.product.id, input({ price: 300 })).ok).toBe(true);
+    expect(createProduct(db, input({ name: 'Z', sku: 'Z', barcode: 'Z', categoryIds: ['nope'] }))).toMatchObject({ ok: false });
+  });
+
+  it('lists deleted products only when asked, with created and deleted times', () => {
+    const created = createProduct(db, input());
+    if (!created.ok) throw new Error('create failed');
+    expect(created.product.createdAt).toBeGreaterThan(0);
+    expect(created.product.deletedAt).toBeNull();
+    deleteProducts(db, [created.product.id]);
+    expect(listProductRecords(db)).toHaveLength(0);
+    const all = listProductRecords(db, true);
+    expect(all).toHaveLength(1);
+    expect(all[0]?.deletedAt).toBeGreaterThan(0);
+  });
+
+  it('deletes and restores many at once, skipping a product whose code was taken meanwhile', () => {
+    const make = (name: string, sku: string, barcode: string) => {
+      const r = createProduct(db, input({ name, sku, barcode }));
+      if (!r.ok) throw new Error('create failed');
+      return r.product.id;
+    };
+    const a = make('A', 'SA', '1');
+    const b = make('B', 'SB', '2');
+    const c = make('C', 'SC', '3');
+    deleteProducts(db, [a, b, c, 'nope', 42]); // unknown or malformed ids are ignored
+    expect(listProductRecords(db)).toHaveLength(0);
+    make('Taker', 'SB', '9'); // a new live product now uses B's SKU
+    expect(restoreProducts(db, [a, b, c])).toEqual({ restored: 2, conflicts: ['B'] });
+    expect(listProductRecords(db).map((p) => p.name)).toEqual(['A', 'C', 'Taker']);
+    expect(restoreProducts(db, [a, 'nope'])).toEqual({ restored: 0, conflicts: [] }); // already live
+    expect(restoreProducts(db, 'not a list')).toEqual({ restored: 0, conflicts: [] });
+  });
+
+  it('sets many products active or inactive, ignoring deleted ones and bad input', () => {
+    const make = (name: string, barcode: string) => {
+      const r = createProduct(db, input({ name, sku: null, barcode }));
+      if (!r.ok) throw new Error('create failed');
+      return r.product.id;
+    };
+    const a = make('A', '1');
+    const b = make('B', '2');
+    setProductsActive(db, [a, b, 'nope'], false);
+    expect(listProductRecords(db).map((p) => p.active)).toEqual([false, false]);
+    deleteProducts(db, [b]);
+    setProductsActive(db, [a, b], true);
+    expect(listProductRecords(db, true).map((p) => [p.name, p.active])).toEqual([['A', true], ['B', false]]); // deleted B untouched
+    setProductsActive(db, [a], 'yes'); // not a boolean: ignored
+    setProductsActive(db, 'not a list', false);
+    expect(listProductRecords(db).map((p) => p.active)).toEqual([true]);
+  });
+
+  it('soft deletes, freeing the codes', () => {
+    const created = createProduct(db, input());
+    if (!created.ok) throw new Error('create failed');
+    deleteProducts(db, [created.product.id]);
+    expect(listProductRecords(db)).toHaveLength(0);
+    expect(updateProduct(db, created.product.id, input())).toMatchObject({ ok: false });
+    expect(createProduct(db, input()).ok).toBe(true);
+  });
+});
+
+describe('weighed products', () => {
+  it('keeps a weighed draft line unit and reads old lines as each', () => {
+    saveDraft(db, { lines: [{ productId: 'a', name: 'Beef', quantityMilli: 350, unitPrice: 899, unit: 'kg' }] });
+    expect(loadDraft(db)?.lines[0]?.unit).toBe('kg');
+    expect(sanitizeDraft({ lines: [{ productId: 'a', name: 'Milk', quantityMilli: 1000, unitPrice: 100 }] }).lines[0]?.unit).toBe('each');
+  });
+
+  const base = { name: 'Beef', sku: null, barcode: null as string | null, price: 899, cost: null, active: true, categoryIds: [] as string[] };
+
+  it('keeps the unit list in step with core', () => {
+    expect([...PRODUCT_UNITS]).toEqual([...CORE_UNITS]);
+  });
+
+  it('stores the unit and requires a code (PLU) for weighed products', () => {
+    expect(createProduct(db, { ...base, unit: 'kg', barcode: null })).toMatchObject({ ok: false, field: 'barcode' });
+    expect(createProduct(db, { ...base, unit: 'stone', barcode: '4011' })).toMatchObject({ ok: false, field: 'unit' });
+    const ok = createProduct(db, { ...base, unit: 'kg', barcode: '4011' });
+    expect(ok.ok && ok.product.unit).toBe('kg');
+    // Counted items need no code, and a missing unit means each.
+    const each = createProduct(db, { ...base, name: 'Gum', barcode: null });
+    expect(each.ok && each.product.unit).toBe('each');
+    expect(listProducts(db).find((p) => p.name === 'Beef')?.unit).toBe('kg');
+  });
+
+  it('the database itself refuses a weighed product without a code', () => {
+    expect(() =>
+      db.$client.prepare("INSERT INTO products (id, name, price, unit, created_at, updated_at) VALUES ('x', 'X', 1, 'kg', 1, 1)").run(),
+    ).toThrow(/CHECK/);
+  });
+
+  it('seeds weighed products with fractional weights and costs below price', () => {
+    seedDatabase(db, { orders: 40, extraProducts: 2 });
+    const weighed = db.select().from(products).where(eq(products.unit, 'kg')).all();
+    expect(weighed.length).toBeGreaterThan(0);
+    for (const p of db.select().from(products).all()) {
+      expect(p.cost).not.toBeNull();
+      expect(p.barcode).not.toBeNull(); // every seeded product has a code: a barcode, or a PLU for weighed ones
+    }
+    const lines = db.select().from(orderLines).all();
+    expect(lines.some((l) => l.quantityMilli % 1000 !== 0)).toBe(true);
   });
 });

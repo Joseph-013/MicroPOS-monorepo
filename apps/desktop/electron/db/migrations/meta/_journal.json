@@ -15,6 +15,20 @@
       "when": 1794474406535,
       "tag": "0001_easy_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794478560274,
+      "tag": "0002_absent_wolf_cub",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794479143298,
+      "tag": "0003_clean_captain_midlands",
+      "breakpoints": true
     }
   ]
 }

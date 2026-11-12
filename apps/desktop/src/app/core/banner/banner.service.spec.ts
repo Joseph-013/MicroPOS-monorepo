@@ -49,14 +49,34 @@ describe('BannerService', () => {
     expect(text()).toBeNull();
   });
 
-  it('a persistent banner stays until dismissed, then the queue continues', () => {
-    banner.show('stuck', { duration: 'persistent' });
-    banner.show('next');
+  it('a persistent banner stays until removed and reserves space', () => {
+    banner.show('update soon', { duration: 'persistent', key: 'update' });
     vi.advanceTimersByTime(60_000);
-    expect(text()).toBe('stuck');
+    expect(text()).toBe('update soon');
+    expect(banner.reserveSpace()).toBe(true);
+    banner.remove('update');
+    expect(text() ?? null).toBeNull();
+    expect(banner.reserveSpace()).toBe(false);
+  });
+
+  it('timed banners show over a persistent one, which comes back afterwards', () => {
+    banner.show('update soon', { duration: 'persistent', key: 'update' });
+    banner.show('Saved');
+    banner.show('Added');
+    expect(text()).toBe('Saved');
+    expect(banner.reserveSpace()).toBe(true); // space stays reserved while covered
+    vi.advanceTimersByTime(1500 + 200);
+    expect(text()).toBe('Added');
+    vi.advanceTimersByTime(1500 + 200);
+    expect(text()).toBe('update soon');
+  });
+
+  it('the same key replaces a persistent banner; dismiss removes the one on show', () => {
+    banner.show('v1', { duration: 'persistent', key: 'update' });
+    banner.show('v2', { duration: 'persistent', key: 'update' });
+    expect(text()).toBe('v2');
     banner.dismiss();
-    vi.advanceTimersByTime(200);
-    expect(text()).toBe('next');
+    expect(text() ?? null).toBeNull();
   });
 
   it('dismiss closes the current banner and moves on; clear forgets everything', () => {

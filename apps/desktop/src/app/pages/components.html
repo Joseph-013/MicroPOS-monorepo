@@ -229,6 +229,18 @@
     </div>
   </section>
 
+  <section hlmCard class="md:col-span-2">
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Banner</h2>
+    </div>
+    <div hlmCardContent class="flex flex-wrap gap-2">
+      <button hlmBtn variant="outline" type="button" (click)="showTimed()">Timed</button>
+      <button hlmBtn variant="outline" type="button" (click)="showNotice(true)">Persistent</button>
+      <button hlmBtn variant="outline" type="button" (click)="showNotice(false)">Persistent (locked)</button>
+      <button hlmBtn variant="outline" type="button" (click)="removeNotice()">Remove persistent</button>
+    </div>
+  </section>
+
   <ng-template #menu>
     <div hlmDropdownMenu>
       <button hlmDropdownMenuItem type="button">Open</button>

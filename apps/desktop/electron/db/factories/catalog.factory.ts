@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import type { NewCategory, NewProduct } from '../schema';
+import type { NewCategory, NewProduct, ProductUnit } from '../schema';
 import { uuid7 } from '../uuid';
 import { ean13 } from './ean13';
 
@@ -8,10 +8,13 @@ export const SAMPLE_CATEGORIES = ['Produce', 'Dairy', 'Bakery', 'Beverages', 'Sn
 type CategoryName = (typeof SAMPLE_CATEGORIES)[number];
 
 /** Realistic starter catalog (prices in cents). A product can belong to several categories. */
-export const SAMPLE_PRODUCTS: readonly { name: string; categories: readonly CategoryName[]; price: number }[] = [
+export const SAMPLE_PRODUCTS: readonly { name: string; categories: readonly CategoryName[]; price: number; unit?: ProductUnit }[] = [
   { name: 'Bananas (bunch)', categories: ['Produce', 'Snacks'], price: 179 },
   { name: 'Gala Apples (3lb)', categories: ['Produce', 'Snacks'], price: 349 },
-  { name: 'Roma Tomatoes (lb)', categories: ['Produce'], price: 180 },
+  // Weighed: the price is per unit and the quantity is the weight (needs a code: a PLU in the barcode field).
+  { name: 'Roma Tomatoes', categories: ['Produce'], price: 180, unit: 'lb' },
+  { name: 'Ground Beef', categories: ['Frozen'], price: 899, unit: 'kg' },
+  { name: 'Cheddar Cheese', categories: ['Dairy'], price: 1299, unit: 'kg' },
   { name: 'Whole Milk (1 gal)', categories: ['Dairy', 'Beverages'], price: 429 },
   { name: 'Large Eggs (dozen)', categories: ['Dairy'], price: 349 },
   { name: 'Greek Yogurt (32oz)', categories: ['Dairy', 'Snacks'], price: 529 },
@@ -40,14 +43,17 @@ export function buildCategory(overrides: Partial<NewCategory> = {}, now = Date.n
 
 /** `serial` keeps sku/barcode unique across a run. */
 export function buildProduct(serial: number, overrides: Partial<NewProduct> = {}, now = Date.now()): NewProduct {
+  const price = overrides.price ?? faker.number.int({ min: 99, max: 4999 });
   return {
     id: uuid7(now),
     name: faker.commerce.productName(),
     sku: `PRD-${String(serial).padStart(5, '0')}`,
-    plu: String(1000 + serial),
+    // Counted goods have an EAN barcode; weighed ones get a short PLU instead (set by the seeder).
     barcode: ean13(`590${String(serial).padStart(9, '0')}`),
-    price: faker.number.int({ min: 99, max: 4999 }),
-    cost: null,
+    price,
+    // Cost is a bit more than half the price, so margins are positive but vary.
+    cost: Math.round(price * faker.number.float({ min: 0.55, max: 0.8 })),
+    unit: 'each',
     active: true,
     createdAt: now,
     updatedAt: now,

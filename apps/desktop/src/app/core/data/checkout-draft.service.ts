@@ -1,5 +1,5 @@
 import { inject, Service } from '@angular/core';
-import type { DraftLine } from '@micropos/core';
+import { type DraftLine, PRODUCT_UNITS, type ProductUnit } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
 
 const SAVE_DELAY_MS = 300;
@@ -21,7 +21,8 @@ export function normalizeDraftLine(raw: unknown): DraftLine | null {
     typeof l.unitPrice === 'number' &&
     Number.isInteger(l.unitPrice) &&
     l.unitPrice >= 0;
-  return valid ? { productId: l.productId!, name: l.name!, quantityMilli: quantityMilli!, unitPrice: l.unitPrice! } : null;
+  const unit = PRODUCT_UNITS.includes(l?.unit as ProductUnit) ? (l!.unit as ProductUnit) : 'each';
+  return valid ? { productId: l.productId!, name: l.name!, quantityMilli: quantityMilli!, unitPrice: l.unitPrice!, unit } : null;
 }
 
 /**

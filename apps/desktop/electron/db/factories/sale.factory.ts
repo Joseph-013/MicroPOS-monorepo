@@ -20,7 +20,7 @@ export interface SaleDraft {
 export interface SaleOptions {
   orderNumber: string;
   employeeId: string;
-  products: readonly Pick<Product, 'id' | 'name' | 'price'>[];
+  products: readonly Pick<Product, 'id' | 'name' | 'price' | 'unit'>[];
   /** Creation time, epoch ms. */
   at: number;
   status?: 'completed' | 'voided';
@@ -39,7 +39,9 @@ export function buildSale(opts: SaleOptions): SaleDraft {
   const chosen = faker.helpers.arrayElements(opts.products, opts.lineCount ?? faker.number.int({ min: 1, max: 6 }));
 
   const lines = chosen.map((product) => {
-    const quantityMilli = faker.number.int({ min: 1, max: 4 }) * 1000;
+    // Weighed products are sold by a decimal weight (0.100 to 2.500); counted ones by whole items.
+    const quantityMilli =
+      product.unit === 'each' ? faker.number.int({ min: 1, max: 4 }) * 1000 : faker.number.int({ min: 1, max: 25 }) * 100;
     return {
       id: uuid7(opts.at),
       orderId,

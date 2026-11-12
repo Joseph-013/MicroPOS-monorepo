@@ -1,0 +1,54 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { NavRail } from './nav-rail';
+
+/** jsdom has no PointerEvent; a plain event carrying `pointerType` is all the rail reads. */
+const pointer = (type: string, target: Element, pointerType: string): void => {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'pointerType', { value: pointerType });
+  target.dispatchEvent(event);
+};
+
+describe('NavRail on touch', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', children: [] }])] });
+  });
+
+  const setup = () => {
+    const fixture = TestBed.createComponent(NavRail);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const rail = el.querySelector('nav') as HTMLElement;
+    const link = el.querySelector('a[href="/checkout"]') as HTMLAnchorElement;
+    return { fixture, rail, link };
+  };
+
+  it('the first tap only opens a collapsed rail; the second follows the link', async () => {
+    const { fixture, rail, link } = setup();
+    expect(rail.style.width).toBe('3.5rem');
+
+    pointer('pointerdown', link, 'touch');
+    const first = new MouseEvent('click', { bubbles: true, cancelable: true });
+    link.dispatchEvent(first);
+    fixture.detectChanges();
+    expect(first.defaultPrevented).toBe(true); // did not navigate
+    expect(rail.style.width).toBe('16rem');
+
+    pointer('pointerdown', link, 'touch');
+    const second = new MouseEvent('click', { bubbles: true, cancelable: true });
+    link.dispatchEvent(second);
+    expect(second.defaultPrevented).toBe(true); // routerLink handled it (it prevents the browser navigation itself)
+    await fixture.whenStable();
+  });
+
+  it('a tap outside folds an opened rail', () => {
+    const { fixture, rail, link } = setup();
+    pointer('pointerdown', link, 'touch');
+    fixture.detectChanges();
+    expect(rail.style.width).toBe('16rem');
+    pointer('pointerdown', document.body, 'touch');
+    fixture.detectChanges();
+    expect(rail.style.width).toBe('3.5rem');
+  });
+});

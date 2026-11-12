@@ -1,4 +1,4 @@
-import type { CatalogCategory, CatalogProduct } from './catalog.js';
+import type { CatalogCategory, CatalogProduct, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from './catalog.js';
 import type { CheckoutDraft } from './draft.js';
 
 /**
@@ -6,7 +6,7 @@ import type { CheckoutDraft } from './draft.js';
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 3;
+export const DESKTOP_API_VERSION = 10;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -22,6 +22,27 @@ export interface DesktopApi {
     listProducts(): Promise<CatalogProduct[]>;
     /** Live categories, sorted by name. */
     listCategories(): Promise<CatalogCategory[]>;
+  };
+  products: {
+    /** Every product in the catalog, active or not, sorted by name; `includeDeleted` adds deleted ones too. */
+    list(options?: { includeDeleted?: boolean }): Promise<ProductRecord[]>;
+    create(input: ProductInput): Promise<SaveProductResult>;
+    update(id: string, input: ProductInput): Promise<SaveProductResult>;
+    /** Removes products from the catalog (kept on file so past orders still resolve). */
+    remove(ids: string[]): Promise<void>;
+    /** Marks products active (offered at checkout) or inactive; deleted ones are left alone. */
+    setActive(ids: string[], active: boolean): Promise<void>;
+    /** Puts deleted products back; those whose code a live product now uses are skipped and reported. */
+    restore(ids: string[]): Promise<RestoreProductsResult>;
+  };
+  scanner: {
+    /**
+     * Barcode scans, detected in the main process (it holds the scanner's keystrokes back, so a scan never
+     * types into the page). Returns a function that stops listening.
+     */
+    onScan(listener: (scan: { code: string }) => void): () => void;
+    /** Turn scan detection on or off; off lets scanner keys through as ordinary typing. */
+    setEnabled(enabled: boolean): Promise<void>;
   };
   checkout: {
     /** The saved order in progress, or null when there is none. */

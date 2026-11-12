@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, ElementRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -93,13 +93,49 @@ export class NavRail {
   protected readonly openGroups = signal<ReadonlySet<string>>(new Set());
 
   constructor() {
+    this.watchTouch();
     this.openActiveGroups();
     this.router.events
       .pipe(
         filter((e) => e instanceof NavigationEnd),
         takeUntilDestroyed(),
       )
-      .subscribe(() => this.openActiveGroups());
+      .subscribe(() => {
+        this.openActiveGroups();
+        // A rail that opened on hover folds away once you pick a page; pinned stays open. Hovering again reopens it.
+        this.hovered.set(false);
+      });
+  }
+
+  /**
+   * Touch has no hover, so the first tap on a collapsed rail only opens it: the tap is swallowed (it would
+   * otherwise follow the icon under the finger) and the next tap picks an entry. A tap outside folds it again.
+   * Capture listeners, so this runs before the links' own click handlers.
+   */
+  private watchTouch(): void {
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    let swallowNextClick = false;
+    const onPointerDown = (event: PointerEvent): void => {
+      swallowNextClick = event.pointerType !== 'mouse' && !this.expanded();
+      if (swallowNextClick) this.hovered.set(true);
+    };
+    const onClick = (event: MouseEvent): void => {
+      if (!swallowNextClick) return;
+      swallowNextClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const onOutside = (event: PointerEvent): void => {
+      if (event.pointerType !== 'mouse' && !host.contains(event.target as Node | null)) this.hovered.set(false);
+    };
+    host.addEventListener('pointerdown', onPointerDown, true);
+    host.addEventListener('click', onClick, true);
+    document.addEventListener('pointerdown', onOutside, true);
+    inject(DestroyRef).onDestroy(() => {
+      host.removeEventListener('pointerdown', onPointerDown, true);
+      host.removeEventListener('click', onClick, true);
+      document.removeEventListener('pointerdown', onOutside, true);
+    });
   }
 
   /** Keep the groups containing the current page open. */

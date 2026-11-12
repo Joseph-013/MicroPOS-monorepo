@@ -2,6 +2,7 @@ import { app, BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 import { createDatabase } from './db';
 import { registerIpcHandlers } from './ipc';
+import { attachScanner } from './scanner';
 
 const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
 
@@ -20,6 +21,9 @@ function createWindow(): void {
       sandbox: true,
     },
   });
+
+  // Scanner keystrokes are caught here, before the page: stray scans cannot type into fields or press buttons.
+  attachScanner(win);
 
   if (devServerUrl) {
     void win.loadURL(devServerUrl);

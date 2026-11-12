@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { BurstDetector, BurstOutcome } from './burst-detector';
 
 /** Feed `text` at `gapMs` between keys starting at `start`; returns the last outcome and end time. */

@@ -1,5 +1,6 @@
 // Dev runner: Angular dev server (HMR) + Electron loading it.
 import { spawn } from 'node:child_process';
+import { rmSync } from 'node:fs';
 
 const PORT = 4200;
 const url = `http://localhost:${PORT}`;
@@ -32,6 +33,10 @@ async function waitFor(target, timeoutMs = 120_000) {
   }
   throw new Error(`Timed out waiting for ${target}`);
 }
+
+// The dev server pre-bundles @micropos/core into .angular/cache and does not notice when core is rebuilt, so the
+// page kept running an old DESKTOP_API_VERSION and showed "out of date". Dropping the pre-bundle each start is cheap.
+rmSync('.angular/cache', { recursive: true, force: true });
 
 const ng = run('pnpm', ['exec', 'ng', 'serve', '--port', String(PORT)]);
 ng.on('exit', (code) => shutdown(code ?? 1));

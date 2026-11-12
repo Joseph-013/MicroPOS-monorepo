@@ -1,7 +1,7 @@
 <nav
   #rail
   aria-label="Main"
-  class="bg-background border-border fixed inset-y-0 left-0 z-20 flex flex-col overflow-hidden border-r p-2 transition-[width,box-shadow] duration-200 ease-out"
+  class="bg-background border-border fixed top-(--banner-offset,0px) bottom-0 left-0 z-20 flex flex-col overflow-hidden border-r p-2 transition-[width,box-shadow] duration-200 ease-out"
   [class.shadow-lg]="expanded() && !pinned()"
   [style.width]="expanded() ? '16rem' : '3.5rem'"
   (mouseenter)="setHovered(true)"

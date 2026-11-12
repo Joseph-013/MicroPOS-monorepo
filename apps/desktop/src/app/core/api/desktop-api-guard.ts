@@ -24,7 +24,7 @@ export class DesktopApiGuard {
     }
     if (version === DESKTOP_API_VERSION) return true;
     console.error(`Desktop API version mismatch: page expects ${DESKTOP_API_VERSION}, main process reports ${version ?? 'none'}`);
-    this.banner.error('The app is out of date. Restart it to continue.', { duration: 'persistent', key: 'api-version' });
+    this.banner.error('The app is out of date. Restart it to continue.', { duration: 'persistent', key: 'api-version', dismissible: false });
     return false;
   }
 }

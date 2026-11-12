@@ -1,4 +1,4 @@
-import { inject, DestroyRef, Service, signal } from '@angular/core';
+import { computed, inject, DestroyRef, Service, signal } from '@angular/core';
 
 export type BannerSeverity = 'info' | 'success' | 'warning' | 'error';
 
@@ -14,6 +14,11 @@ export interface BannerOptions {
    * quickly (adding the same item five times shows one banner, whose timer restarts).
    */
   key?: string;
+  /**
+   * Persistent banners only: whether a click removes it. Default true; pass false for a notice that must stay
+   * until the system calls `remove(key)` (e.g. an impending update).
+   */
+  dismissible?: boolean;
 }
 
 export interface BannerMessage {
@@ -23,6 +28,8 @@ export interface BannerMessage {
   /** Milliseconds; 0 means persistent. */
   durationMs: number;
   key?: string;
+  /** A click on the strip removes it. */
+  dismissible: boolean;
 }
 
 const MAX_QUEUED = 5;
@@ -33,6 +40,8 @@ const GAP_MS = 120;
  * Thin, temporary messages at the top of the window (rendered by `BannerHost`).
  * One banner shows at a time; others wait in a queue (oldest waiting messages are dropped past 5).
  * Default duration is 1.5 s, default severity `info`.
+ * `duration: 'persistent'` banners stay until `remove(key)` / `dismiss()` / a click; timed ones show over them
+ * for their moment, then the persistent one returns.
  *
  *   banner.success('Bananas added');
  *   banner.warning('Unknown barcode 123', { duration: 'long' });
@@ -44,8 +53,15 @@ export class BannerService {
   private nextId = 1;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
-  /** The banner on screen, or null. */
-  readonly current = signal<BannerMessage | null>(null);
+  /** The timed banner on screen, if any. It temporarily covers the persistent ones. */
+  private readonly timed = signal<BannerMessage | null>(null);
+  /** Persistent banners (newest last); they stay until removed. */
+  private readonly pinned = signal<BannerMessage[]>([]);
+
+  /** The banner on screen: a timed one if there is one, otherwise the newest persistent one, or null. */
+  readonly current = computed(() => this.timed() ?? this.pinned().at(-1) ?? null);
+  /** True while a persistent banner exists. The app makes room for the strip then, so nothing hides behind it. */
+  readonly reserveSpace = computed(() => this.pinned().length > 0);
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
@@ -59,10 +75,16 @@ export class BannerService {
       severity: options.severity ?? 'info',
       durationMs: typeof duration === 'number' ? Math.max(0, duration) : BANNER_DURATIONS[duration],
       key: options.key,
+      dismissible: options.dismissible ?? true,
     };
 
     const { key } = options;
-    if (key && this.current()?.key === key) {
+    if (message.durationMs === 0) {
+      // Persistent: kept apart from the queue; the same key replaces the earlier one.
+      this.pinned.update((list) => [...list.filter((m) => !key || m.key !== key), message]);
+      return;
+    }
+    if (key && this.timed()?.key === key) {
       this.display(message); // same thing again: update it in place and restart its timer
       return;
     }
@@ -71,7 +93,7 @@ export class BannerService {
       this.queue[queuedIndex] = message;
       return;
     }
-    if (!this.current()) {
+    if (!this.timed()) {
       this.display(message);
       return;
     }
@@ -92,18 +114,31 @@ export class BannerService {
     this.show(text, { ...options, severity: 'error' });
   }
 
-  /** Closes the banner on screen; the next queued one (if any) follows. */
+  /**
+   * Closes the banner on screen. A timed one is followed by the next queued message; with none on screen,
+   * the newest persistent banner is removed.
+   */
   dismiss(): void {
+    if (!this.timed()) {
+      this.pinned.update((list) => list.slice(0, -1));
+      return;
+    }
     clearTimeout(this.timer);
-    this.current.set(null);
+    this.timed.set(null);
     this.timer = this.queue.length ? setTimeout(() => this.showNext(), GAP_MS) : undefined;
   }
 
-  /** Closes the banner on screen and forgets everything waiting. */
+  /** Removes the persistent banner with this key (no-op if it is gone), e.g. when an update notice is obsolete. */
+  remove(key: string): void {
+    this.pinned.update((list) => list.filter((m) => m.key !== key));
+  }
+
+  /** Closes the banner on screen and forgets everything waiting, persistent banners included. */
   clear(): void {
     this.queue.length = 0;
     clearTimeout(this.timer);
-    this.current.set(null);
+    this.timed.set(null);
+    this.pinned.set([]);
   }
 
   private showNext(): void {
@@ -113,7 +148,7 @@ export class BannerService {
 
   private display(message: BannerMessage): void {
     clearTimeout(this.timer);
-    this.current.set(message);
-    this.timer = message.durationMs > 0 ? setTimeout(() => this.dismiss(), message.durationMs) : undefined;
+    this.timed.set(message);
+    this.timer = setTimeout(() => this.dismiss(), message.durationMs);
   }
 }

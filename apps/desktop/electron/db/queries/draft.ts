@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { CheckoutDraft, DraftLine } from '@micropos/core';
 import type { AppDatabase } from '../index';
-import { settings } from '../schema';
+import { PRODUCT_UNITS, type ProductUnit, settings } from '../schema';
 
 /**
  * The checkout draft lives in the settings table under one key (one in-progress order per register).
@@ -24,7 +24,9 @@ export function sanitizeDraft(value: unknown): CheckoutDraft {
     // Drafts saved before quantities became decimals stored whole units in `quantity`.
     const quantityMilli = l?.quantityMilli ?? (typeof l?.quantity === 'number' ? l.quantity * 1000 : undefined);
     if (l && typeof l.productId === 'string' && typeof l.name === 'string' && isQuantity(quantityMilli) && isCents(l.unitPrice)) {
-      lines.push({ productId: l.productId, name: l.name.slice(0, 200), quantityMilli, unitPrice: l.unitPrice });
+      // Drafts saved before units existed have none: they were all counted items.
+      const unit = PRODUCT_UNITS.includes(l.unit as ProductUnit) ? (l.unit as ProductUnit) : 'each';
+      lines.push({ productId: l.productId, name: l.name.slice(0, 200), quantityMilli, unitPrice: l.unitPrice, unit });
     }
   }
   return { lines };

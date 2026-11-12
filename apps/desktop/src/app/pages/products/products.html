@@ -1,0 +1,207 @@
+<section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
+  <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
+    <h1 class="text-2xl">Products</h1>
+    <div class="flex items-center gap-3">
+      @if (selected().length) {
+        <!-- Bulk actions for the ticked rows -->
+        <span class="text-muted-foreground text-sm">{{ selected().length }} selected</span>
+        @if (selectedLive().length) {
+          <button hlmBtn variant="destructive" type="button" class="px-4" (click)="ask('delete', selectedLive())">Delete {{ selectedLive().length }}</button>
+        }
+        @if (selectedDeleted().length) {
+          <button hlmBtn variant="outline" type="button" class="px-4" (click)="ask('restore', selectedDeleted())">Restore {{ selectedDeleted().length }}</button>
+        }
+        <button hlmBtn variant="ghost" type="button" class="px-3" (click)="clearSelection()">Clear</button>
+      }
+      <label class="flex shrink-0 items-center gap-3 text-sm">
+        <hlm-switch [checked]="deletedOnly()" (checkedChange)="toggleDeleted($event)" />
+        <span>Deleted only</span>
+      </label>
+      <button hlmBtn type="button" class="px-4" (click)="add()">Add product</button>
+    </div>
+  </header>
+
+  <!-- A grid laid out like a table (roles keep it a table for assistive tech) so rows can be swiped. -->
+  <!-- No side padding on the scroller: the swipe actions stick to its edge, and padding there would show row content beside them. -->
+  <div class="min-h-0 flex-1 overflow-auto">
+    <div role="table" aria-label="Products" class="min-w-[85rem] text-sm" [style.--cols]="columnsTemplate">
+      <div role="rowgroup" class="bg-background sticky top-0 z-10">
+        <!-- Row 1: column titles, click to sort -->
+        <div role="row" class="grid grid-cols-(--cols) border-b">
+          <div role="columnheader" class="flex h-(--control-height) items-center px-3">
+            <hlm-checkbox aria-label="Select all" [checked]="allSelected()" [indeterminate]="someSelected()" (checkedChange)="toggleAll($event)" />
+          </div>
+          @for (column of columns; track column.key) {
+            <div role="columnheader" [attr.aria-sort]="ariaSort(column.key)">
+              <button
+                type="button"
+                class="hover:bg-muted flex h-(--control-height) w-full items-center gap-1.5 px-3 font-medium {{ column.right ? 'justify-end' : '' }}"
+                (click)="sortBy(column.key)"
+              >
+                {{ column.label }}
+                <ng-icon
+                  size="14"
+                  [name]="sortKey() !== column.key ? 'lucideChevronsUpDown' : sortDirection() === 'asc' ? 'lucideArrowUp' : 'lucideArrowDown'"
+                  [class.opacity-40]="sortKey() !== column.key"
+                />
+              </button>
+            </div>
+          }
+        </div>
+        <!-- Row 2: the filter for each column. Compact controls: the row uses the small control height. -->
+        <div role="row" class="grid grid-cols-(--cols) items-center border-b [--control-height:var(--control-height-sm)]">
+          <div role="columnheader" class="flex items-center px-3">
+            <button
+              hlmBtn
+              variant="outline"
+              size="icon"
+              type="button"
+              aria-label="Reset filters"
+              title="Reset filters"
+              [disabled]="!filtered()"
+              (click)="resetFilters()"
+            >
+              <ng-icon name="lucideFilterX" size="18" />
+            </button>
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="nameFilter" placeholder="Name" label="Filter name" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="skuFilter" placeholder="SKU" label="Filter SKU" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="codeFilter" placeholder="Barcode / PLU" label="Filter barcode or PLU" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <hlm-combobox [value]="category()" (valueChange)="category.set($event ?? allCategories)" class="block">
+              <hlm-combobox-input placeholder="Category" [showClear]="category() !== allCategories" clearAriaLabel="Clear category" />
+              <hlm-combobox-content *hlmComboboxPortal>
+                <hlm-combobox-empty>No category found</hlm-combobox-empty>
+                <div hlmComboboxList>
+                  @for (name of categoryNames(); track name) {
+                    <hlm-combobox-item [value]="name">{{ name }}</hlm-combobox-item>
+                  }
+                </div>
+              </hlm-combobox-content>
+            </hlm-combobox>
+          </div>
+          <div role="columnheader"></div>
+          <div role="columnheader"></div>
+          <div role="columnheader" class="px-3 py-2">
+            <hlm-select [(value)]="status" [itemToString]="statusLabel" class="block">
+              <hlm-select-trigger size="sm" class="w-full" aria-label="Filter status">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (s of statuses; track s) {
+                  <hlm-select-item [value]="s">{{ statusLabel(s) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <div class="flex items-center gap-1">
+              <app-filter-input class="w-32" type="date" [(value)]="createdFrom" [max]="createdTo()" label="Created from" />
+              <span class="text-muted-foreground">&ndash;</span>
+              <app-filter-input class="w-32" type="date" [(value)]="createdTo" [min]="createdFrom()" label="Created to" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div role="rowgroup">
+        @for (product of visible(); track product.id) {
+          <div
+            class="border-b"
+            [animate.enter]="animateRows() ? 'row-enter' : ''"
+            animate.leave="row-leave"
+            [class.row-flash]="flashing().has(product.id)"
+            [hlmContextMenuTrigger]="rowMenu"
+            [hlmContextMenuTriggerData]="{ $implicit: product.id }"
+          >
+            <app-swipe-actions [swipeLeft]="swipeFor(product)" [distance]="56" [step]="56" (action)="onSwipe($event, product)">
+              <div
+                role="row"
+                class="hover:bg-muted/40 grid min-h-(--control-height) grid-cols-(--cols) items-center {{ product.deletedAt ? 'opacity-60' : 'cursor-pointer' }}"
+                [class.bg-muted]="isSelected(product)"
+                [attr.aria-selected]="isSelected(product)"
+                [attr.tabindex]="product.deletedAt ? null : 0"
+                (click)="edit(product)"
+                (keydown.enter)="onRowEnter($event, product)"
+              >
+                <div role="cell" class="flex items-center px-3" (click)="$event.stopPropagation()">
+                  <hlm-checkbox [aria-label]="'Select ' + product.name" [checked]="isSelected(product)" (checkedChange)="toggleRow(product, $event)" />
+                </div>
+                <div role="cell" class="truncate px-3 text-base">{{ product.name }}</div>
+                <div role="cell" class="text-muted-foreground truncate px-3 text-xs">{{ product.sku ?? '' }}</div>
+                <div role="cell" class="text-muted-foreground truncate px-3" [class.italic]="isPlu(product.barcode)">{{ product.barcode ?? '' }}</div>
+                <div role="cell" class="px-3">
+                  <div class="flex flex-wrap gap-1">
+                    @for (category of product.categories.slice(0, 2); track category.id) {
+                      <span hlmBadge variant="tagNeutral">{{ category.name }}</span>
+                    }
+                    @if (product.categories.length > 2) {
+                      <span hlmBadge variant="tagNeutral">+{{ product.categories.length - 2 }}</span>
+                    }
+                  </div>
+                </div>
+                <div role="cell" class="text-muted-foreground px-3 text-right">{{ product.cost === null ? '-' : (product.cost | money) }}{{ per(product) }}</div>
+                <div role="cell" class="px-3 text-right text-base font-medium">{{ product.price | money }}<span class="text-muted-foreground text-sm font-normal">{{ per(product) }}</span></div>
+                <div role="cell" class="px-3">
+                  @if (product.deletedAt) {
+                    <span hlmBadge variant="outline">Deleted</span>
+                  } @else {
+                    <span hlmBadge [variant]="product.active ? 'success' : 'destructive'">{{ product.active ? 'Active' : 'Inactive' }}</span>
+                  }
+                </div>
+                <div role="cell" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ product.createdAt | date: 'MMM d, y, h:mm a' }}</div>
+              </div>
+            </app-swipe-actions>
+          </div>
+        }
+      </div>
+    </div>
+    @if (!visible().length) {
+      <p class="text-muted-foreground py-8 text-center text-sm">
+        {{ service.status() === 'error' ? 'Products could not be loaded' : service.status() === 'loading' ? 'Loading products' : 'No products found' }}
+      </p>
+    }
+  </div>
+</section>
+
+<!-- Right-click (or long-press) menu of a product row. -->
+<!-- The menu gets only the row's id: the CDK trigger keeps the data from its first opening, so the product itself
+     is looked up fresh here (otherwise a status changed from this menu would still be offered the old way). -->
+<ng-template #rowMenu let-id>
+  @if (productById(id); as product) {
+  <div hlmDropdownMenu>
+    @if (product.deletedAt) {
+      <button hlmDropdownMenuItem type="button" (click)="ask('restore', targetsFor(product))">Restore</button>
+    } @else {
+      <button hlmDropdownMenuItem type="button" (click)="edit(product)">Edit</button>
+      @if (hasStatus(product, false)) {
+        <button hlmDropdownMenuItem type="button" (click)="setActive(targetsFor(product), true)">Set <span hlmBadge variant="success" class="text-success!">Active</span></button>
+      }
+      @if (hasStatus(product, true)) {
+        <button hlmDropdownMenuItem type="button" (click)="setActive(targetsFor(product), false)">Set <span hlmBadge variant="destructive" class="text-destructive!">Inactive</span></button>
+      }
+      <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(product))">Delete</button>
+    }
+  </div>
+  }
+</ng-template>
+
+<!-- The one confirmation every delete and restore goes through (button, context menu, swipe). -->
+<hlm-alert-dialog [state]="pending() ? 'open' : 'closed'" (closed)="pending.set(null)">
+  <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+    <hlm-alert-dialog-header>
+      <h3 hlmAlertDialogTitle>{{ confirmTitle() }}</h3>
+      <p hlmAlertDialogDescription>{{ confirmText() }}</p>
+    </hlm-alert-dialog-header>
+    <hlm-alert-dialog-footer>
+      <button hlmAlertDialogCancel type="button">Cancel</button>
+      <button hlmAlertDialogAction [variant]="confirmLabel() === 'Delete' ? 'destructive' : 'default'" type="button" (click)="confirm()">{{ confirmLabel() }}</button>
+    </hlm-alert-dialog-footer>
+  </hlm-alert-dialog-content>
+</hlm-alert-dialog>

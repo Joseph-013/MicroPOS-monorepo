@@ -123,3 +123,30 @@
       var(--_m) 100% calc(100% - 5px) / 11px 1px no-repeat;
   }
 }
+
+/* Table row motion: rows fade in and out, and flash when their data changes, so edits never look like nothing
+   happened. */
+@keyframes row-enter {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes row-leave {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes row-flash {
+  from {
+    background-color: color-mix(in oklab, var(--primary) 35%, transparent);
+  }
+}
+.row-enter {
+  animation: row-enter 100ms ease-out;
+}
+.row-leave {
+  animation: row-leave 100ms ease-in forwards;
+}
+.row-flash {
+  animation: row-flash 900ms ease-out;
+}

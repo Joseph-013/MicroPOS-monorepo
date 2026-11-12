@@ -18,14 +18,15 @@ const p = (id: string, name: string, price: number, categoryNames: string[], n: 
   name,
   price,
   categories: categoryNames.map((name) => ({ id: name, name })),
+  unit: 'each',
   sku: `PRD-0000${n}`,
-  plu: `100${n}`,
   barcode: `59000000000${n}${n}`,
 });
 const PRODUCTS = [
   p('1', 'Bananas (bunch)', 179, ['Produce', 'Snacks', 'Fruit', 'Organic'], 1),
   p('2', 'Whole Milk (1 gal)', 429, ['Dairy', 'Beverages'], 2),
   p('3', 'Large Eggs (dozen)', 349, ['Dairy'], 3),
+  { ...p('4', 'Ground Beef', 899, [], 4), unit: 'kg' as const },
 ];
 /** A fake bridge whose draft storage is an in-memory slot we can inspect. */
 function fakeApi(initialDraft: CheckoutDraft | null = null) {
@@ -33,9 +34,18 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
   const api: DesktopApi = {
     platform: 'linux',
     version: () => Promise.resolve(DESKTOP_API_VERSION),
+    scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: {
       listProducts: () => Promise.resolve(PRODUCTS),
       listCategories: () => Promise.resolve([{ id: 'Dairy', name: 'Dairy' }, { id: 'Produce', name: 'Produce' }]),
+    },
+    products: {
+      list: () => Promise.resolve([]),
+      create: () => Promise.reject(new Error('unused')),
+      update: () => Promise.reject(new Error('unused')),
+      remove: () => Promise.resolve(),
+      restore: () => Promise.resolve({ restored: 0, conflicts: [] }),
+      setActive: () => Promise.resolve(),
     },
     checkout: {
       loadDraft: () => Promise.resolve(store.draft),
@@ -54,11 +64,9 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
   return { api, store };
 }
 
-/** Simulates a scanner: every character then Enter, effectively instantly. */
+/** Simulates a scan: the Electron main process detects it and sends the code to the page. */
 function scan(code: string): void {
-  for (const ch of [...code, 'Enter']) {
-    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true, cancelable: true }));
-  }
+  TestBed.inject(ScannerService).receive(code);
 }
 
 const buttonByText = (root: ParentNode, text: string): HTMLButtonElement =>
@@ -149,11 +157,11 @@ describe('CheckoutPage', () => {
     await fixture.whenStable();
   });
 
-  it('searches name, barcode, SKU and PLU in one box', async () => {
+  it('searches name, barcode and SKU in one box', async () => {
     buttonByText(el, 'Add items').click();
     await fixture.whenStable();
     const milk = PRODUCTS[1];
-    for (const term of [milk.name, milk.name.toUpperCase(), milk.barcode!, milk.sku!, milk.plu!, milk.barcode!.slice(-5)]) {
+    for (const term of [milk.name, milk.name.toUpperCase(), milk.barcode!, milk.sku!, milk.barcode!.slice(-5)]) {
       await search(term);
       expect(articles(), term).toBe(1);
       expect(document.querySelector('article')?.textContent).toContain('Whole Milk');
@@ -215,7 +223,7 @@ describe('CheckoutPage', () => {
       scan(PRODUCTS[0].barcode!);
       await fixture.whenStable();
       await flush();
-      expect(store.draft?.lines).toEqual([{ productId: '1', name: 'Bananas (bunch)', quantityMilli: 2000, unitPrice: 179 }]);
+      expect(store.draft?.lines).toEqual([{ productId: '1', name: 'Bananas (bunch)', quantityMilli: 2000, unitPrice: 179, unit: 'each' }]);
 
       (el.querySelector('button[aria-label="Decrease quantity"]') as HTMLButtonElement).click();
       await fixture.whenStable();
@@ -234,7 +242,7 @@ describe('CheckoutPage', () => {
 
     it('restores a saved draft when the page opens', async () => {
       fixture.destroy();
-      await open({ lines: [{ productId: '2', name: 'Whole Milk (1 gal)', quantityMilli: 3000, unitPrice: 429 }] });
+      await open({ lines: [{ productId: '2', name: 'Whole Milk (1 gal)', quantityMilli: 3000, unitPrice: 429, unit: 'each' as const }] });
       expect(el.textContent).toContain('Whole Milk (1 gal)');
       expect(el.textContent).toContain('₱12.87'); // 3 x 4.29
     });
@@ -257,7 +265,7 @@ describe('CheckoutPage', () => {
 
     it('does not wipe a saved draft just because the page opened empty', async () => {
       fixture.destroy();
-      await open({ lines: [{ productId: '2', name: 'Whole Milk (1 gal)', quantityMilli: 1000, unitPrice: 429 }] });
+      await open({ lines: [{ productId: '2', name: 'Whole Milk (1 gal)', quantityMilli: 1000, unitPrice: 429, unit: 'each' as const }] });
       await flush();
       expect(store.draft?.lines).toHaveLength(1);
     });
@@ -299,6 +307,37 @@ describe('CheckoutPage', () => {
 
     it('disables Clear while the order is empty', () => {
       expect(buttonByText(el, 'Clear').disabled).toBe(true);
+    });
+  });
+
+  describe('weighed products', () => {
+    it('adding one opens the weight field; the line shows the price and weight per unit', async () => {
+      scan(PRODUCTS[3].barcode!);
+      await fixture.whenStable();
+      const field = el.querySelector('input[aria-label="Quantity"]') as HTMLInputElement;
+      expect(field).not.toBeNull(); // asks for the weight right away
+      field.value = '0.35';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await fixture.whenStable();
+      expect(el.textContent).toContain('₱8.99 / kg');
+      expect(el.textContent).toContain('0.35 kg');
+      expect(el.textContent).toContain('₱3.15'); // 899 x 0.35 = 314.65 -> 315 cents
+      TestBed.inject(CheckoutDraftService).flush();
+      expect(store.draft?.lines[0]).toMatchObject({ unit: 'kg', quantityMilli: 350 });
+    });
+
+    it('scanning it again edits the weight instead of adding another unit', async () => {
+      scan(PRODUCTS[3].barcode!);
+      await fixture.whenStable();
+      (el.querySelector('input[aria-label="Quantity"]') as HTMLInputElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await fixture.whenStable();
+      scan(PRODUCTS[3].barcode!);
+      await fixture.whenStable();
+      expect(el.querySelectorAll('li').length).toBe(1);
+      TestBed.inject(CheckoutDraftService).flush();
+      expect(store.draft?.lines).toHaveLength(1);
+      expect(store.draft?.lines[0]?.quantityMilli).toBe(1000); // still one unit, not two
     });
   });
 
