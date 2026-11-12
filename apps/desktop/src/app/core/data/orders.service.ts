@@ -1,5 +1,5 @@
 import { inject, Service, signal } from '@angular/core';
-import type { SalesOrderDetail, SalesOrderSummary } from '@micropos/core';
+import type { OrderActionResult, SalesOrderDetail, SalesOrderSummary } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
 import type { LoadStatus } from './catalog.service';
 
@@ -23,6 +23,17 @@ export class OrdersService {
     } catch (error) {
       console.error('Failed to load sales orders', error);
       this.status.set('error');
+    }
+  }
+
+  /** Voids or refunds one completed order. The list is not refreshed here: `OrderActions` does that once per batch. */
+  async reverse(kind: 'void' | 'refund', orderId: string, reason: string): Promise<OrderActionResult> {
+    if (!this.api) return { ok: false, error: 'Not connected to the database' };
+    try {
+      return await this.api.orders[kind]({ orderId, reason });
+    } catch (error) {
+      console.error(`Could not ${kind} the order`, error);
+      return { ok: false, error: `Could not ${kind} the order` };
     }
   }
 
