@@ -5,6 +5,7 @@ import { BannerHost, BannerService } from './core/banner';
 import { OnScreenKeyboardService } from './core/keyboard';
 import { KioskFocusService } from './core/kiosk/kiosk-focus.service';
 import { NavRail } from './core/nav-rail';
+import { ProductViewer } from './core/product-viewer';
 import { SalesOrderViewer } from './core/sales-order-viewer';
 import { ScannerService } from './core/scanner';
 import { TooSmallOverlay } from './core/viewport/too-small-overlay';
@@ -22,6 +23,8 @@ export class App {
   private readonly apiGuard = inject(DesktopApiGuard);
   /** Opens `?view-sales-order=<id>` in a dialog over any page. */
   private readonly salesOrderViewer = inject(SalesOrderViewer);
+  /** Opens `?view-product=<id>` in a read-only product dialog over any page. */
+  private readonly productViewer = inject(ProductViewer);
   /** Height of the banner strip (`h-9`); pages and the nav rail read it as `--banner-offset`. */
   protected readonly bannerOffset = inject(BannerService).reserveSpace;
 
