@@ -24,6 +24,9 @@ Each app gets its own CLAUDE.md with app-specific notes once scaffolded.
 - Depend on core with `"@micropos/core": "workspace:*"`.
 - better-sqlite3 is used only in Electron's main process; the renderer reaches it over IPC. Mobile cannot use it.
 
+## Docs
+- `docs/erd.mmd` is the source for the database ERD (Mermaid) and `docs/erd.png` is the rendered image. Whenever the database schema changes (Drizzle schema in `apps/desktop/electron/db/schema.ts` or its migrations), update `docs/erd.mmd` and regenerate `docs/erd.png` in the same change.
+
 ## Config notes
 - `nodeLinker: hoisted` in `pnpm-workspace.yaml` (pnpm 12 ignores `node-linker` in `.npmrc`; the `.npmrc` line is kept for older tooling). Needed so Electron Forge can find native modules and Metro can resolve workspace packages. Don't remove it without testing desktop packaging.
 - `.dockerignore` excludes `apps/desktop` and `apps/mobile`; only the API is built into images.

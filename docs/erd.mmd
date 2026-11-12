@@ -1,0 +1,92 @@
+erDiagram
+    employees ||--o{ login_sessions : "signs in"
+    employees ||--o{ orders : "rings up"
+    employees ||--o{ audit_log : "performs"
+    categories ||--o{ products : "groups"
+    orders ||--|{ order_lines : "has"
+    products |o--o{ order_lines : "sold as"
+    orders ||--|{ payments : "paid_by"
+    orders |o--o{ orders : "refunds"
+
+    employees {
+        text id PK
+        text name
+        text employee_number UK
+        text pin_hash
+        text role
+        int active
+        int failed_attempts
+        int locked_until
+        int created_at
+        int updated_at
+        int deleted_at
+    }
+    login_sessions {
+        text id PK
+        text employee_id FK
+        int logged_in_at
+        int logged_out_at
+    }
+    audit_log {
+        text id PK
+        text employee_id FK
+        text action
+        text entity
+        text entity_id
+        text detail
+        int at
+    }
+    categories {
+        text id PK
+        text name
+        int sort_order
+        int deleted_at
+    }
+    products {
+        text id PK
+        text name
+        text sku UK
+        text barcode UK
+        text plu UK
+        text category_id FK
+        int price
+        int cost
+        int active
+        int deleted_at
+    }
+    orders {
+        text id PK
+        text order_number UK
+        text employee_id FK
+        text refund_of_order_id FK
+        text status
+        int subtotal
+        int discount_total
+        int total
+        int completed_at
+        int created_at
+    }
+    order_lines {
+        text id PK
+        text order_id FK
+        text product_id FK
+        text name
+        int unit_price
+        int quantity_milli
+        int line_total
+    }
+    payments {
+        text id PK
+        text order_id FK
+        text method
+        int amount
+        int tendered
+        int change
+        text reference
+        int created_at
+    }
+    settings {
+        text key PK
+        text value
+        int updated_at
+    }
