@@ -21,7 +21,7 @@ export function scrollToRow(id: string): void {
 }
 
 /** How long a targeted row stays highlighted. */
-export const ROW_TARGET_MS = 3000;
+export const ROW_TARGET_MS = 6000;
 
 /** Reads like a signal (`target()`); `set(id)` highlights a row, and `set(null)` clears it. */
 export interface RowTarget {
