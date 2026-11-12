@@ -69,3 +69,30 @@ describe('NavRail on touch', () => {
     expect(rail.style.width).toBe('3.5rem');
   });
 });
+
+describe('NavRail groups', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', children: [] }])] });
+  });
+
+  it('children stay in the page and animate open with the rail instead of popping in (no jump)', async () => {
+    const fixture = TestBed.createComponent(NavRail);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const rail = el.querySelector('nav') as HTMLElement;
+    const group = el.querySelector('button[aria-expanded]') as HTMLButtonElement;
+    group.click(); // open the first group (collapsed rail: this is a plain click, as with a mouse)
+    fixture.detectChanges();
+
+    const wrap = el.querySelector(`#${group.getAttribute('aria-controls')}`)!.parentElement!.parentElement as HTMLElement;
+    expect(wrap.style.gridTemplateRows).toBe('0fr'); // rail collapsed: folded away, not removed
+    expect(wrap.hasAttribute('inert')).toBe(true); // and out of the tab order
+    expect(wrap.className).toContain('transition-[grid-template-rows,opacity]');
+
+    rail.dispatchEvent(new Event('mouseenter')); // the rail expands
+    fixture.detectChanges();
+    expect(wrap.style.gridTemplateRows).toBe('1fr');
+    expect(wrap.hasAttribute('inert')).toBe(false);
+  });
+});
