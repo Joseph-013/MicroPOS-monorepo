@@ -116,7 +116,7 @@ function fakeApi(initial: ProductRecord[]) {
         return Promise.resolve({ restored: ids.length, conflicts: [] });
       },
     },
-    checkout: { loadDraft: () => Promise.resolve(null), saveDraft: () => Promise.resolve(), clearDraft: () => Promise.resolve() },
+    checkout: { nextOrderNumber: () => Promise.resolve('SO-1001'), completeOrder: () => Promise.reject(new Error('unused')), loadDraft: () => Promise.resolve(null), saveDraft: () => Promise.resolve(), clearDraft: () => Promise.resolve() },
   };
   return { api, calls, drafts };
 }
@@ -241,17 +241,17 @@ describe('ProductsPage', () => {
     expect(reset().disabled).toBe(true);
   });
 
-  it('clears a filter with its x button, which only shows while the field has text', async () => {
+  it('clears a filter with its x button, which is enabled only while the field has text', async () => {
     await open([record('1', 'Milk'), record('2', 'Eggs')]);
-    const clear = (): HTMLButtonElement | null => el.querySelector('button[aria-label="Clear filter name"]');
-    expect(clear()).toBeNull();
+    const clear = (): HTMLButtonElement => el.querySelector('button[aria-label="Clear filter name"]')!;
+    expect(clear().disabled).toBe(true);
     await type(el, 'input[aria-label="Filter name"]', 'eggs');
     expect(rowNames()).toEqual(['Eggs']);
-    clear()!.click();
+    clear().click();
     await fixture.whenStable();
     expect((el.querySelector('input[aria-label="Filter name"]') as HTMLInputElement).value).toBe('');
     expect(rowNames()).toHaveLength(2);
-    expect(clear()).toBeNull();
+    expect(clear().disabled).toBe(true);
   });
 
   it('offers a category clear button only when a category is chosen', async () => {
@@ -513,7 +513,7 @@ describe('ProductsPage', () => {
     expect(el.textContent).toContain('₱5.00');
   });
 
-  it('shows weighed products per unit and asks for a code before saving one', async () => {
+  it('shows weighed products per unit and saves one with or without a code', async () => {
     await open([record('1', 'Beef', { unit: 'kg', barcode: '4011', price: 89900, cost: 60000 })]);
     expect(el.textContent).toContain('₱899.00');
     expect(el.textContent).toContain('/ kg');
@@ -521,17 +521,14 @@ describe('ProductsPage', () => {
     bodyRows()[0]!.click();
     await settle();
     expect(dialog().textContent).toContain('Price per kg');
-    expect(dialog().textContent).toContain('Barcode / PLU (required)');
+    expect(dialog().textContent).not.toContain('(required)');
+    expect(dialog().querySelector('label[for="p-barcode"]')!.textContent).toBe('PLU'); // sold by weight
     await type(dialog(), '#p-barcode', '');
     buttonByText(dialog(), 'Save').click();
     await settle();
-    expect(dialog().textContent).toContain('A weighed product needs a barcode or PLU');
-    expect(calls.update).toHaveLength(0);
+    expect(calls.update[0]?.[1]).toMatchObject({ unit: 'kg', barcode: null });
+    expect(dialog()).toBeNull(); // saved and closed
 
-    await type(dialog(), '#p-barcode', '4012');
-    buttonByText(dialog(), 'Save').click();
-    await settle();
-    expect(calls.update[0]?.[1]).toMatchObject({ unit: 'kg', barcode: '4012', price: 89900 });
   });
 
   describe('delete and restore', () => {

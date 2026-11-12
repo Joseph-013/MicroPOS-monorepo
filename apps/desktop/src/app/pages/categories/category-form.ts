@@ -28,7 +28,7 @@ export interface CategoryFormContext {
 
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); submit()">
       <div class="flex flex-col gap-2">
-        <label hlmLabel for="c-name">Name</label>
+        <label hlmLabel data-required for="c-name">Name</label>
         <input hlmInput id="c-name" type="text" [forceInvalid]="invalid('name')" [value]="name()" (input)="name.set($any($event.target).value)" />
         @if (errorFor('name'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
       </div>

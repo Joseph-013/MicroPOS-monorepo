@@ -51,7 +51,7 @@ interface TargetRow {
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); submit()">
       <div class="grid grid-cols-[minmax(0,1fr)_9rem] gap-3">
         <div class="flex flex-col gap-2">
-          <label hlmLabel for="rp-source">Open</label>
+          <label hlmLabel data-required for="rp-source">Open</label>
           <hlm-combobox [value]="sourceId()" (valueChange)="chooseSource($event ?? null)" [itemToString]="productName" class="block">
             <hlm-combobox-input id="rp-source" placeholder="Search or scan a product" />
             <hlm-combobox-content *hlmComboboxPortal>
@@ -71,7 +71,7 @@ interface TargetRow {
           @if (errorFor('source'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
         </div>
         <div class="flex flex-col gap-2">
-          <label hlmLabel for="rp-qty">Quantity{{ unitSuffix(source()) }}</label>
+          <label hlmLabel data-required for="rp-qty">Quantity{{ unitSuffix(source()) }}</label>
           <input
             hlmInput
             id="rp-qty"
@@ -92,7 +92,7 @@ interface TargetRow {
       }
 
       <div class="flex flex-col gap-2">
-        <span hlmLabel>Into</span>
+        <span hlmLabel data-required>Into</span>
         @for (row of rows(); track row.key; let i = $index) {
           <div class="grid grid-cols-[minmax(0,1fr)_9rem_auto] items-center gap-3">
             <hlm-combobox [value]="row.productId" (valueChange)="setRow(row.key, { productId: $event ?? null })" [itemToString]="productName" class="block">

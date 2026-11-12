@@ -1,5 +1,5 @@
 import { inject, Service } from '@angular/core';
-import { type DraftLine, PRODUCT_UNITS, type ProductUnit } from '@micropos/core';
+import { type CompleteOrderInput, type CompleteOrderResult, type DraftLine, PRODUCT_UNITS, type ProductUnit } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
 
 const SAVE_DELAY_MS = 300;
@@ -66,5 +66,29 @@ export class CheckoutDraftService {
     clearTimeout(this.timer);
     this.pending = null;
     this.api?.checkout.clearDraft().catch((error: unknown) => console.error('Failed to clear the saved order', error));
+  }
+
+  /** The number the next order will get, or null when it cannot be read. */
+  async nextOrderNumber(): Promise<string | null> {
+    try {
+      return (await this.api?.checkout.nextOrderNumber()) ?? null;
+    } catch (error) {
+      console.error('Failed to read the next order number', error);
+      return null;
+    }
+  }
+
+  /** Completes the order. A completed order also removes the saved draft (in the same transaction). */
+  async completeOrder(input: CompleteOrderInput): Promise<CompleteOrderResult> {
+    if (!this.api) return { ok: false, error: 'Not connected to the database', lines: [] };
+    // Whatever is waiting to be saved is about to be obsolete: do not let it write the draft back afterwards.
+    clearTimeout(this.timer);
+    this.pending = null;
+    try {
+      return await this.api.checkout.completeOrder(input);
+    } catch (error) {
+      console.error('Could not complete the order', error);
+      return { ok: false, error: 'Could not complete the order', lines: [] };
+    }
   }
 }

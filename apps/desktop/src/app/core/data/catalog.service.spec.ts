@@ -3,7 +3,7 @@ import { type CatalogProduct, DESKTOP_API_VERSION, type DesktopApi } from '@micr
 import { DESKTOP_API } from '../api/desktop-api';
 import { CatalogService } from './catalog.service';
 
-const noDraft = { loadDraft: () => Promise.resolve(null), saveDraft: () => Promise.resolve(), clearDraft: () => Promise.resolve() };
+const noDraft = { nextOrderNumber: () => Promise.resolve('SO-1001'), completeOrder: () => Promise.reject(new Error('unused')), loadDraft: () => Promise.resolve(null), saveDraft: () => Promise.resolve(), clearDraft: () => Promise.resolve() };
 
 const noProducts = {
   list: () => Promise.resolve([]),

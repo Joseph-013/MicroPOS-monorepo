@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { type CatalogProduct, type CheckoutDraft, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
+import { type CatalogProduct, type CheckoutDraft, type CompleteOrderInput, type CompleteOrderResult, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
 import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
@@ -31,7 +31,14 @@ const PRODUCTS = [
 ];
 /** A fake bridge whose draft storage is an in-memory slot we can inspect. */
 function fakeApi(initialDraft: CheckoutDraft | null = null) {
-  const store = { draft: initialDraft, saves: 0, clears: 0 };
+  const store = {
+    draft: initialDraft,
+    saves: 0,
+    clears: 0,
+    orders: [] as CompleteOrderInput[],
+    /** What the fake main process answers when an order is completed. */
+    result: null as CompleteOrderResult | null,
+  };
   const api: DesktopApi = {
     platform: 'linux',
     version: () => Promise.resolve(DESKTOP_API_VERSION),
@@ -79,6 +86,13 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
         store.clears++;
         store.draft = null;
         return Promise.resolve();
+      },
+      nextOrderNumber: () => Promise.resolve(`SO-${1001 + store.orders.length}`),
+      completeOrder: (input) => {
+        store.orders.push(input);
+        const result = store.result ?? { ok: true as const, orderId: 'o', orderNumber: `SO-${1000 + store.orders.length}`, total: 0, change: 0 };
+        if (result.ok) store.draft = null;
+        return Promise.resolve(result);
       },
     },
   };
@@ -129,7 +143,7 @@ describe('CheckoutPage', () => {
 
   it('starts with an empty order, payment controls on the right and no item grid on the page', () => {
     expect(el.textContent).toContain('No items yet');
-    expect(el.textContent).toContain('Complete sale');
+    expect(el.textContent).toContain('Complete Order');
     expect(el.textContent).toContain('₱0.00');
     expect(el.querySelectorAll('article').length).toBe(0);
   });
@@ -174,6 +188,27 @@ describe('CheckoutPage', () => {
     add.click();
     await fixture.whenStable();
     expect(banner.current()).toMatchObject({ text: 'Bananas (bunch) added', severity: 'success', durationMs: 1500 });
+    buttonByText(document.body, 'Done').click();
+    await fixture.whenStable();
+  });
+
+  it('clears the search with its x button and resets all filters with the reset button', async () => {
+    buttonByText(el, 'Add items').click();
+    await fixture.whenStable();
+    const reset = document.querySelector('button[aria-label="Reset filters"]') as HTMLButtonElement;
+    expect(reset.disabled).toBe(true); // nothing filtered yet
+    await search('bananas');
+    expect(document.querySelectorAll('article')).toHaveLength(1);
+    expect(reset.disabled).toBe(false);
+    (document.querySelector('button[aria-label="Clear search"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect((document.querySelector('input[aria-label^="Search"]') as HTMLInputElement).value).toBe('');
+    expect(document.querySelectorAll('article').length).toBeGreaterThan(1);
+    await search('bananas');
+    reset.click();
+    await fixture.whenStable();
+    expect(document.querySelectorAll('article').length).toBeGreaterThan(1);
+    expect(reset.disabled).toBe(true);
     buttonByText(document.body, 'Done').click();
     await fixture.whenStable();
   });
@@ -331,6 +366,112 @@ describe('CheckoutPage', () => {
     });
   });
 
+  describe('completing an order', () => {
+    const type = async (selector: string, text: string): Promise<void> => {
+      const input = el.querySelector(selector) as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await fixture.whenStable();
+    };
+    const complete = (): HTMLButtonElement => buttonByText(el, 'Complete Order');
+    const flushSaves = async (): Promise<void> => {
+      TestBed.inject(CheckoutDraftService).flush();
+      await fixture.whenStable();
+    };
+
+    it('shows the number the order will get', () => {
+      expect(el.textContent).toContain('SO-1001');
+    });
+
+    it('cannot be completed while empty, or until the cash handed over covers the total', async () => {
+      expect(complete().disabled).toBe(true);
+      scan(PRODUCTS[1].barcode!); // 4.29
+      await fixture.whenStable();
+      expect(complete().disabled).toBe(true); // no cash yet
+      await type('#tendered', '4.00');
+      expect(complete().disabled).toBe(true);
+      await type('#tendered', '5');
+      expect(complete().disabled).toBe(false);
+      expect(el.textContent).toContain('₱0.71'); // change due
+    });
+
+    it('Exact fills the total', async () => {
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      buttonByText(el, 'Exact').click();
+      await fixture.whenStable();
+      expect((el.querySelector('#tendered') as HTMLInputElement).value).toBe('4.29');
+      expect(complete().disabled).toBe(false);
+    });
+
+    it('sends the lines, discount and payment, then starts a fresh order with the next number', async () => {
+      scan(PRODUCTS[1].barcode!);
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      await type('#tendered', '10');
+      store.result = { ok: true, orderId: 'o1', orderNumber: 'SO-1001', total: 858, change: 142 };
+      complete().click();
+      await fixture.whenStable();
+
+      expect(store.orders).toEqual([
+        { lines: [{ productId: '2', quantityMilli: 2000, unitPrice: 429 }], discount: 0, payment: { method: 'cash', tendered: 1000, reference: undefined } },
+      ]);
+      expect(el.textContent).toContain('No items yet');
+      expect(el.textContent).toContain('SO-1002');
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Order SO-1001 completed, change ₱1.42');
+      // The order is gone for good: the debounced draft save must not write it back.
+      await flushSaves();
+      expect(store.draft).toBeNull();
+    });
+
+    it('takes a card payment without cash handed over', async () => {
+      scan(PRODUCTS[0].barcode!);
+      await fixture.whenStable();
+      // switch to card through the select's own state: the field names the reference
+      (fixture.componentInstance as unknown as { paymentMethod: { set(v: string): void } }).paymentMethod.set('card');
+      await fixture.whenStable();
+      await type('#reference', 'SLIP-9');
+      expect(complete().disabled).toBe(false);
+      complete().click();
+      await fixture.whenStable();
+      expect(store.orders[0].payment).toEqual({ method: 'card', tendered: undefined, reference: 'SLIP-9' });
+    });
+
+    it('keeps the order when it is refused, brings a changed price in and drops an unavailable item', async () => {
+      scan(PRODUCTS[0].barcode!);
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      await type('#tendered', '50');
+      store.result = {
+        ok: false,
+        error: 'Some items on the order have changed',
+        lines: [
+          { productId: '1', kind: 'price', error: 'The price of Bananas (bunch) has changed', current: { name: 'Bananas (bunch)', unitPrice: 199, unit: 'each' } },
+          { productId: '2', kind: 'unavailable', error: 'Whole Milk (1 gal) is no longer available' },
+        ],
+      };
+      complete().click();
+      await fixture.whenStable();
+
+      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.textContent).toContain('₱1.99');
+      expect(el.textContent).not.toContain('Whole Milk (1 gal)');
+      expect(TestBed.inject(BannerService).current()?.text).toContain('The price of Bananas (bunch) has changed');
+      expect(store.orders).toHaveLength(1);
+    });
+
+    it('keeps the order and says so when stock is short', async () => {
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      await type('#tendered', '5');
+      store.result = { ok: false, error: 'Not enough stock for some items', lines: [{ productId: '2', kind: 'stock', error: 'Only 0 of Whole Milk (1 gal) in stock' }] };
+      complete().click();
+      await fixture.whenStable();
+      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(TestBed.inject(BannerService).current()?.text).toContain('Only 0 of Whole Milk (1 gal) in stock');
+    });
+  });
+
   describe('weighed products', () => {
     it('adding one opens the weight field; the line shows the price and weight per unit', async () => {
       scan(PRODUCTS[3].barcode!);
@@ -341,8 +482,8 @@ describe('CheckoutPage', () => {
       field.dispatchEvent(new Event('input', { bubbles: true }));
       field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       await fixture.whenStable();
-      expect(el.textContent).toContain('₱8.99 / kg');
-      expect(el.textContent).toContain('0.35 kg');
+      expect(el.textContent?.replace(/\s+/g, ' ')).toContain('₱8.99 / kg');
+      expect(el.textContent?.replace(/\s+/g, ' ')).toContain('0.35 kg');
       expect(el.textContent).toContain('₱3.15'); // 899 x 0.35 = 314.65 -> 315 cents
       TestBed.inject(CheckoutDraftService).flush();
       expect(store.draft?.lines[0]).toMatchObject({ unit: 'kg', quantityMilli: 350 });

@@ -13,6 +13,7 @@
     "module": "preserve",
     "paths": {
       "@spartan-ng/helm/button": ["./src/app/ui/button/src/index.ts"],
+      "@spartan-ng/helm/button-group": ["./src/app/ui/button-group/src/index.ts"],
       "@spartan-ng/helm/utils": ["./src/app/ui/utils/src/index.ts"],
       "@spartan-ng/helm/input": ["./src/app/ui/input/src/index.ts"],
       "@spartan-ng/helm/card": ["./src/app/ui/card/src/index.ts"],

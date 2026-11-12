@@ -126,6 +126,13 @@
 
 /* Table row motion: rows fade in and out, and flash when their data changes, so edits never look like nothing
    happened. */
+/* Required form fields: a red asterisk after the label (hidden from screen readers). */
+label[data-required]::after,
+span[data-required]::after {
+  content: ' *' / '';
+  color: var(--color-destructive);
+}
+
 @keyframes row-enter {
   from {
     opacity: 0;

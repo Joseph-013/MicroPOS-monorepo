@@ -51,7 +51,7 @@ export const fromDateInput = (value: string): number | null => {
 
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); submit()">
       <div class="flex flex-col gap-2">
-        <label hlmLabel for="r-product">Product</label>
+        <label hlmLabel data-required for="r-product">Product</label>
         <hlm-combobox [value]="productId()" (valueChange)="choose($event ?? null)" [itemToString]="productName" class="block">
           <hlm-combobox-input id="r-product" placeholder="Search or scan a product" />
           <hlm-combobox-content *hlmComboboxPortal>
@@ -69,7 +69,7 @@ export const fromDateInput = (value: string): number | null => {
       @if (product(); as p) {
         @if (batches()) {
           <div class="flex flex-col gap-2">
-            <label hlmLabel for="r-lot">Batch number</label>
+            <label hlmLabel data-required for="r-lot">Batch number</label>
             <input hlmInput appScanInput id="r-lot" type="text" [forceInvalid]="invalid('batchNumber')" [value]="batchNumber()" (input)="batchNumber.set($any($event.target).value)" />
             @if (errorFor('batchNumber'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
           </div>
@@ -77,7 +77,7 @@ export const fromDateInput = (value: string): number | null => {
         @if (expires()) {
           <div class="flex flex-col gap-2">
             <div class="flex items-center justify-between">
-              <label hlmLabel [attr.for]="monthOnly() ? 'r-expiry-month' : 'r-expiry'">Expires</label>
+              <label hlmLabel data-required [attr.for]="monthOnly() ? 'r-expiry-month' : 'r-expiry'">Expires</label>
               <!-- Some packs print only a month (EXP 11/2026): that means good through the end of the month. -->
               <div class="flex" role="group" aria-label="Expiry precision">
                 <button hlmBtn type="button" size="sm" class="px-3" [variant]="monthOnly() ? 'outline' : 'default'" (click)="monthOnly.set(false)">Date</button>

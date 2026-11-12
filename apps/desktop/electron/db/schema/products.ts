@@ -43,10 +43,8 @@ export const products = sqliteTable(
     uniqueIndex('products_sku_unique').on(t.sku).where(sql`${t.deletedAt} IS NULL`),
     uniqueIndex('products_barcode_unique').on(t.barcode).where(sql`${t.deletedAt} IS NULL`),
     check('products_unit_valid', sql`${t.unit} IN ('each', 'kg', 'g', 'lb', 'oz')`),
-    // A weighed product is found by its code (a PLU or the item code of a scale barcode).
     check('products_tracking_valid', sql`${t.tracking} IN ('none', 'quantity', 'batch', 'expiry')`),
     check('products_shelf_life_positive', sql`${t.shelfLifeDays} IS NULL OR ${t.shelfLifeDays} > 0`),
-    check('products_weighed_has_code', sql`${t.unit} = 'each' OR ${t.barcode} IS NOT NULL`),
     check('products_price_non_negative', sql`${t.price} >= 0`),
   ],
 );

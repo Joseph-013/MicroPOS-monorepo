@@ -63,7 +63,7 @@ export interface ProductFormContext {
     <!-- Padding inside the scroll area (pulled back out with negative margins) so focus rings are not clipped at its edges. -->
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); submit()">
       <div class="flex flex-col gap-2">
-        <label hlmLabel for="p-name">Name</label>
+        <label hlmLabel data-required for="p-name">Name</label>
         <input hlmInput id="p-name" type="text" [forceInvalid]="invalid('name')" [value]="name()" (input)="name.set($any($event.target).value)" />
         @if (errorFor('name'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
       </div>
@@ -125,7 +125,7 @@ export interface ProductFormContext {
           @if (errorFor('sku'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
         </div>
         <div class="flex flex-col gap-2">
-          <label hlmLabel for="p-barcode">Barcode / PLU{{ weighed() ? ' (required)' : '' }}</label>
+          <label hlmLabel for="p-barcode">{{ weighed() ? 'PLU' : 'Barcode' }}</label>
           <input hlmInput appScanInput id="p-barcode" type="text" [forceInvalid]="invalid('barcode')" [value]="barcode()" (input)="barcode.set($any($event.target).value)" />
           @if (errorFor('barcode'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
         </div>
@@ -133,7 +133,7 @@ export interface ProductFormContext {
 
       <div class="grid grid-cols-2 gap-3">
         <div class="flex flex-col gap-2">
-          <label hlmLabel for="p-price">Price{{ perUnit() }}</label>
+          <label hlmLabel data-required for="p-price">Price{{ perUnit() }}</label>
           <input
             hlmInput
             id="p-price"
@@ -330,7 +330,6 @@ export class ProductForm {
   /** Form text to the payload; the first thing wrong is shown against its field. */
   private build(): ProductInput | null {
     if (!this.name().trim()) return this.fail('name', 'Enter a name');
-    if (this.weighed() && !this.barcode().trim()) return this.fail('barcode', 'A weighed product needs a barcode or PLU');
     if (this.expires() && this.shelfLifeDays().trim() && !/^\d{1,4}$/.test(this.shelfLifeDays().trim())) {
       return this.fail('shelfLifeDays', 'Enter a number of days');
     }

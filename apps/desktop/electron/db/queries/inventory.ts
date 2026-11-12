@@ -489,6 +489,8 @@ export function allocateSale(
     quantityMilli: number;
     employeeId?: string | null;
     at?: number;
+    /** The open transaction to write in (when the sale is part of a larger one); otherwise one is started. */
+    tx?: Pick<AppDatabase, 'insert'>;
   },
 ): { allocations: SaleAllocation[]; shortfallMilli: number; unitCost: number | null } {
   const at = sale.at ?? Date.now();
@@ -505,7 +507,7 @@ export function allocateSale(
   );
   let remaining = sale.quantityMilli;
   const allocations: SaleAllocation[] = [];
-  db.transaction((tx) => {
+  const write = (tx: Pick<AppDatabase, 'insert'>): void => {
     for (const batch of batches) {
       if (remaining <= 0) break;
       const take = Math.min(batch.onHandMilli, remaining);
@@ -523,7 +525,9 @@ export function allocateSale(
       allocations.push({ batchId: batch.id, quantityMilli: take, unitCost: batch.unitCost });
       remaining -= take;
     }
-  });
+  };
+  if (sale.tx) write(sale.tx);
+  else db.transaction((tx) => write(tx));
   const costed = allocations.filter((a) => a.unitCost !== null);
   const costedQty = costed.reduce((sum, a) => sum + a.quantityMilli, 0);
   const unitCost =

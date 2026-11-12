@@ -30,6 +30,7 @@ import { createCategory, deleteCategories, listCategoryRecords, restoreCategorie
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from './queries/repackage-draft';
 import { adjustStock, allocateSale, inventoryOverview, listBatches, receiveStock, repackageStock, restockSale } from './queries/inventory';
 import { clearProductDraft, loadProductDraft, sanitizeProductDraft, saveProductDraft } from './queries/product-draft';
+import { completeOrder, nextOrderNumber } from './queries/orders';
 import { clearDraft, DRAFT_KEY, loadDraft, sanitizeDraft, saveDraft } from './queries/draft';
 import { uuid7 } from './uuid';
 
@@ -228,52 +229,6 @@ describe('catalog queries', () => {
     expect(listCategories(db).length).toBe(summary.categories);
     expect(list.every((p) => p.categories.length >= 1)).toBe(true);
     expect(list.some((p) => p.categories.length > 1)).toBe(true);
-  });
-});
-
-describe('migrating a database that already has data', () => {
-  it('turns each single category into a link and keeps order lines and all other data intact', () => {
-    // Build a database at the first migration only, as it would exist before this change.
-    const folder = path.join(dir, 'migrations-v0');
-    fs.cpSync(SOURCE_MIGRATIONS_FOLDER, folder, { recursive: true });
-    const journalFile = path.join(folder, 'meta', '_journal.json');
-    const journal = JSON.parse(fs.readFileSync(journalFile, 'utf8')) as { entries: { tag: string }[] };
-    const [first, ...later] = journal.entries;
-    for (const entry of later) fs.rmSync(path.join(folder, `${entry.tag}.sql`));
-    fs.writeFileSync(journalFile, JSON.stringify({ ...journal, entries: [first] }));
-
-    const file = path.join(dir, 'old.db');
-    const old = createDatabase(file, { migrationsFolder: folder });
-    old.db.$client.exec(`
-      INSERT INTO employees (id, name, employee_number, pin_hash, created_at, updated_at) VALUES ('e1', 'E', '1', 'x', 1, 1);
-      INSERT INTO categories (id, name, created_at, updated_at) VALUES ('c1', 'Dairy', 1, 1), ('c2', 'Bakery', 1, 1);
-      INSERT INTO products (id, name, price, category_id, barcode, plu, created_at, updated_at) VALUES
-        ('p1', 'Milk', 429, 'c1', '590111', '9', 1, 1), ('p2', 'Bread', 299, 'c2', NULL, NULL, 1, 1), ('p3', 'Loose', 100, NULL, NULL, '4011', 1, 1);
-      INSERT INTO orders (id, order_number, employee_id, subtotal, total, created_at, updated_at) VALUES ('o1', 'SO-1', 'e1', 429, 429, 1, 1);
-      INSERT INTO order_lines (id, order_id, product_id, name, unit_price, quantity_milli, line_total) VALUES ('l1', 'o1', 'p1', 'Milk', 429, 1000, 429);
-    `);
-    old.close();
-
-    // Now apply every migration, including the many-to-many one.
-    const upgraded = createDatabase(file, { migrationsFolder: SOURCE_MIGRATIONS_FOLDER });
-    const q = (sql: string) => upgraded.db.$client.prepare(sql).all();
-    expect(q('SELECT product_id, category_id FROM product_categories ORDER BY product_id')).toEqual([
-      { product_id: 'p1', category_id: 'c1' },
-      { product_id: 'p2', category_id: 'c2' },
-    ]); // p3 had no category, so no link
-    expect(q("SELECT product_id FROM order_lines WHERE id = 'l1'")).toEqual([{ product_id: 'p1' }]); // not nulled by the rebuild
-    expect(q('SELECT id, name, price FROM products ORDER BY id')).toHaveLength(3);
-    expect(q('SELECT DISTINCT unit FROM products')).toEqual([{ unit: 'each' }]); // existing products are counted items
-    // PLU and barcode became one code: a PLU-only product keeps it as its barcode, a product with both keeps the barcode.
-    expect(q('SELECT id, barcode FROM products ORDER BY id')).toEqual([
-      { id: 'p1', barcode: '590111' },
-      { id: 'p2', barcode: null },
-      { id: 'p3', barcode: '4011' },
-    ]);
-    expect(q('PRAGMA table_info(products)').some((c) => (c as { name: string }).name === 'category_id')).toBe(false);
-    expect(upgraded.db.$client.pragma('foreign_key_check')).toEqual([]);
-    expect(upgraded.db.$client.pragma('foreign_keys', { simple: true })).toBe(1); // restored afterwards
-    upgraded.close();
   });
 });
 
@@ -553,8 +508,8 @@ describe('weighed products', () => {
     expect([...PRODUCT_UNITS]).toEqual([...CORE_UNITS]);
   });
 
-  it('stores the unit and requires a code (PLU) for weighed products', () => {
-    expect(createProduct(db, { ...base, unit: 'kg', barcode: null })).toMatchObject({ ok: false, field: 'barcode' });
+  it('stores the unit; a weighed product may be saved without a code', () => {
+    expect(createProduct(db, { ...base, name: 'Loose rice', unit: 'kg', barcode: null })).toMatchObject({ ok: true });
     expect(createProduct(db, { ...base, unit: 'stone', barcode: '4011' })).toMatchObject({ ok: false, field: 'unit' });
     const ok = createProduct(db, { ...base, unit: 'kg', barcode: '4011' });
     expect(ok.ok && ok.product.unit).toBe('kg');
@@ -562,12 +517,6 @@ describe('weighed products', () => {
     const each = createProduct(db, { ...base, name: 'Gum', barcode: null });
     expect(each.ok && each.product.unit).toBe('each');
     expect(listProducts(db).find((p) => p.name === 'Beef')?.unit).toBe('kg');
-  });
-
-  it('the database itself refuses a weighed product without a code', () => {
-    expect(() =>
-      db.$client.prepare("INSERT INTO products (id, name, price, unit, created_at, updated_at) VALUES ('x', 'X', 1, 'kg', 1, 1)").run(),
-    ).toThrow(/CHECK/);
   });
 
   it('seeds weighed products with fractional weights and costs below price', () => {
@@ -720,6 +669,107 @@ describe('inventory: batches, expiry and the stock ledger', () => {
     expect(listBatches(db)[0]?.onHandMilli).toBe(4_000);
     expect(restockSale(db, 'line-9', 'refund')).toBe(0); // already put back
     expect(restockSale(db, 'unknown-line', 'void')).toBe(0);
+  });
+
+  describe('completing an order', () => {
+    const cash = (lines: { productId: string; quantityMilli: number; unitPrice: number }[], tendered = 100_000, discount = 0) =>
+      completeOrder(db, { lines, discount, payment: { method: 'cash', tendered } });
+    const onHand = (productId: string): number => listBatches(db).filter((b) => b.productId === productId).reduce((n, b) => n + b.onHandMilli, 0);
+
+    it('numbers orders SO-1001, SO-1002, ...', () => {
+      expect(nextOrderNumber(db)).toBe('SO-1001');
+      const item = product('none');
+      expect(ok(cash([{ productId: item.id, quantityMilli: 1_000, unitPrice: 100 }]))).toMatchObject({ orderNumber: 'SO-1001' });
+      expect(nextOrderNumber(db)).toBe('SO-1002');
+    });
+
+    it('records the order, lines, payment and stock, and removes the saved draft', () => {
+      const milk = product('expiry', { price: 250 });
+      ok(receive(milk.id, { quantityMilli: 10_000, unitCost: 100 }));
+      saveDraft(db, { lines: [{ productId: milk.id, name: 'Milk', quantityMilli: 2_000, unitPrice: 250, unit: 'each' }] });
+
+      const result = ok(cash([{ productId: milk.id, quantityMilli: 2_000, unitPrice: 250 }], 1_000, 50));
+      expect(result).toMatchObject({ total: 450, change: 550 });
+
+      expect(db.select().from(orders).where(eq(orders.id, result.orderId)).get()).toMatchObject({ status: 'completed', subtotal: 500, discountTotal: 50, total: 450 });
+      const [line] = db.select().from(orderLines).where(eq(orderLines.orderId, result.orderId)).all();
+      expect(line).toMatchObject({ name: milk.name, unitPrice: 250, quantityMilli: 2_000, lineTotal: 500, unitCost: 100 });
+      expect(db.select().from(payments).where(eq(payments.orderId, result.orderId)).all()).toMatchObject([{ method: 'cash', amount: 450, tendered: 1_000, change: 550 }]);
+      expect(onHand(milk.id)).toBe(8_000);
+      expect(loadDraft(db)).toBeNull();
+    });
+
+    it('prices a weighed line from its weight', () => {
+      const beef = product('none', { unit: 'kg', price: 899 });
+      const result = ok(cash([{ productId: beef.id, quantityMilli: 1_250, unitPrice: 899 }]));
+      expect(result.total).toBe(1_124); // 8.99 x 1.25 = 11.2375
+    });
+
+    it('rolls everything back when one line is short of stock', () => {
+      const milk = product('quantity');
+      const eggs = product('quantity');
+      ok(receive(milk.id, { quantityMilli: 5_000 }));
+      ok(receive(eggs.id, { quantityMilli: 1_000 }));
+      const result = cash([
+        { productId: milk.id, quantityMilli: 2_000, unitPrice: 100 },
+        { productId: eggs.id, quantityMilli: 3_000, unitPrice: 100 },
+      ]);
+      expect(result).toMatchObject({ ok: false, lines: [{ productId: eggs.id, kind: 'stock' }] });
+      expect(onHand(milk.id)).toBe(5_000); // the milk that was already allocated is back
+      expect(onHand(eggs.id)).toBe(1_000);
+      expect(db.select().from(orders).all()).toHaveLength(0);
+      expect(nextOrderNumber(db)).toBe('SO-1001');
+    });
+
+    it('does not sell expired stock', () => {
+      const milk = product('expiry');
+      ok(receive(milk.id, { expiresAt: Date.now() - DAY, quantityMilli: 5_000 }));
+      expect(cash([{ productId: milk.id, quantityMilli: 1_000, unitPrice: 100 }])).toMatchObject({ ok: false, lines: [{ kind: 'stock' }] });
+    });
+
+    it('refuses a changed price, handing back the current one, and an item that is gone', () => {
+      const a = product('none', { price: 100 });
+      const b = product('none');
+      updateProduct(db, a.id, { ...a, price: 120, categoryIds: [] });
+      deleteProducts(db, [b.id]);
+      const result = cash([
+        { productId: a.id, quantityMilli: 1_000, unitPrice: 100 },
+        { productId: b.id, quantityMilli: 1_000, unitPrice: 100 },
+      ]);
+      expect(result).toMatchObject({
+        ok: false,
+        lines: [
+          { productId: a.id, kind: 'price', current: { unitPrice: 120 } },
+          { productId: b.id, kind: 'unavailable' },
+        ],
+      });
+      expect(db.select().from(orders).all()).toHaveLength(0);
+    });
+
+    it('validates the order and payment', () => {
+      const item = product('none');
+      const line = { productId: item.id, quantityMilli: 1_000, unitPrice: 100 };
+      expect(cash([])).toMatchObject({ ok: false });
+      expect(cash([{ ...line, quantityMilli: 0 }])).toMatchObject({ ok: false });
+      expect(cash([{ ...line, unitPrice: 1.5 }])).toMatchObject({ ok: false });
+      expect(cash([line], 50)).toMatchObject({ ok: false, error: expect.stringContaining('cash') }); // does not cover 1.00
+      expect(cash([line], 1_000, 500)).toMatchObject({ ok: false, error: expect.stringContaining('discount') });
+      expect(completeOrder(db, { lines: [line], discount: 0, payment: { method: 'barter' } })).toMatchObject({ ok: false });
+      const card = ok(completeOrder(db, { lines: [line], discount: 0, payment: { method: 'card', reference: ' SLIP-1 ' } }));
+      expect(db.select().from(payments).where(eq(payments.orderId, card.orderId)).get()).toMatchObject({ method: 'card', amount: 100, tendered: null, reference: 'SLIP-1' });
+      expect(card.change).toBe(0);
+    });
+
+    it('sells in the name of the first active employee, or a Register employee on a fresh database', () => {
+      const item = product('none');
+      const first = ok(cash([{ productId: item.id, quantityMilli: 1_000, unitPrice: 100 }]));
+      const register = db.select().from(employees).all();
+      expect(register).toMatchObject([{ name: 'Register', pinHash: '!' }]);
+      expect(verifyPin('0000', register[0].pinHash)).toBe(false);
+      ok(cash([{ productId: item.id, quantityMilli: 1_000, unitPrice: 100 }]));
+      expect(db.select().from(employees).all()).toHaveLength(1); // reused
+      expect(db.select().from(orders).where(eq(orders.id, first.orderId)).get()?.employeeId).toBe(register[0].id);
+    });
   });
 
   it('untracked products are not allocated', () => {

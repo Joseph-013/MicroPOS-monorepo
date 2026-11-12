@@ -4,6 +4,7 @@ import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
 import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from '../db/queries/categories';
 import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock } from '../db/queries/inventory';
+import { completeOrder, nextOrderNumber } from '../db/queries/orders';
 import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../db/queries/repackage-draft';
 import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/queries/product-draft';
@@ -54,4 +55,7 @@ export function registerIpcHandlers(db: AppDatabase): void {
   // The payload comes from the renderer, so it is validated (sanitizeDraft) before it is stored.
   ipcMain.handle(CHANNELS.checkout.saveDraft, (_event, draft: unknown) => saveDraft(db, draft));
   ipcMain.handle(CHANNELS.checkout.clearDraft, () => clearDraft(db));
+  ipcMain.handle(CHANNELS.checkout.nextOrderNumber, () => nextOrderNumber(db));
+  // The order comes from the renderer: completeOrder validates it and takes prices and names from the catalog.
+  ipcMain.handle(CHANNELS.checkout.completeOrder, (_event, input: unknown) => completeOrder(db, input));
 }

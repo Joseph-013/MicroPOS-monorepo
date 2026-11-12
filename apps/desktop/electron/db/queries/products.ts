@@ -36,7 +36,6 @@ export function sanitizeProductInput(value: unknown): ProductInput | Invalid {
   if (cost !== null && !isCents(cost)) return { field: 'cost', error: 'Enter a valid cost' };
   const unit = v['unit'] ?? 'each';
   if (!PRODUCT_UNITS.includes(unit as ProductUnit)) return { field: 'unit', error: 'Choose how it is sold' };
-  if (unit !== 'each' && !barcode) return { field: 'barcode', error: 'A weighed product needs a barcode or PLU' };
   const tracking = v['tracking'] ?? 'none';
   if (!PRODUCT_TRACKING.includes(tracking as ProductTracking)) return { field: 'tracking', error: 'Choose how stock is tracked' };
   // The shelf life only means something for products that expire.

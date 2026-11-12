@@ -54,7 +54,7 @@ export const REASON_LABELS: Record<Reason, string> = {
       </div>
 
       <div class="flex flex-col gap-2">
-        <label hlmLabel for="a-qty">Quantity{{ unitSuffix }}</label>
+        <label hlmLabel data-required for="a-qty">Quantity{{ unitSuffix }}</label>
         <input
           hlmInput
           id="a-qty"

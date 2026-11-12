@@ -1,10 +1,11 @@
 import { Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideMinus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
-import { type CatalogProduct, type DraftLine, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
+import { lucideFilterX, lucideX, lucideMinus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
+import { type CatalogProduct, type DraftLine, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmComboboxImports } from '@spartan-ng/helm/combobox';
 import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
@@ -16,6 +17,7 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { BannerService } from '../../core/banner';
 import { CatalogService } from '../../core/data/catalog.service';
 import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
+import { formatCentsInput, parseCents } from '../../core/money-input';
 import { MoneyPipe } from '../../core/money.pipe';
 import { AppSettings } from '../../core/settings/app-settings.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
@@ -23,6 +25,8 @@ import { FocusSelectDirective } from '../../core/ui/focus-select.directive';
 import { HoldRepeatDirective } from '../../core/ui/hold-repeat.directive';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { claimScanner } from '../../core/scanner';
+
+const formatMoney = (cents: number): string => new MoneyPipe().transform(cents);
 
 export const ALL_CATEGORIES = 'All categories';
 
@@ -43,6 +47,7 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
     HlmButtonImports,
     HlmCardImports,
     HlmComboboxImports,
+    HlmButtonGroupImports,
     HlmContextMenuImports,
     HlmDialogImports,
     HlmDropdownMenuImports,
@@ -50,7 +55,7 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
     HlmLabelImports,
     HlmSelectImports,
   ],
-  providers: [provideIcons({ lucideMinus, lucidePlus, lucideTrash2 })],
+  providers: [provideIcons({ lucideFilterX, lucideX, lucideMinus, lucidePlus, lucideTrash2 })],
   templateUrl: './checkout.html',
 })
 export class CheckoutPage {
@@ -68,9 +73,30 @@ export class CheckoutPage {
   protected readonly paymentLabel = (method: PaymentMethod): string => PAYMENT_METHODS[method] ?? '';
   protected readonly total = computed(() => this.subtotal() - this.discount());
 
+  /** Cash handed over, as typed; the change due is worked out from it. */
+  protected readonly tenderedText = signal('');
+  protected readonly tendered = computed(() => parseCents(this.tenderedText()));
+  protected readonly changeDue = computed(() => Math.max(0, (this.tendered() ?? 0) - this.total()));
+  /** Card slip, or a note for "other". */
+  protected readonly reference = signal('');
+  /** The number this order will get; read from the database. */
+  protected readonly orderNumber = signal('');
+  protected readonly completing = signal(false);
+  protected readonly canComplete = computed(
+    () =>
+      this.lines().length > 0 &&
+      !this.completing() &&
+      (this.paymentMethod() !== 'cash' || (this.tendered() !== null && this.tendered()! >= this.total())),
+  );
+
   // Item browser (dialog). One search box matches name, barcode/PLU and SKU.
   protected readonly category = signal<string | null>(ALL_CATEGORIES);
   protected readonly query = signal('');
+  protected readonly filtered = computed(() => this.query() !== '' || this.category() !== ALL_CATEGORIES);
+  protected resetFilters(): void {
+    this.query.set('');
+    this.category.set(ALL_CATEGORIES);
+  }
   protected readonly categoryNames = computed(() => [
     ALL_CATEGORIES,
     ...this.catalog
@@ -95,6 +121,7 @@ export class CheckoutPage {
 
   constructor() {
     void this.catalog.load();
+    void this.refreshOrderNumber();
 
     void this.draft.restore().then((saved) => {
       // A scan can arrive before the read finishes; keep what is already on screen in that case.
@@ -205,8 +232,66 @@ export class CheckoutPage {
 
   /** Empties the order and removes the saved draft. */
   protected clearOrder(): void {
+    this.resetOrder();
+    this.draft.clear();
+  }
+
+  private resetOrder(): void {
     this.lines.set([]);
     this.discount.set(0);
-    this.draft.clear();
+    this.tenderedText.set('');
+    this.reference.set('');
+  }
+
+  private async refreshOrderNumber(): Promise<void> {
+    this.orderNumber.set((await this.draft.nextOrderNumber()) ?? '');
+  }
+
+  /** Cash tendered = exactly the total. */
+  protected exactCash(): void {
+    this.tenderedText.set(formatCentsInput(this.total()));
+  }
+
+  /**
+   * Completes the order: the main process re-checks prices and stock and records the order, payment and stock in
+   * one transaction. If an item changed meanwhile nothing is recorded; the lines are brought up to date and the
+   * cashier looks again before confirming.
+   */
+  protected async complete(): Promise<void> {
+    if (!this.canComplete()) return;
+    this.completing.set(true);
+    try {
+      const method = this.paymentMethod();
+      const result = await this.draft.completeOrder({
+        lines: this.lines().map((l) => ({ productId: l.productId, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice })),
+        discount: this.discount(),
+        payment: { method, tendered: method === 'cash' ? (this.tendered() ?? undefined) : undefined, reference: this.reference().trim() || undefined },
+      });
+      if (!result.ok) {
+        this.applyProblems(result.lines);
+        this.banner.error(result.lines.length ? result.lines.map((p) => p.error).join('. ') : result.error, { duration: 'long', key: 'complete-order' });
+        return;
+      }
+      this.resetOrder();
+      const change = result.change > 0 ? `, change ${formatMoney(result.change)}` : '';
+      this.banner.success(`Order ${result.orderNumber} completed${change}`, { duration: 'long', key: 'complete-order' });
+      await this.refreshOrderNumber();
+      void this.catalog.load(); // stock-dependent lists stay current
+    } finally {
+      this.completing.set(false);
+    }
+  }
+
+  /** Brings the lines in line with what the main process found: new prices in, unavailable items out. */
+  private applyProblems(problems: OrderLineProblem[]): void {
+    if (!problems.length) return;
+    this.lines.update((lines) =>
+      lines
+        .filter((l) => !problems.some((p) => p.productId === l.productId && p.kind === 'unavailable'))
+        .map((l) => {
+          const price = problems.find((p) => p.productId === l.productId && p.kind === 'price')?.current;
+          return price ? { ...l, name: price.name, unitPrice: price.unitPrice, unit: price.unit } : l;
+        }),
+    );
   }
 }

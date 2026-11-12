@@ -1,13 +1,13 @@
 import type { AdjustStockInput, BatchRecord, InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from './inventory.js';
 import type { CatalogCategory, CatalogProduct, CategoryInput, CategoryRecord, RestoreCategoriesResult, SaveCategoryResult, ProductDraft, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from './catalog.js';
-import type { CheckoutDraft } from './draft.js';
+import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult } from './draft.js';
 
 /**
  * Version of the renderer <-> main process contract. Bump it (here and in `electron/ipc/channels.ts`, which a
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 16;
+export const DESKTOP_API_VERSION = 17;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -81,5 +81,12 @@ export interface DesktopApi {
     /** Replaces the saved draft; an empty draft removes it. */
     saveDraft(draft: CheckoutDraft): Promise<void>;
     clearDraft(): Promise<void>;
+    /** The number the next order will get (shown while it is being rung up). */
+    nextOrderNumber(): Promise<string>;
+    /**
+     * Completes the order in one transaction: re-checks prices and stock, records the order, its lines, the payment
+     * and the stock taken (first-expiring-first-out), and removes the saved draft. Nothing is written if any line fails.
+     */
+    completeOrder(input: CompleteOrderInput): Promise<CompleteOrderResult>;
   };
 }

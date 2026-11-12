@@ -17,3 +17,34 @@ export interface DraftLine {
 export interface CheckoutDraft {
   lines: DraftLine[];
 }
+
+/** How an order is paid. */
+export const ORDER_PAYMENT_METHODS = ['cash', 'card', 'other'] as const;
+export type OrderPaymentMethod = (typeof ORDER_PAYMENT_METHODS)[number];
+
+/** What the cashier sends to complete an order. Prices are what the screen showed: a changed price is refused, not silently charged. */
+export interface CompleteOrderInput {
+  lines: { productId: string; quantityMilli: number; unitPrice: Money }[];
+  /** Order discount in cents. */
+  discount: Money;
+  payment: {
+    method: OrderPaymentMethod;
+    /** Cash only: money handed over, in cents; must cover the total. */
+    tendered?: Money;
+    /** Card slip or terminal reference, or a note for "other". */
+    reference?: string;
+  };
+}
+
+/** Why a line could not be sold. `price` and `unavailable` carry what to do about it. */
+export interface OrderLineProblem {
+  productId: string;
+  kind: 'unavailable' | 'price' | 'stock';
+  error: string;
+  /** For `price`: the current price in cents (and name and unit) so the line can be refreshed. */
+  current?: { name: string; unitPrice: Money; unit: ProductUnit };
+}
+
+export type CompleteOrderResult =
+  | { ok: true; orderId: string; orderNumber: string; total: Money; change: Money }
+  | { ok: false; error: string; lines: OrderLineProblem[] };
