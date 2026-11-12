@@ -9,7 +9,7 @@ import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { MoneyPipe } from '../../core/money.pipe';
-import { EDIT_PRODUCT_PARAM } from '../../core/product-link';
+import { ProductViewer } from '../../core/product-viewer';
 import { HIGHLIGHT_PARAM } from '../../core/row-target';
 
 export interface SalesOrderFormContext {
@@ -47,8 +47,23 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', other: 'Other' } as c
           <li class="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
             <div class="min-w-0">
               @if (line.productId) {
-                <!-- Opens the product's dialog on the Products page (this dialog closes: its parameter is dropped). -->
-                <a class="text-primary block truncate underline-offset-4 hover:underline" routerLink="/items/products" [queryParams]="productQuery(line.productId)">{{ line.name }}</a>
+                <div class="flex min-w-0 items-center gap-1">
+                  <!-- The name opens the product in a dialog over this one. -->
+                  <button type="button" class="text-primary min-w-0 truncate text-left underline-offset-4 hover:underline" (click)="viewProduct(line.productId)">{{ line.name }}</button>
+                  <!-- The small link goes to the product on the Products page (this dialog closes). -->
+                  <a
+                    hlmBtn
+                    variant="ghost"
+                    size="icon-xs"
+                    class="shrink-0"
+                    routerLink="/items/products"
+                    [queryParams]="productQuery(line.productId)"
+                    [attr.aria-label]="'Open ' + line.name + ' in Products'"
+                    title="Open in Products"
+                  >
+                    <ng-icon name="lucideExternalLink" size="14" />
+                  </a>
+                </div>
               } @else {
                 <p class="truncate">{{ line.name }}</p>
               }
@@ -116,8 +131,16 @@ export class SalesOrderForm {
     return { [HIGHLIGHT_PARAM]: this.order.id };
   }
 
+  private readonly productViewer = inject(ProductViewer);
+
+  /** Opens the product in view mode over this dialog. */
+  protected viewProduct(productId: string): void {
+    void this.productViewer.open(productId);
+  }
+
+  /** The Products page, on the page of the table that holds the product, with its row highlighted. */
   protected productQuery(productId: string): Record<string, string> {
-    return { [EDIT_PRODUCT_PARAM]: productId };
+    return { [HIGHLIGHT_PARAM]: productId };
   }
   protected readonly statusLabels = STATUS_LABELS;
   protected readonly methodLabels = METHOD_LABELS;
