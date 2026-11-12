@@ -1,6 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2, lucideUndo2 } from '@ng-icons/lucide';
 import { expiryState, formatQuantity, isPlu, isWeighed, type ProductRecord } from '@micropos/core';
@@ -17,7 +19,8 @@ import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { BannerService } from '../../core/banner';
-import { rowTarget } from '../../core/row-target';
+import { EDIT_PRODUCT_PARAM } from '../../core/product-link';
+import { scrollToRow, rowTarget } from '../../core/row-target';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { InventoryService } from '../../core/data/inventory.service';
 import { openRepackage } from '../inventory/repackage-form';
@@ -94,6 +97,7 @@ export class ProductsPage {
   private readonly drafts = inject(ProductDraftService);
   private readonly inventory = inject(InventoryService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   // Column filters (second header row); they combine.
   protected readonly nameFilter = signal('');
@@ -326,6 +330,9 @@ export class ProductsPage {
   private snapshot = new Map<string, string>();
   private flashTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /** Settles when the first load of the list has finished. */
+  private loaded: Promise<void> = Promise.resolve();
+
   constructor() {
     effect(() => {
       const products = this.service.products();
@@ -344,8 +351,16 @@ export class ProductsPage {
     if (category) this.category.set(category);
     const wanted = this.route.snapshot.queryParamMap.get('stock');
     if (wanted && wanted in STOCK_FILTERS) this.stockFilter.set(wanted as StockFilter);
-    void this.service.load();
+    this.loaded = this.service.load();
     void this.catalog.load();
+    // `?edit-product=<id>` (an order line links here) opens that product's dialog over the table.
+    this.route.queryParamMap
+      .pipe(
+        map((params) => params.get(EDIT_PRODUCT_PARAM)),
+        filter((id): id is string => !!id),
+        takeUntilDestroyed(),
+      )
+      .subscribe((id) => void this.openById(id));
 
     // A scan looks the code up: other filters are cleared and the barcode / PLU filter is set to the code. While a
     // dialog is open the form claims the scanner instead, so scans never change the table behind it.
@@ -427,6 +442,22 @@ export class ProductsPage {
 
   protected edit(product: ProductRecord): void {
     if (!product.deletedAt) void this.open(product); // deleted products are read-only here
+  }
+
+  /**
+   * Opens a product named in the address. The parameter is consumed at once (replacing the history entry, so Back
+   * does not reopen it). The product is looked up by id, so it opens whatever the table's filters are showing; its
+   * row is flashed and scrolled to when it is on screen. A deleted product is reported, not opened (it is read-only).
+   */
+  private async openById(id: string): Promise<void> {
+    await this.loaded; // the row and its page exist only once the products are in
+    void this.router.navigate([], { queryParams: { [EDIT_PRODUCT_PARAM]: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    const product = await this.service.find(id);
+    if (!product) return this.banner.error('Product not found', { key: 'product-missing' });
+    if (product.deletedAt) return this.banner.warning(`${product.name} was deleted`, { duration: 'long', key: 'product-missing' });
+    this.pager.showItem((p) => p.id === id); // its page, when the table's filters let it show
+    scrollToRow(id);
+    await this.open(product);
   }
 
   private async open(product?: ProductRecord): Promise<void> {

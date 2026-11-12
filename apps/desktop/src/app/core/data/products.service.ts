@@ -33,6 +33,18 @@ export class ProductsService {
     }
   }
 
+  /** One product by id, deleted ones included, whatever the list is showing; undefined when there is none. */
+  async find(id: string): Promise<ProductRecord | undefined> {
+    const known = this.products().find((p) => p.id === id);
+    if (known || !this.api) return known;
+    try {
+      return (await this.api.products.list({ includeDeleted: true })).find((p) => p.id === id);
+    } catch (error) {
+      console.error('Failed to look up the product', error);
+      return undefined;
+    }
+  }
+
   /** Creates (no `id`) or updates a product and refreshes the list. A rule violation comes back as `ok: false`. */
   async save(id: string | null, input: ProductInput): Promise<SaveProductResult> {
     if (!this.api) return { ok: false, field: null, error: 'Not connected to the database' };

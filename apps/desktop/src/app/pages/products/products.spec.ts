@@ -9,7 +9,7 @@ import {
 } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { ScannerService } from '../../core/scanner';
 import { ProductsPage } from './products';
 
@@ -88,7 +88,10 @@ function fakeApi(initial: ProductRecord[]) {
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: { listProducts: () => Promise.resolve([]), listCategories: () => Promise.resolve([DAIRY]) },
     products: {
-      list: (options) => Promise.resolve(rows.filter((r) => options?.includeDeleted || !r.deletedAt)),
+      list: (options) => {
+        const answer = rows.filter((r) => options?.includeDeleted || !r.deletedAt);
+        return listDelay ? new Promise((resolve) => setTimeout(() => resolve(answer), listDelay)) : Promise.resolve(answer);
+      },
       create: (input) => (calls.create.push(input), Promise.resolve(save(null, input))),
       update: (id, input) => (calls.update.push([id, input]), Promise.resolve(save(id, input))),
       remove: (ids) => {
@@ -122,6 +125,9 @@ function fakeApi(initial: ProductRecord[]) {
   return { api, calls, drafts };
 }
 
+/** How long the fake products list takes to answer (a real database is not instant). */
+let listDelay = 0;
+
 const buttonByText = (root: ParentNode, text: string): HTMLButtonElement =>
   [...root.querySelectorAll('button')].find((b) => b.textContent?.trim() === text)!;
 
@@ -131,12 +137,13 @@ describe('ProductsPage', () => {
   let calls: ReturnType<typeof fakeApi>['calls'];
   let drafts: ReturnType<typeof fakeApi>['drafts'];
 
-  async function open(rows: ProductRecord[]): Promise<void> {
+  async function open(rows: ProductRecord[], url?: string): Promise<void> {
     const fake = fakeApi(rows);
     calls = fake.calls;
     drafts = fake.drafts;
-    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }] });
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', children: [] }]), { provide: DESKTOP_API, useValue: fake.api }] });
     TestBed.inject(ScannerService); // started at launch by the app root; its keydown listener must exist first
+    if (url) await TestBed.inject(Router).navigateByUrl(url);
     fixture = TestBed.createComponent(ProductsPage);
     await fixture.whenStable();
     el = fixture.nativeElement as HTMLElement;
@@ -163,10 +170,67 @@ describe('ProductsPage', () => {
   };
   const dialog = (): HTMLElement => document.querySelector('hlm-dialog-content') as HTMLElement;
 
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    listDelay = 0;
+  });
   afterEach(() => {
     fixture.destroy();
     document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
+  });
+
+  describe('?edit-product=<id>', () => {
+    it('opens that product in the edit dialog over the table and takes the parameter out of the address', async () => {
+      await open([record('1', 'Milk', { categories: [DAIRY] }), record('2', 'Eggs')], '/items/products?edit-product=2');
+      await settle();
+      expect(dialog()?.textContent).toContain('Edit product');
+      expect((dialog().querySelector('input') as HTMLInputElement).value).toBe('Eggs');
+      expect(TestBed.inject(Router).url).toBe('/items/products');
+      // The row being edited is highlighted, not selected.
+      // The highlight sits on the row inside the swipe component: that has an opaque background that would hide a tint on the wrapper.
+      const target = el.querySelector('app-swipe-actions .row-target') as HTMLElement;
+      expect((target.closest('[data-row-id]') as HTMLElement).dataset['rowId']).toBe('2');
+      expect(target.getAttribute('aria-selected')).toBe('false');
+    });
+
+    it('shows the page that holds the product and scrolls to its row, even when the list loads slowly', async () => {
+      listDelay = 80;
+      const scrolled = vi.fn();
+      Element.prototype.scrollIntoView = scrolled;
+      const many = Array.from({ length: 120 }, (_, i) => record(`p${i + 1}`, `Item ${String(i + 1).padStart(3, '0')}`));
+      await open(many, '/items/products?edit-product=p110');
+      await settle();
+      expect(el.querySelector('app-pager')?.textContent?.replace(/\s+/g, ' ')).toContain('Page 3 of 3');
+      expect((el.querySelector('.row-target')!.closest('[data-row-id]') as HTMLElement).dataset['rowId']).toBe('p110');
+      expect(dialog()?.textContent).toContain('Edit product');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(scrolled).toHaveBeenCalled();
+      expect(scrolled.mock.contexts[0]).toBe(el.querySelector('[data-row-id="p110"]'));
+    });
+
+    it('opens a product the table filters would hide', async () => {
+      await open([record('1', 'Milk'), record('2', 'Old Tea', { active: false })], '/items/products?edit-product=2&category=Nothing');
+      await settle();
+      expect(rowNames()).toEqual([]); // the category filter hides every row
+      expect(dialog()?.textContent).toContain('Edit product');
+    });
+
+    it('says so for an unknown product and for a deleted one, without opening a dialog', async () => {
+      await open([record('1', 'Milk', { deletedAt: 1 })], '/items/products?edit-product=nope');
+      await settle();
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Product not found');
+      expect(dialog()).toBeNull();
+      TestBed.inject(BannerService).clear();
+    });
+  });
+
+  it('pages the table: 50 rows at a time', async () => {
+    await open(Array.from({ length: 70 }, (_, i) => record(`p${i + 1}`, `Item ${i + 1}`)));
+    expect(bodyRows()).toHaveLength(50);
+    expect(el.querySelector('app-pager')?.textContent).toContain('1–50 of 70');
+    (el.querySelector('button[aria-label="Next page"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(bodyRows()).toHaveLength(20);
   });
 
   it('lists every product including inactive ones, with prices', async () => {
