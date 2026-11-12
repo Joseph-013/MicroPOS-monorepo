@@ -1,0 +1,197 @@
+import { DatePipe } from '@angular/common';
+import { Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX } from '@ng-icons/lucide';
+import type { OrderPaymentMethod, SalesOrderSummary } from '@micropos/core';
+import { HlmBadgeImports } from '@spartan-ng/helm/badge';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmCardImports } from '@spartan-ng/helm/card';
+import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { OrdersService } from '../../core/data/orders.service';
+import { MoneyPipe } from '../../core/money.pipe';
+import { HIGHLIGHT_PARAM, scrollToRow, rowTarget } from '../../core/row-target';
+import { SalesOrderViewer, VIEW_SALES_ORDER_PARAM } from '../../core/sales-order-viewer';
+import { DateRangeFilter } from '../../core/ui/date-range-filter';
+import { FilterInput } from '../../core/ui/filter-input';
+import { AppPager, Pager } from '../../core/ui/pager';
+import { METHOD_LABELS, STATUS_LABELS } from './sales-order-form';
+
+type SortKey = 'number' | 'date' | 'cashier' | 'items' | 'method' | 'status' | 'total';
+type SortDirection = 'asc' | 'desc';
+type Status = SalesOrderSummary['status'];
+
+const ALL = 'all';
+const STATUS_FILTERS = { [ALL]: 'All', ...STATUS_LABELS } as const;
+const METHOD_FILTERS = { [ALL]: 'All', ...METHOD_LABELS } as const;
+type StatusFilter = keyof typeof STATUS_FILTERS;
+type MethodFilter = keyof typeof METHOD_FILTERS;
+
+const methodText = (o: SalesOrderSummary): string => o.methods.map((m) => METHOD_LABELS[m]).join(', ');
+
+const SORT_VALUES: Record<SortKey, (o: SalesOrderSummary) => string | number> = {
+  number: (o) => o.orderNumber,
+  date: (o) => o.createdAt,
+  cashier: (o) => o.employeeName,
+  items: (o) => o.itemCount,
+  method: methodText,
+  status: (o) => o.status,
+  total: (o) => o.total,
+};
+
+/** Column widths shared by the title row, the filter row and every row. */
+export const COLUMNS_TEMPLATE = 'minmax(8rem,1fr) 13rem minmax(9rem,1.4fr) 6rem minmax(8rem,1fr) 9rem 8rem';
+
+/** Sales Orders: every recorded sale, newest first. Open one to see its lines and payment. */
+@Component({
+  imports: [
+    AppPager,
+    DatePipe,
+    DateRangeFilter,
+    FilterInput,
+    MoneyPipe,
+    NgIcon,
+    HlmBadgeImports,
+    HlmButtonImports,
+    HlmCardImports,
+    HlmContextMenuImports,
+    HlmDropdownMenuImports,
+    HlmSelectImports,
+  ],
+  providers: [provideIcons({ lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX })],
+  templateUrl: './orders.html',
+})
+export class OrdersPage {
+  protected readonly service = inject(OrdersService);
+  private readonly viewer = inject(SalesOrderViewer);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  protected readonly columnsTemplate = COLUMNS_TEMPLATE;
+  protected readonly columns: { key: SortKey; label: string; right?: boolean }[] = [
+    { key: 'number', label: 'Order' },
+    { key: 'date', label: 'Date' },
+    { key: 'cashier', label: 'Cashier' },
+    { key: 'items', label: 'Items', right: true },
+    { key: 'method', label: 'Payment' },
+    { key: 'status', label: 'Status' },
+    { key: 'total', label: 'Total', right: true },
+  ];
+  protected readonly statusLabels = STATUS_LABELS;
+  protected readonly statusFilters = Object.keys(STATUS_FILTERS) as StatusFilter[];
+  protected readonly methodFilters = Object.keys(METHOD_FILTERS) as MethodFilter[];
+  protected readonly statusFilterLabel = (s: StatusFilter): string => STATUS_FILTERS[s] ?? '';
+  protected readonly methodFilterLabel = (m: MethodFilter): string => METHOD_FILTERS[m] ?? '';
+
+  // Column filters (second header row); they combine.
+  protected readonly numberFilter = signal('');
+  protected readonly cashierFilter = signal('');
+  protected readonly methodFilter = signal<MethodFilter>(ALL);
+  protected readonly statusFilter = signal<StatusFilter>(ALL);
+  protected readonly dateFrom = signal('');
+  protected readonly dateTo = signal('');
+  protected readonly filtered = computed(
+    () => !!(this.numberFilter() || this.cashierFilter() || this.dateFrom() || this.dateTo()) || this.methodFilter() !== ALL || this.statusFilter() !== ALL,
+  );
+
+  protected readonly sortKey = signal<SortKey>('date');
+  protected readonly sortDirection = signal<SortDirection>('desc'); // newest first
+
+  protected sortBy(key: SortKey): void {
+    if (this.sortKey() === key) this.sortDirection.update((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      this.sortKey.set(key);
+      this.sortDirection.set('asc');
+    }
+  }
+  protected ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
+    return this.sortKey() !== key ? 'none' : this.sortDirection() === 'asc' ? 'ascending' : 'descending';
+  }
+
+  protected readonly visible = computed(() => {
+    const number = this.numberFilter().trim().toLowerCase();
+    const cashier = this.cashierFilter().trim().toLowerCase();
+    const method = this.methodFilter();
+    const status = this.statusFilter();
+    const from = this.dateFrom() ? new Date(`${this.dateFrom()}T00:00:00`).getTime() : -Infinity;
+    const to = this.dateTo() ? new Date(`${this.dateTo()}T23:59:59.999`).getTime() : Infinity;
+    const value = SORT_VALUES[this.sortKey()];
+    const sign = this.sortDirection() === 'asc' ? 1 : -1;
+    const compare = (a: SalesOrderSummary, b: SalesOrderSummary): number => {
+      const x = value(a);
+      const y = value(b);
+      return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true })) * sign;
+    };
+    return this.service
+      .orders()
+      .filter(
+        (o) =>
+          (!number || o.orderNumber.toLowerCase().includes(number)) &&
+          (!cashier || o.employeeName.toLowerCase().includes(cashier)) &&
+          (method === ALL || o.methods.includes(method as OrderPaymentMethod)) &&
+          (status === ALL || o.status === (status as Status)) &&
+          o.createdAt >= from &&
+          o.createdAt <= to,
+      )
+      .sort(compare);
+  });
+
+  protected readonly pager = new Pager(
+    () => this.visible(),
+    () => [this.numberFilter(), this.cashierFilter(), this.methodFilter(), this.statusFilter(), this.dateFrom(), this.dateTo(), this.sortKey(), this.sortDirection()],
+  );
+  /** The row that is the target of a link or of the order dialog: highlighted, not selected. */
+  protected readonly target = rowTarget();
+
+  protected resetFilters(): void {
+    this.numberFilter.set('');
+    this.cashierFilter.set('');
+    this.methodFilter.set(ALL);
+    this.statusFilter.set(ALL);
+    this.dateFrom.set('');
+    this.dateTo.set('');
+  }
+
+  protected readonly methodText = methodText;
+
+  protected statusVariant(status: Status): 'success' | 'destructive' | 'outline' {
+    return status === 'completed' ? 'success' : status === 'open' ? 'outline' : 'destructive';
+  }
+
+  /** Rows fade in only after the first load. */
+  protected readonly animateRows = signal(false);
+
+  constructor() {
+    const loaded = this.service.load().then(() => this.animateRows.set(true));
+    // `?view-sales-order=<id>` (the dialog is open for it) and `?highlight=<id>` (a link from another page) both
+    // target a row: show the page that holds it and highlight it. `highlight` is then removed from the address.
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      const highlight = params.get(HIGHLIGHT_PARAM);
+      const id = highlight ?? params.get(VIEW_SALES_ORDER_PARAM);
+      if (id) void loaded.then(() => this.reveal(id, !!highlight));
+    });
+  }
+
+  /** Highlights an order and shows its page; filters that hide it are cleared first. */
+  private reveal(id: string, consume: boolean): void {
+    if (consume) void this.router.navigate([], { queryParams: { [HIGHLIGHT_PARAM]: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    if (!this.service.orders().some((o) => o.id === id)) return;
+    this.target.set(id);
+    if (!this.pager.showItem((o) => o.id === id)) {
+      this.resetFilters();
+      this.pager.showItem((o) => o.id === id);
+    }
+    scrollToRow(id);
+  }
+
+  protected view(order: SalesOrderSummary): void {
+    void this.viewer.open(order.id);
+  }
+  /** The menu is given only a row id (the trigger keeps its first data), so the row is looked up fresh. */
+  protected orderById(id: string): SalesOrderSummary | undefined {
+    return this.service.orders().find((o) => o.id === id);
+  }
+}

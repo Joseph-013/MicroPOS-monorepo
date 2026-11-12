@@ -1,0 +1,119 @@
+<section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
+  <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
+    <h1 class="text-2xl">Sales Orders</h1>
+  </header>
+
+  <div class="min-h-0 flex-1 overflow-auto">
+    <div role="table" aria-label="Sales Orders" class="min-w-[62rem] text-sm" [style.--cols]="columnsTemplate">
+      <div role="rowgroup" class="bg-background sticky top-0 z-10">
+        <!-- Row 1: column titles, click to sort -->
+        <div role="row" class="grid grid-cols-(--cols) border-b">
+          @for (column of columns; track column.key) {
+            <div role="columnheader" [attr.aria-sort]="ariaSort(column.key)">
+              <button
+                type="button"
+                class="hover:bg-muted flex h-(--control-height) w-full items-center gap-1.5 px-3 font-medium {{ column.right ? 'justify-end' : '' }}"
+                (click)="sortBy(column.key)"
+              >
+                {{ column.label }}
+                <ng-icon
+                  size="14"
+                  [name]="sortKey() !== column.key ? 'lucideChevronsUpDown' : sortDirection() === 'asc' ? 'lucideArrowUp' : 'lucideArrowDown'"
+                  [class.opacity-40]="sortKey() !== column.key"
+                />
+              </button>
+            </div>
+          }
+        </div>
+        <!-- Row 2: the filter for each column -->
+        <div role="row" class="grid grid-cols-(--cols) items-center border-b [--control-height:var(--control-height-sm)]">
+          <div role="columnheader" class="flex items-center gap-2 px-3 py-2">
+            <button hlmBtn variant="outline" size="icon" type="button" class="shrink-0" aria-label="Reset filters" title="Reset filters" [disabled]="!filtered()" (click)="resetFilters()">
+              <ng-icon name="lucideFilterX" size="18" />
+            </button>
+            <app-filter-input [(value)]="numberFilter" placeholder="Order" label="Filter order" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-date-range-filter label="Date" [(from)]="dateFrom" [(to)]="dateTo" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="cashierFilter" placeholder="Cashier" label="Filter cashier" />
+          </div>
+          <div role="columnheader"></div>
+          <div role="columnheader" class="px-3 py-2">
+            <hlm-select [(value)]="methodFilter" [itemToString]="methodFilterLabel" class="block">
+              <hlm-select-trigger size="sm" class="w-full" aria-label="Filter payment">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (m of methodFilters; track m) {
+                  <hlm-select-item [value]="m">{{ methodFilterLabel(m) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <hlm-select [(value)]="statusFilter" [itemToString]="statusFilterLabel" class="block">
+              <hlm-select-trigger size="sm" class="w-full" aria-label="Filter status">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (s of statusFilters; track s) {
+                  <hlm-select-item [value]="s">{{ statusFilterLabel(s) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+          <div role="columnheader"></div>
+        </div>
+      </div>
+
+      <div role="rowgroup">
+        @for (order of pager.rows(); track order.id) {
+          <div
+            class="border-b"
+            [attr.data-row-id]="order.id"
+            [animate.enter]="animateRows() ? 'row-enter' : ''"
+            animate.leave="row-leave"
+            [hlmContextMenuTrigger]="rowMenu"
+            [hlmContextMenuTriggerData]="{ $implicit: order.id }"
+          >
+            <div
+              role="row"
+              [class.row-target]="target() === order.id"
+              class="hover:bg-muted/40 grid min-h-(--control-height) cursor-pointer grid-cols-(--cols) items-center"
+              tabindex="0"
+              (click)="view(order)"
+              (keydown.enter)="view(order)"
+            >
+              <div role="cell" class="truncate px-3 text-base">{{ order.orderNumber }}</div>
+              <div role="cell" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ order.createdAt | date: 'MMM d, y, h:mm a' }}</div>
+              <div role="cell" class="text-muted-foreground truncate px-3">{{ order.employeeName }}</div>
+              <div role="cell" class="text-muted-foreground px-3 text-right">{{ order.itemCount }}</div>
+              <div role="cell" class="text-muted-foreground truncate px-3">{{ methodText(order) }}</div>
+              <div role="cell" class="px-3">
+                <span hlmBadge [variant]="statusVariant(order.status)">{{ statusLabels[order.status] }}</span>
+              </div>
+              <div role="cell" class="px-3 text-right text-base">{{ order.total | money }}</div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+    @if (!visible().length) {
+      <p class="text-muted-foreground py-8 text-center text-sm">
+        {{ service.status() === 'error' ? 'Orders could not be loaded' : service.status() === 'loading' ? 'Loading orders' : 'No orders found' }}
+      </p>
+    }
+  </div>
+  <app-pager [pager]="pager" />
+</section>
+
+<!-- Right-click (or long-press) menu of an order row. -->
+<ng-template #rowMenu let-id>
+  @if (orderById(id); as order) {
+    <div hlmDropdownMenu>
+      <button hlmDropdownMenuItem type="button" (click)="view(order)">View</button>
+    </div>
+  }
+</ng-template>

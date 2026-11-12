@@ -1,7 +1,5 @@
 import { Routes } from '@angular/router';
 
-const placeholder = () => import('./pages/placeholder').then((m) => m.PlaceholderPage);
-
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'checkout' },
   {
@@ -33,8 +31,7 @@ export const routes: Routes = [
   {
     path: 'orders',
     title: 'Sales Orders',
-    loadComponent: placeholder,
-    data: { title: 'Sales Orders' },
+    loadComponent: () => import('./pages/orders/orders').then((m) => m.OrdersPage),
   },
   {
     path: 'settings',
