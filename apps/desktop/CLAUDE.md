@@ -60,9 +60,10 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 
 ## Electron / Forge (MicroPOS)
 
-- Renderer: Angular, built to `dist/renderer` (`pnpm build:renderer`). `<base href="./">` so it loads over `file://`.
+- Renderer: Angular, built to `dist/renderer` (`pnpm build:renderer`). No `<base href>` (a base tag makes the hash router rewrite the URL to the folder, which breaks reload over `file://`).
 - Main/preload: `electron/*.ts`, compiled with `tsc -p tsconfig.electron.json` to `dist/electron` (CommonJS). `package.json` `main` points at `dist/electron/main.js`.
 - Commands: `pnpm --filter @micropos/desktop start | build | package | make | typecheck | test`.
+- DevTools open automatically, docked inside the window, whenever the app is not packaged (`!app.isPackaged`, covers `pnpm dev` and `pnpm start`); packaged builds never open them.
 - Renderer has no Node access (contextIsolation, sandbox). Expose capabilities via IPC in `electron/preload.ts`.
 - Angular and `@micropos/core` are bundled into the renderer, so they live in `devDependencies`. `forge.config.js` sets `prune: false` and excludes `node_modules` because Forge's dependency walker can't resolve hoisted workspace deps. When adding native runtime deps (better-sqlite3), they must be shipped and unpacked from the asar; revisit this config then.
 - Not containerized (see `.dockerignore`).
@@ -70,8 +71,10 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 ## UI conventions (MicroPOS)
 
 - Copy: titles and labels are short, professional, sentence case ("Checkout", "Sales Orders"). No descriptions, subtitles or helper text unless critically necessary, e.g. confirmation dialogs.
-- Shape: square and boxy everywhere. No `rounded-*` classes; the theme radius is 0.
+- Shape: square and boxy everywhere. No `rounded-*` classes; the theme radius is 0. Only radio buttons stay circular (as in the design). Dialogs are square with the `blueprint` corner marks; only confirmation (alert) dialogs carry a description.
 - Space is at a premium: keep page padding tight (main content uses `p-3`) and put titles close to the edges.
+- Styles are plain CSS (Tailwind v4 via PostCSS), not Sass; global styles live in `src/styles.css`.
+- Kiosk behavior: text selection is off app-wide (`html { user-select: none }` in `styles.css`). Inputs and textareas stay selectable; opt other text in with Tailwind `select-text` or `select-all` (order numbers, receipt text, error messages).
 - Touch first: keep targets comfortable (nav rail is 3.5rem collapsed with 40px rows).
 - Colors and fonts come from `@micropos/theme` tokens (Tailwind classes such as `bg-primary`, `text-muted-foreground`); don't hard-code values.
 
@@ -81,3 +84,11 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Changing the shape, name or meaning of a stored value requires a new entry in `storage.migrations.ts` (append-only, next version number, idempotent). Never edit a shipped migration.
 - Only per-device preferences belong here (theme, nav pin). Business data goes in SQLite via the main process.
 - Keep the app `name` and the `file://` origin stable: both determine where storage lives.
+
+## Barcode scanner
+
+- USB keyboard-wedge scans are detected in the renderer (`src/app/core/scanner/`), not in Electron. `BurstDetector` is the pure timing logic (35ms gap, printable ASCII so 2D payloads work); `ScannerService` owns the single global listener and starts at the root.
+- Take control with a claim: `claimScanner(handler)` in a component or dialog (released on destroy), or the `appScannerClaim` directive with `(scan)`. The newest claim gets scans; releasing it returns control to the previous one. A handler can return `false` to pass a scan down.
+- Scans never leak into the UI: the first characters of a burst pass through (they look like typing), then once 3 fast keys (2 outside text fields) confirm a scanner the field is rolled back and every remaining key, including Enter, is blocked. That covers inputs, Space on a focused button or checkbox, and select type-ahead.
+- To let a text field receive scans (e.g. a barcode lookup), put `appScanInput` on it (`(scan)` emits the code). While it is focused, a scan types into it like normal input, Enter included, and claims do not get that scan. Fields without it never keep scanned text.
+- `KioskFocusService` stops mouse/touch presses on buttons from taking focus (clicks still work), so focus stays on the field a scan should go to. Add `data-allow-focus` to anything that must take focus.

@@ -22,6 +22,8 @@ describe('App', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('svg[aria-label="MicroPOS"]')).toBeTruthy();
     expect(el.textContent).toContain('Sales Orders');
+    expect(el.querySelector('a[href="/settings"]')).toBeTruthy();
+    expect(el.textContent).toContain('Logout');
   });
 
   it('opens a nav group containing the current page and shows its children', async () => {

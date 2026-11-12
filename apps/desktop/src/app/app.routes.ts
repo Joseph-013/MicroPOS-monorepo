@@ -30,6 +30,12 @@ export const routes: Routes = [
     data: { title: 'Sales Orders' },
   },
   {
+    path: 'settings',
+    title: 'Settings',
+    loadComponent: placeholder,
+    data: { title: 'Settings' },
+  },
+  {
     path: 'components',
     title: 'Components',
     loadComponent: () => import('./pages/components').then((m) => m.ComponentsPage),

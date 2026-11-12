@@ -27,7 +27,121 @@
         <label hlmLabel for="cash">Cash tendered</label>
         <input hlmInput id="cash" type="text" placeholder="0.00" />
       </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="qty">Quantity</label>
+        <input hlmInput id="qty" type="number" min="1" value="1" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="scan-field">Barcode lookup</label>
+        <input hlmInput id="scan-field" type="text" placeholder="Scan here" appScanInput />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="invalid">Barcode</label>
+        <input hlmInput id="invalid" type="text" value="12345" [forceInvalid]="true" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="disabled">Store</label>
+        <input hlmInput id="disabled" type="text" value="Main street" disabled />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="notes">Notes</label>
+        <textarea hlmTextarea id="notes" rows="3" placeholder="Add a note"></textarea>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel>Payment method</label>
+        <hlm-select [(value)]="payment">
+          <hlm-select-trigger class="w-full">
+            <hlm-select-value placeholder="Select method" />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-item value="cash">Cash</hlm-select-item>
+            <hlm-select-item value="card">Card</hlm-select-item>
+            <hlm-select-item value="other">Other</hlm-select-item>
+          </hlm-select-content>
+        </hlm-select>
+      </div>
       <button hlmBtn type="button">Complete sale</button>
+    </div>
+  </section>
+
+  <section hlmCard>
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Selection controls</h2>
+    </div>
+    <div hlmCardContent class="flex flex-col gap-4">
+      <label class="flex items-center gap-2 text-sm">
+        <hlm-checkbox [(checked)]="printReceipt" />
+        Print receipt
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <hlm-checkbox [checked]="true" [disabled]="true" />
+        Disabled
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <hlm-switch [(checked)]="taxExempt" />
+        Tax exempt
+      </label>
+      <hlm-radio-group [(value)]="receiptType" class="flex flex-col gap-2 text-sm">
+        <label class="flex items-center gap-2"><hlm-radio value="print"><hlm-radio-indicator indicator /></hlm-radio>Print</label>
+        <label class="flex items-center gap-2"><hlm-radio value="email"><hlm-radio-indicator indicator /></hlm-radio>Email</label>
+        <label class="flex items-center gap-2"><hlm-radio value="none"><hlm-radio-indicator indicator /></hlm-radio>None</label>
+      </hlm-radio-group>
+    </div>
+  </section>
+
+  <section hlmCard>
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Tabs</h2>
+    </div>
+    <div hlmCardContent>
+      <hlm-tabs tab="open" class="w-full">
+        <hlm-tabs-list>
+          <button hlmTabsTrigger="open">Open</button>
+          <button hlmTabsTrigger="completed">Completed</button>
+          <button hlmTabsTrigger="refunded">Refunded</button>
+        </hlm-tabs-list>
+        <div hlmTabsContent="open" class="pt-3 text-sm">Open orders</div>
+        <div hlmTabsContent="completed" class="pt-3 text-sm">Completed orders</div>
+        <div hlmTabsContent="refunded" class="pt-3 text-sm">Refunded orders</div>
+      </hlm-tabs>
+    </div>
+  </section>
+
+  <section hlmCard>
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Dialogs</h2>
+    </div>
+    <div hlmCardContent class="flex flex-wrap gap-2">
+      <hlm-dialog>
+        <button hlmDialogTrigger hlmBtn variant="outline" type="button">Open dialog</button>
+        <hlm-dialog-content *hlmDialogPortal="let ctx">
+          <hlm-dialog-header>
+            <h3 hlmDialogTitle>Discount</h3>
+          </hlm-dialog-header>
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="discount">Amount</label>
+            <input hlmInput id="discount" type="text" placeholder="0.00" />
+          </div>
+          <hlm-dialog-footer>
+            <button hlmBtn variant="outline" hlmDialogClose type="button">Cancel</button>
+            <button hlmBtn hlmDialogClose type="button">Apply</button>
+          </hlm-dialog-footer>
+        </hlm-dialog-content>
+      </hlm-dialog>
+
+      <hlm-alert-dialog>
+        <button hlmAlertDialogTrigger hlmBtn variant="outline" type="button">Void order</button>
+        <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+          <hlm-alert-dialog-header>
+            <h3 hlmAlertDialogTitle>Void this order?</h3>
+            <p hlmAlertDialogDescription>The order will be marked as voided. This cannot be undone.</p>
+          </hlm-alert-dialog-header>
+          <hlm-alert-dialog-footer>
+            <button hlmAlertDialogCancel type="button">Cancel</button>
+            <button hlmAlertDialogAction type="button">Void</button>
+          </hlm-alert-dialog-footer>
+        </hlm-alert-dialog-content>
+      </hlm-alert-dialog>
     </div>
   </section>
 
@@ -68,4 +182,46 @@
       </table>
     </div>
   </section>
+
+  <section hlmCard class="md:col-span-2">
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Context menu</h2>
+    </div>
+    <div hlmCardContent>
+      <div
+        id="context-menu-zone"
+        class="border-border flex h-24 items-center justify-center border border-dashed text-sm"
+        [hlmContextMenuTrigger]="menu"
+      >
+        Right-click here
+      </div>
+    </div>
+  </section>
+
+  <section hlmCard class="md:col-span-2">
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Barcode scanner</h2>
+    </div>
+    <div hlmCardContent class="flex flex-col gap-3 text-sm">
+      <p>Last scan (global): <span class="select-text font-medium">{{ scanner.lastScan()?.code ?? '-' }}</span></p>
+      <div class="flex items-center gap-2">
+        <button hlmBtn type="button" (click)="claimed.set(!claimed())">
+          {{ claimed() ? 'Release control' : 'Take control' }}
+        </button>
+        @if (claimed()) {
+          <p appScannerClaim (scan)="claimedScan.set($event.code)">
+            Owner scan: <span class="select-text font-medium">{{ claimedScan() || '-' }}</span>
+          </p>
+        }
+      </div>
+    </div>
+  </section>
+
+  <ng-template #menu>
+    <div hlmDropdownMenu>
+      <button hlmDropdownMenuItem type="button">Open</button>
+      <button hlmDropdownMenuItem type="button">Duplicate</button>
+      <button hlmDropdownMenuItem type="button">Delete</button>
+    </div>
+  </ng-template>
 </div>

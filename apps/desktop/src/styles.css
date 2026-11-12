@@ -37,6 +37,21 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+
+  /* Kiosk feel: no text selection or image dragging by default.
+     Opt back in with Tailwind's `select-text` / `select-all` (e.g. order numbers). */
+  html {
+    user-select: none;
+  }
+  img,
+  svg {
+    -webkit-user-drag: none;
+  }
+  input,
+  textarea,
+  [contenteditable='true'] {
+    user-select: text;
+  }
 }
 
 /* Blueprint frame: hairline border + "+" registration marks outside each corner. */
