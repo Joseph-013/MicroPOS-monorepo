@@ -3,10 +3,12 @@ import { and, eq, isNull } from 'drizzle-orm';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashPin, verifyPin } from '../auth/pin';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from './index';
 import { DUMMY_PIN, seedDatabase } from './factories';
+import { DESKTOP_API_VERSION } from '@micropos/core';
+import { API_VERSION } from '../ipc/channels';
 import { runMigrate } from './migrate';
 import {
   auditLog,
@@ -18,8 +20,10 @@ import {
   payments,
   productCategories,
   products,
+  settings,
 } from './schema';
 import { listCategories, listProducts } from './queries/catalog';
+import { clearDraft, DRAFT_KEY, loadDraft, sanitizeDraft, saveDraft } from './queries/draft';
 import { uuid7 } from './uuid';
 
 let dir: string;
@@ -315,5 +319,76 @@ describe('db:migrate command', () => {
     expect(() => runMigrate({ file: file(), seed: true })).toThrow(/already has data/);
     // ...and --fresh --seed is the way back.
     expect(() => runMigrate({ file: file(), fresh: true, seed: true })).not.toThrow();
+  });
+});
+
+describe('checkout draft', () => {
+  const line = (n: number) => ({ productId: `p${n}`, name: `Item ${n}`, quantityMilli: 1000 * n, unitPrice: 100 * n });
+
+  it('saves, replaces, loads and clears the draft', () => {
+    expect(loadDraft(db)).toBeNull();
+    saveDraft(db, { lines: [line(1), line(2)] });
+    expect(loadDraft(db)?.lines).toEqual([line(1), line(2)]);
+
+    saveDraft(db, { lines: [line(3)] }); // replaces, does not append
+    expect(loadDraft(db)?.lines).toEqual([line(3)]);
+    expect(db.select().from(settings).where(eq(settings.key, DRAFT_KEY)).all()).toHaveLength(1);
+
+    clearDraft(db);
+    expect(loadDraft(db)).toBeNull();
+  });
+
+  it('removes the draft when an empty one is saved', () => {
+    saveDraft(db, { lines: [line(1)] });
+    saveDraft(db, { lines: [] });
+    expect(loadDraft(db)).toBeNull();
+    expect(db.select().from(settings).where(eq(settings.key, DRAFT_KEY)).all()).toHaveLength(0);
+  });
+
+  it('survives closing and reopening the database', () => {
+    saveDraft(db, { lines: [line(2)] });
+    handle.close();
+    handle = createDatabase(path.join(dir, 'test.db'), { migrationsFolder: SOURCE_MIGRATIONS_FOLDER });
+    db = handle.db;
+    expect(loadDraft(db)?.lines).toEqual([line(2)]);
+  });
+
+  it('warns when it has to drop lines it was sent, so a format mismatch is never silent', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    saveDraft(db, { lines: [line(1), { productId: 'x', name: 'old shape', quantity: 'many', unitPrice: 1 }] });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('dropped 1 of 2'));
+    warn.mockRestore();
+    expect(loadDraft(db)?.lines).toEqual([line(1)]);
+  });
+
+  it('drops malformed lines instead of storing them', () => {
+    const dirty = {
+      lines: [
+        line(1),
+        { productId: 'x', name: 'zero qty', quantityMilli: 0, unitPrice: 1 },
+        { productId: 'x', name: 'fractional thousandths', quantityMilli: 1.5, unitPrice: 1 },
+        { productId: 'x', name: 'too many units', quantityMilli: 100_000_000, unitPrice: 1 },
+        { productId: 'x', name: 'negative price', quantityMilli: 1000, unitPrice: -5 },
+        { productId: 7, name: 'wrong id type', quantityMilli: 1000, unitPrice: 1 },
+        null,
+        'junk',
+      ],
+    };
+    expect(sanitizeDraft(dirty).lines).toEqual([line(1)]);
+    expect(sanitizeDraft(null).lines).toEqual([]);
+    // A draft written before decimals existed keeps working: whole units become thousandths.
+    expect(sanitizeDraft({ lines: [{ productId: 'a', name: 'Old', quantity: 3, unitPrice: 100 }] }).lines).toEqual([
+      { productId: 'a', name: 'Old', quantityMilli: 3000, unitPrice: 100 },
+    ]);
+    // Decimal quantities are fine.
+    expect(sanitizeDraft({ lines: [{ productId: 'a', name: 'Rice', quantityMilli: 1250, unitPrice: 100 }] }).lines).toHaveLength(1);
+    expect(sanitizeDraft({ lines: 'nope' }).lines).toEqual([]);
+    expect(sanitizeDraft({ lines: Array.from({ length: 900 }, () => line(1)) }).lines).toHaveLength(500);
+  });
+});
+
+describe('API version', () => {
+  it('is the same number in the main process and in the shared contract the page checks against', () => {
+    expect(API_VERSION).toBe(DESKTOP_API_VERSION);
   });
 });

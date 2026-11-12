@@ -13,4 +13,6 @@ export function subtotal(items: LineItem[]): Money {
 }
 
 export type { CatalogCategory, CatalogProduct } from './catalog.js';
-export type { DesktopApi } from './desktop-api.js';
+export { DESKTOP_API_VERSION, type DesktopApi } from './desktop-api.js';
+export type { CheckoutDraft, DraftLine } from './draft.js';
+export { formatQuantity, lineTotal, MAX_QUANTITY_DECIMALS, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from './quantity.js';

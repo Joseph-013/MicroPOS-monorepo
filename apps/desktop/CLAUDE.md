@@ -78,6 +78,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Styles are plain CSS (Tailwind v4 via PostCSS), not Sass; global styles live in `src/styles.css`.
 - Kiosk behavior: text selection is off app-wide (`html { user-select: none }` in `styles.css`). Inputs and textareas stay selectable; opt other text in with Tailwind `select-text` or `select-all` (order numbers, receipt text, error messages).
 - Minimum window is 1024 × 600 (`MIN_WINDOW` in `core/viewport/too-small-overlay.ts`); below it a full-window warning covers the app. Design layouts for that minimum.
+- Touch sizing lives at the root: `--control-height` (44px), `--control-height-sm` (36px), `--control-height-lg` (56px) and `--popup-offset` in `src/styles.css`. Buttons, inputs, selects, tabs, and menu/list rows read them, so one edit resizes the app. Do not set `h-*`/`size-*` on a control in a page; use the component's `size` input (`size="lg"` for primary actions). New or newly generated Spartan components must use these variables instead of fixed heights.
 - Touch first: keep targets comfortable (nav rail is 3.5rem collapsed with 40px rows).
 - Colors and fonts come from `@micropos/theme` tokens (Tailwind classes such as `bg-primary`, `text-muted-foreground`); don't hard-code values.
 
@@ -115,5 +116,30 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 
 - The renderer never touches SQLite. It calls `window.micropos` (typed as `DesktopApi` in `@micropos/core`), exposed by the sandboxed preload (`electron/preload.ts`), answered by `ipcMain.handle` handlers in `electron/ipc/`. In Angular, inject `DESKTOP_API` (`core/api/desktop-api.ts`) or a service built on it, such as `CatalogService`; tests provide a fake `DESKTOP_API`.
 - Adding a call: (1) add the DTO and method to `packages/core` (`catalog.ts`, `desktop-api.ts`) and rebuild core; (2) write the query as a plain function in `electron/db/queries/` and test it in `db.spec.ts`; (3) add the channel to `electron/ipc/channels.ts`; (4) register the handler in `electron/ipc/index.ts`; (5) expose it in `electron/preload.ts`; (6) use it from a service. Handlers stay thin: validate input, call the query, return plain data.
+- Contract version: `DESKTOP_API_VERSION` (`@micropos/core`) and `API_VERSION` (`electron/ipc/channels.ts`) must be equal (a test enforces it). Bump both when a call or payload changes in a way an older main process cannot handle. At startup the page asks the main process for its version (`DesktopApiGuard`); on a mismatch, or an old main that does not answer, a persistent banner says to restart the app. In development the page hot-reloads but the main process does not, so **restart `pnpm dev` after any change under `electron/`** or to `packages/core`.
 - DTOs in `@micropos/core` are types only (the CommonJS main process imports them with `import type`).
 - For the dev app, run `pnpm db:migrate --fresh --seed` first so there is data to read.
+
+## Checkout order draft
+
+- The order in progress saves itself: every change to the lines is written (debounced 300 ms, flushed when the page closes) through `window.micropos.checkout.*` to the `settings` table under the key `checkout.draft` (`electron/db/queries/draft.ts`, `CheckoutDraftService` in Angular). It is restored when Checkout opens, including after an app restart. The main process validates whatever the renderer sends before storing it.
+- In the ERD (`docs/erd.mmd`) the draft appears as the `checkout.draft` row of `settings`, with a dashed link to `products` (its lines hold product ids as JSON, with no foreign key). If drafts move to real `open` orders, update the ERD in the same change.
+- It is one draft per register for now. Once employees sign in, move it to an `open` order (with its lines) per employee.
+- **Clear vs Void:** *Clear* empties a cart that was never recorded and deletes the draft (confirmation dialog, no trace kept). *Void* is for a sale that was already recorded: it keeps the order with status `voided` and writes an audit entry so the books still add up. The checkout button is Clear; build Void when completed orders exist.
+
+## Banner (short status messages)
+
+- Use `BannerService` (`src/app/core/banner/`) for brief feedback instead of inline text: `banner.success('Bananas added')`, `banner.warning(msg, { duration: 'long' })`, `banner.error(...)`, `banner.info(...)`, or `banner.show(msg, { severity, duration, key })`. One thin strip at the top of the window (`BannerHost`, placed once in the root); click it to dismiss.
+- Default duration is 1.5 s; presets `short` 0.8 s, `default` 1.5 s, `long` 4 s, `persistent` (stays until clicked or `dismiss()`), or any number of milliseconds. Default severity is `info`.
+- Messages queue and show one at a time (at most 5 waiting; the oldest waiting ones are dropped). Pass a `key` for anything that can repeat quickly: the same key updates the banner on screen and restarts its timer instead of queueing again.
+- The banner and the "window too small" overlay are popovers in the browser top layer so they sit above dialogs; both use `keepOnTop` (`core/viewport/top-layer.ts`) with a `data-top-layer-priority` (overlay 2, banner 1). Any new always-on-top element needs a priority too, or the elements will keep re-raising each other.
+- Severity colors (`success`, `warning`, `destructive`, `primary`) come from `@micropos/theme` tokens.
+
+## On-screen keyboard
+
+- Settings > "On-screen keyboard" (off by default, per device) turns it on; "Numpad beside keyboard" adds a numpad to the right of the QWERTY keyboard. Both live in `AppSettings` (a new setting needs a default and a `storage.migrations.ts` entry).
+- It is attached at the lowest level: `OnScreenKeyboardService` (`core/keyboard/`, started in the root `App`) listens for focus on the whole document, so **no per-field code is needed**. Every `text`, `search`, `email`, `url`, `tel`, `password` input and every `textarea` gets the QWERTY keyboard (number row on top, one-shot Shift, Enter, Done). Every `type="number"` input, and any input with `inputmode="decimal"` or `"numeric"`, gets the numeric keypad (`core/keypad/`).
+- Both float next to the focused field (below, else above, right or left, whichever fits; they are pushed back into view instead of clipping), as overlays in the top layer. Their keys never take focus from the field (kiosk focus rule) and edit it at the caret, firing `input`; Done blurs the field, which is what commits it. While open, the field's `inputmode` is set to `none` so an OS soft keyboard does not appear too.
+- Number inputs are switched to `type="text"` while the keypad is up (a number field cannot show a half-typed "3.") and back afterwards; the keypad takes its limits from the field: `step` sets the decimals (none: whole numbers, `any`: 3), `max` sets the whole digits. `change` fires on close if the value changed. There is no minus key yet.
+- Opt a field or container out with `data-no-keyboard`. To set digit limits explicitly on a text field use the `appOnScreenKeypad` directive (`[keypadWholeDigits]`, `[keypadDecimals]`); it marks the field `data-keypad` so the global service leaves it alone. Prefer the plain attributes (`type="number"`, `step`, `max`, `inputmode`) and let the service handle it.
+- When adding a field, just use a normal input; check it in the app with the setting on.

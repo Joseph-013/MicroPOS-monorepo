@@ -16,7 +16,7 @@ import { classes } from '@spartan-ng/helm/utils';
   },
   template: `
     <hlm-input-group
-      class="bg-input/30 border-input/30 h-8! rounded-lg! shadow-none! *:data-[slot=input-group-addon]:ps-2!"
+      class="bg-input/30 border-input/30 h-(--control-height)! shadow-none! *:data-[slot=input-group-addon]:ps-2!"
     >
       <input
         brnCommandInput

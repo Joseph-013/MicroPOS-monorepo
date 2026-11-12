@@ -36,6 +36,31 @@ describe('StorageService', () => {
     expect(storage.get('navPinned', false)).toBe(true);
   });
 
+  it('gives an install that predates the setting an explicit on-screen keyboard default (off)', () => {
+    localStorage.setItem('micropos.schemaVersion', '1');
+    localStorage.setItem('micropos.theme', '"dark"');
+    const storage = create();
+    expect(storage.get('onScreenKeyboard', true)).toBe(false); // written by the migration, not the fallback
+    expect(localStorage.getItem('micropos.onScreenKeyboard')).toBe('false');
+    expect(storage.get('theme', 'system')).toBe('dark'); // other values untouched
+    expect(storage.version).toBeGreaterThanOrEqual(2);
+  });
+
+  it('gives an install from before the numpad option an explicit default (off) without touching other settings', () => {
+    localStorage.setItem('micropos.schemaVersion', '2');
+    localStorage.setItem('micropos.onScreenKeyboard', 'true');
+    const storage = create();
+    expect(storage.get('showNumpad', true)).toBe(false);
+    expect(storage.get('onScreenKeyboard', false)).toBe(true);
+    expect(storage.version).toBeGreaterThanOrEqual(3);
+  });
+
+  it('does not overwrite a value the user already chose', () => {
+    localStorage.setItem('micropos.schemaVersion', '1');
+    localStorage.setItem('micropos.onScreenKeyboard', 'true');
+    expect(create().get('onScreenKeyboard', false)).toBe(true);
+  });
+
   it('runs only pending migrations, in version order', () => {
     localStorage.setItem('micropos.schemaVersion', '1');
     const calls: number[] = [];

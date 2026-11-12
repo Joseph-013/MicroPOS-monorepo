@@ -25,7 +25,7 @@
     <div hlmCardContent class="flex flex-col gap-3">
       <div class="flex flex-col gap-1.5">
         <label hlmLabel for="cash">Cash tendered</label>
-        <input hlmInput id="cash" type="text" placeholder="0.00" />
+        <input hlmInput id="cash" type="text" inputmode="decimal" placeholder="0.00" />
       </div>
       <div class="flex flex-col gap-1.5">
         <label hlmLabel for="qty">Quantity</label>
@@ -163,19 +163,19 @@
           <tr hlmTr>
             <td hlmTd>SO-1042</td>
             <td hlmTd>2026-08-07</td>
-            <td hlmTd>$24.31</td>
+            <td hlmTd>₱24.31</td>
             <td hlmTd><span hlmBadge variant="tagAccent">Completed</span></td>
           </tr>
           <tr hlmTr>
             <td hlmTd>SO-1039</td>
             <td hlmTd>2026-08-06</td>
-            <td hlmTd>$7.28</td>
+            <td hlmTd>₱7.28</td>
             <td hlmTd><span hlmBadge variant="tagNeutral">Refunded</span></td>
           </tr>
           <tr hlmTr>
             <td hlmTd>SO-1037</td>
             <td hlmTd>2026-08-05</td>
-            <td hlmTd>$15.02</td>
+            <td hlmTd>₱15.02</td>
             <td hlmTd><span hlmBadge variant="tagOutline">Pending</span></td>
           </tr>
         </tbody>
@@ -214,6 +214,18 @@
           </p>
         }
       </div>
+    </div>
+  </section>
+
+  <section hlmCard class="md:col-span-2">
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Swipe actions</h2>
+    </div>
+    <div hlmCardContent class="flex flex-col gap-2 text-sm">
+      <app-swipe-actions [swipeLeft]="swipeLeft" [swipeRight]="swipeRight" (action)="onSwipe($event)" class="border">
+        <div class="flex h-16 items-center px-4">Swipe me: left for Delete then Archive, right for Edit then Flag</div>
+      </app-swipe-actions>
+      <p>Last action: <span class="select-text font-medium">{{ lastSwipe() || '-' }}</span></p>
     </div>
   </section>
 

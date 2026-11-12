@@ -1,8 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import type { CatalogProduct, DesktopApi } from '@micropos/core';
+import { type CatalogProduct, type CheckoutDraft, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
+import { BannerService } from '../../core/banner';
+import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
 import { ScannerService } from '../../core/scanner';
 import { CheckoutPage } from './checkout';
+
+// jsdom has no ResizeObserver (some overlay code watches element sizes).
+globalThis.ResizeObserver ??= class {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+};
 
 const p = (id: string, name: string, price: number, categoryNames: string[], n: number): CatalogProduct => ({
   id,
@@ -18,13 +27,32 @@ const PRODUCTS = [
   p('2', 'Whole Milk (1 gal)', 429, ['Dairy', 'Beverages'], 2),
   p('3', 'Large Eggs (dozen)', 349, ['Dairy'], 3),
 ];
-const API: DesktopApi = {
-  platform: 'linux',
-  catalog: {
-    listProducts: () => Promise.resolve(PRODUCTS),
-    listCategories: () => Promise.resolve([{ id: 'Dairy', name: 'Dairy' }, { id: 'Produce', name: 'Produce' }]),
-  },
-};
+/** A fake bridge whose draft storage is an in-memory slot we can inspect. */
+function fakeApi(initialDraft: CheckoutDraft | null = null) {
+  const store = { draft: initialDraft, saves: 0, clears: 0 };
+  const api: DesktopApi = {
+    platform: 'linux',
+    version: () => Promise.resolve(DESKTOP_API_VERSION),
+    catalog: {
+      listProducts: () => Promise.resolve(PRODUCTS),
+      listCategories: () => Promise.resolve([{ id: 'Dairy', name: 'Dairy' }, { id: 'Produce', name: 'Produce' }]),
+    },
+    checkout: {
+      loadDraft: () => Promise.resolve(store.draft),
+      saveDraft: (draft) => {
+        store.saves++;
+        store.draft = draft.lines.length ? draft : null;
+        return Promise.resolve();
+      },
+      clearDraft: () => {
+        store.clears++;
+        store.draft = null;
+        return Promise.resolve();
+      },
+    },
+  };
+  return { api, store };
+}
 
 /** Simulates a scanner: every character then Enter, effectively instantly. */
 function scan(code: string): void {
@@ -40,14 +68,27 @@ describe('CheckoutPage', () => {
   let fixture: ComponentFixture<CheckoutPage>;
   let el: HTMLElement;
 
-  beforeEach(async () => {
-    TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: API }] });
+  let store: ReturnType<typeof fakeApi>['store'];
+
+  async function open(initialDraft: CheckoutDraft | null = null): Promise<void> {
+    TestBed.resetTestingModule();
+    const fake = fakeApi(initialDraft);
+    store = fake.store;
+    TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: fake.api }] });
     TestBed.inject(ScannerService);
     fixture = TestBed.createComponent(CheckoutPage);
     await fixture.whenStable();
     el = fixture.nativeElement as HTMLElement;
+  }
+
+  beforeEach(() => {
+    localStorage.clear(); // settings (on-screen keyboard) start from their defaults
+    return open();
   });
-  afterEach(() => fixture.destroy());
+  afterEach(() => {
+    fixture.destroy();
+    localStorage.clear();
+  });
 
   const articles = (): number => document.querySelectorAll('article').length;
   const search = async (text: string): Promise<void> => {
@@ -60,7 +101,7 @@ describe('CheckoutPage', () => {
   it('starts with an empty order, payment controls on the right and no item grid on the page', () => {
     expect(el.textContent).toContain('No items yet');
     expect(el.textContent).toContain('Complete sale');
-    expect(el.textContent).toContain('$0.00');
+    expect(el.textContent).toContain('₱0.00');
     expect(el.querySelectorAll('article').length).toBe(0);
   });
 
@@ -76,7 +117,7 @@ describe('CheckoutPage', () => {
     add.click();
     await fixture.whenStable();
     expect(el.textContent).toContain('Whole Milk (1 gal)');
-    expect(el.textContent).toContain('$8.58'); // 2 x 4.29
+    expect(el.textContent).toContain('₱8.58'); // 2 x 4.29
 
     buttonByText(document.body, 'Done').click();
     await fixture.whenStable();
@@ -91,6 +132,19 @@ describe('CheckoutPage', () => {
     expect(tags('Whole Milk')).toEqual(['Dairy', 'Beverages']);
     expect(tags('Large Eggs')).toEqual(['Dairy']);
     expect(tags('Bananas')).toEqual(['Produce', 'Snacks', '+2']); // 4 categories: two shown, two folded
+    buttonByText(document.body, 'Done').click();
+    await fixture.whenStable();
+  });
+
+  it('confirms an item added from the browser in a success banner', async () => {
+    const banner = TestBed.inject(BannerService);
+    buttonByText(el, 'Add items').click();
+    await fixture.whenStable();
+    await search('bananas');
+    const add = document.querySelector('article button') as HTMLButtonElement;
+    add.click();
+    await fixture.whenStable();
+    expect(banner.current()).toMatchObject({ text: 'Bananas (bunch) added', severity: 'success', durationMs: 1500 });
     buttonByText(document.body, 'Done').click();
     await fixture.whenStable();
   });
@@ -115,16 +169,17 @@ describe('CheckoutPage', () => {
     scan(PRODUCTS[0].barcode!);
     await fixture.whenStable();
     expect(el.textContent).toContain('Bananas (bunch)');
-    expect(el.textContent).toContain('$1.79');
+    expect(el.textContent).toContain('₱1.79');
 
     scan(PRODUCTS[0].barcode!);
     await fixture.whenStable();
-    expect(el.textContent).toContain('$3.58');
+    expect(el.textContent).toContain('₱3.58');
 
     scan('9999999999994');
     await fixture.whenStable();
-    expect(el.textContent).toContain('Unknown barcode 9999999999994');
-    expect(el.textContent).toContain('$3.58');
+    const banner = TestBed.inject(BannerService).current();
+    expect(banner).toMatchObject({ text: 'Unknown barcode 9999999999994', severity: 'warning', durationMs: 4000 });
+    expect(el.textContent).toContain('₱3.58'); // the order is unchanged
   });
 
   it('steps quantities and removes a line at zero', async () => {
@@ -132,11 +187,335 @@ describe('CheckoutPage', () => {
     await fixture.whenStable();
     (el.querySelector('button[aria-label="Increase quantity"]') as HTMLButtonElement).click();
     await fixture.whenStable();
-    expect(el.textContent).toContain('$6.98');
+    expect(el.textContent).toContain('₱6.98');
     const dec = el.querySelector('button[aria-label="Decrease quantity"]') as HTMLButtonElement;
     dec.click();
     dec.click();
     await fixture.whenStable();
     expect(el.textContent).toContain('No items yet');
+  });
+
+  /** Waits (up to 1 s) for the confirmation dialog to finish closing and leave the page. */
+  const dialogGone = async (): Promise<void> => {
+    for (let i = 0; i < 20 && document.querySelector('hlm-alert-dialog-content'); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await fixture.whenStable();
+    }
+    expect(document.querySelector('hlm-alert-dialog-content')).toBeNull();
+  };
+
+  describe('draft', () => {
+    const flush = async (): Promise<void> => {
+      TestBed.inject(CheckoutDraftService).flush();
+      await fixture.whenStable();
+    };
+
+    it('saves the order automatically as items are added and changed', async () => {
+      scan(PRODUCTS[0].barcode!);
+      scan(PRODUCTS[0].barcode!);
+      await fixture.whenStable();
+      await flush();
+      expect(store.draft?.lines).toEqual([{ productId: '1', name: 'Bananas (bunch)', quantityMilli: 2000, unitPrice: 179 }]);
+
+      (el.querySelector('button[aria-label="Decrease quantity"]') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      await flush();
+      expect(store.draft?.lines[0].quantityMilli).toBe(1000);
+    });
+
+    it('turns quick successive changes into one write', async () => {
+      const before = store.saves;
+      for (let i = 0; i < 5; i++) scan(PRODUCTS[0].barcode!);
+      await fixture.whenStable();
+      await flush();
+      expect(store.saves - before).toBe(1);
+      expect(store.draft?.lines[0].quantityMilli).toBe(5000);
+    });
+
+    it('restores a saved draft when the page opens', async () => {
+      fixture.destroy();
+      await open({ lines: [{ productId: '2', name: 'Whole Milk (1 gal)', quantityMilli: 3000, unitPrice: 429 }] });
+      expect(el.textContent).toContain('Whole Milk (1 gal)');
+      expect(el.textContent).toContain('₱12.87'); // 3 x 4.29
+    });
+
+    it('restores a draft saved in the older whole-unit shape without NaN, and drops lines it cannot read', async () => {
+      fixture.destroy();
+      const legacy = {
+        lines: [
+          { productId: '2', name: 'Whole Milk (1 gal)', quantity: 3, unitPrice: 429 },
+          { productId: '9', name: 'Broken', unitPrice: 100 },
+          { productId: '8', name: 'Bad price', quantityMilli: 1000, unitPrice: 'x' },
+        ],
+      } as unknown as CheckoutDraft;
+      await open(legacy);
+      expect(el.textContent).not.toContain('NaN');
+      expect(el.textContent).toContain('₱12.87'); // 3 x 4.29
+      expect(el.textContent).not.toContain('Broken');
+      expect(el.querySelectorAll('li')).toHaveLength(1);
+    });
+
+    it('does not wipe a saved draft just because the page opened empty', async () => {
+      fixture.destroy();
+      await open({ lines: [{ productId: '2', name: 'Whole Milk (1 gal)', quantityMilli: 1000, unitPrice: 429 }] });
+      await flush();
+      expect(store.draft?.lines).toHaveLength(1);
+    });
+
+    it('saves the last change when the page is left before the delay ends', async () => {
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      expect(store.draft).toBeNull(); // still waiting
+      fixture.destroy();
+      expect(store.draft?.lines[0].productId).toBe('2');
+    });
+
+    it('clears the order and the saved draft after confirmation, and only then', async () => {
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      await flush();
+      expect(store.draft).not.toBeNull();
+
+      buttonByText(el, 'Clear').click();
+      await fixture.whenStable();
+      expect(document.body.textContent).toContain('Clear this order?');
+      expect(el.textContent).toContain('Whole Milk'); // nothing happens until confirmed
+
+      buttonByText(document.body, 'Cancel').click();
+      await fixture.whenStable();
+      expect(el.textContent).toContain('Whole Milk');
+      await dialogGone();
+
+      buttonByText(el, 'Clear').click();
+      await fixture.whenStable();
+      const confirm = [...document.querySelectorAll('[hlmAlertDialogAction]')].pop() as HTMLButtonElement;
+      confirm.click();
+      await fixture.whenStable();
+      expect(el.textContent).toContain('No items yet');
+      expect(store.draft).toBeNull();
+      expect(store.clears).toBe(1);
+      await dialogGone(); // and the confirmation closes by itself
+    });
+
+    it('disables Clear while the order is empty', () => {
+      expect(buttonByText(el, 'Clear').disabled).toBe(true);
+    });
+  });
+
+  describe('line items', () => {
+    const qtyButton = () => el.querySelector('button[aria-label="Edit quantity"]') as HTMLButtonElement;
+    const quantityField = () => el.querySelector('input[aria-label="Quantity"]') as HTMLInputElement;
+
+    /** Turns the on-screen keyboard setting on, then taps the quantity of a scanned item. */
+    const openEditor = async (): Promise<void> => {
+      fixture.destroy();
+      localStorage.setItem('micropos.onScreenKeyboard', 'true');
+      await open();
+      scan(PRODUCTS[0].barcode!); // Bananas, 1.79 each
+      await fixture.whenStable();
+      qtyButton().click();
+      await fixture.whenStable();
+    };
+    const keypadKey = (label: string) => document.querySelector(`app-on-screen-keypad button[aria-label="${label}"]`) as HTMLButtonElement;
+    const press = async (...labels: string[]): Promise<void> => {
+      for (const label of labels) {
+        keypadKey(label).click();
+        await fixture.whenStable();
+      }
+    };
+
+    it('with the on-screen keyboard on, a tap makes the quantity a text field and floats a keypad next to it', async () => {
+      await openEditor();
+      const input = quantityField();
+      expect(input.type).toBe('text'); // a number field cannot hold a half-typed "2."
+      expect(input.getAttribute('inputmode')).toBe('none'); // the OS keyboard stays out of the way
+      expect(input.value).toBe('1');
+      expect(document.querySelector('app-on-screen-keypad')).not.toBeNull();
+      expect(document.querySelector('hlm-dialog-content')).toBeNull(); // no dialog
+    });
+
+    it('sets an exact decimal quantity from the floating keypad and commits with Done', async () => {
+      await openEditor();
+      await press('2', '.', '5');
+      expect(quantityField().value).toBe('2.5'); // the first key replaced the old value
+      await press('Done');
+      expect(quantityField()).toBeNull(); // plain text again
+      expect(document.querySelector('app-on-screen-keypad')).toBeNull();
+      expect(qtyButton().textContent?.trim()).toBe('2.5');
+      expect(el.textContent).toContain('₱4.48'); // 2.5 x 1.79 = 4.475, rounded to the cent
+    });
+
+    it('lets the keypad delete, and refuses a second dot or more than 3 decimals', async () => {
+      await openEditor();
+      await press('3', '.', '1', '.', '2', '3', '4', '5');
+      expect(quantityField().value).toBe('3.123');
+      await press('Delete', 'Delete');
+      expect(quantityField().value).toBe('3.1');
+    });
+
+    it('keeps the old quantity when the keypad leaves an invalid amount', async () => {
+      await openEditor();
+      await press('0', '.', 'Done');
+      expect(qtyButton().textContent?.trim()).toBe('1');
+    });
+
+    it('also accepts a real keyboard, and Enter commits', async () => {
+      await openEditor();
+      const input = quantityField();
+      input.value = '7';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await fixture.whenStable();
+      expect(qtyButton().textContent?.trim()).toBe('7');
+    });
+
+    it('shows the same floating keypad for the cash tendered field', async () => {
+      fixture.destroy();
+      localStorage.setItem('micropos.onScreenKeyboard', 'true');
+      await open();
+      const cash = el.querySelector('#tendered') as HTMLInputElement;
+      expect(document.querySelector('app-on-screen-keypad')).toBeNull();
+      cash.focus();
+      await fixture.whenStable();
+      expect(document.querySelector('app-on-screen-keypad')).not.toBeNull();
+      await press('2', '5', '0', '.', '5', '0', '9'); // two decimals at most
+      expect(cash.value).toBe('250.50');
+      await press('Done');
+      expect(document.querySelector('app-on-screen-keypad')).toBeNull();
+    });
+
+    it('with the on-screen keyboard off the cash field has no keypad', async () => {
+      const cash = el.querySelector('#tendered') as HTMLInputElement;
+      cash.focus();
+      await fixture.whenStable();
+      expect(document.querySelector('app-on-screen-keypad')).toBeNull();
+    });
+
+    describe('with the on-screen keyboard off (default)', () => {
+      const field = () => el.querySelector('input[aria-label="Quantity"]') as HTMLInputElement | null;
+      const startInline = async (): Promise<HTMLInputElement> => {
+        scan(PRODUCTS[0].barcode!);
+        await fixture.whenStable();
+        qtyButton().click();
+        await fixture.whenStable();
+        return field()!;
+      };
+      const type = async (input: HTMLInputElement, value: string): Promise<void> => {
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await fixture.whenStable();
+      };
+
+      it('turns the quantity into a focused number field, with no keypad', async () => {
+        const select = vi.spyOn(HTMLInputElement.prototype, 'select');
+        const input = await startInline();
+        expect(input).toBeTruthy();
+        expect(input.type).toBe('number');
+        expect(input.value).toBe('1');
+        expect(document.activeElement).toBe(input);
+        expect(select).toHaveBeenCalled(); // contents selected, so typing replaces them
+        select.mockRestore();
+        expect(document.querySelector('app-on-screen-keypad')).toBeNull();
+        expect(qtyButton()).toBeNull(); // the plain text is replaced while editing
+      });
+
+      it('commits on Enter and goes back to plain text', async () => {
+        const input = await startInline();
+        await type(input, '3.5');
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await fixture.whenStable();
+        expect(field()).toBeNull();
+        expect(qtyButton().textContent?.trim()).toBe('3.5');
+        expect(el.textContent).toContain('₱6.27'); // 3.5 x 1.79 = 6.265
+      });
+
+      it('commits when the field loses focus, and turns back into plain text', async () => {
+        const input = await startInline();
+        await type(input, '4');
+        input.dispatchEvent(new FocusEvent('blur'));
+        await fixture.whenStable();
+        expect(field()).toBeNull();
+        expect(qtyButton().textContent?.trim()).toBe('4');
+      });
+
+      it('Escape and invalid amounts keep the old quantity', async () => {
+        let input = await startInline();
+        await type(input, '9');
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await fixture.whenStable();
+        expect(qtyButton().textContent?.trim()).toBe('1');
+
+        qtyButton().click();
+        await fixture.whenStable();
+        input = field()!;
+        await type(input, '0'); // zero is not a quantity
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await fixture.whenStable();
+        expect(qtyButton().textContent?.trim()).toBe('1');
+
+        qtyButton().click();
+        await fixture.whenStable();
+        input = field()!;
+        await type(input, '1.2345'); // too many decimals
+        input.dispatchEvent(new FocusEvent('blur'));
+        await fixture.whenStable();
+        expect(qtyButton().textContent?.trim()).toBe('1');
+      });
+
+      it('applies an amount once even though Enter is followed by a blur', async () => {
+        const input = await startInline();
+        await type(input, '2');
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        input.dispatchEvent(new FocusEvent('blur'));
+        await fixture.whenStable();
+        expect(qtyButton().textContent?.trim()).toBe('2');
+      });
+    });
+
+    it('steps by one with + and -, removes the line when a tap on - reaches zero', async () => {
+      scan(PRODUCTS[0].barcode!);
+      await fixture.whenStable();
+      (el.querySelector('button[aria-label="Increase quantity"]') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(qtyButton().textContent?.trim()).toBe('2');
+      const dec = el.querySelector('button[aria-label="Decrease quantity"]') as HTMLButtonElement;
+      dec.click();
+      dec.click();
+      await fixture.whenStable();
+      expect(el.textContent).toContain('No items yet');
+    });
+
+    it('offers "Remove item" in a context menu on the line and removes only that line', async () => {
+      scan(PRODUCTS[0].barcode!);
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      const rows = el.querySelectorAll('li');
+      expect(rows).toHaveLength(2);
+
+      rows[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 }));
+      await fixture.whenStable();
+      const item = [...document.querySelectorAll('[hlmDropdownMenuItem]')].find((b) => b.textContent?.trim() === 'Remove item') as HTMLButtonElement;
+      expect(item).toBeTruthy();
+      item.click();
+      await fixture.whenStable();
+
+      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.textContent).not.toContain('Bananas (bunch)');
+      expect(el.textContent).toContain('Whole Milk (1 gal)');
+    });
+
+    it('removes a line that is swiped away', async () => {
+      scan(PRODUCTS[0].barcode!);
+      await fixture.whenStable();
+      const row = el.querySelector('app-swipe-actions > div:last-child') as HTMLElement;
+      const pe = (type: string, x: number): Event =>
+        Object.assign(new MouseEvent(type, { clientX: x, clientY: 0, button: 0, bubbles: true }), { pointerId: 3, pointerType: 'touch' });
+      row.dispatchEvent(pe('pointerdown', 500));
+      row.dispatchEvent(pe('pointermove', 400)); // 100 px: past the first distance, so "Remove" is highlighted
+      row.dispatchEvent(pe('pointerup', 400));
+      await new Promise((resolve) => setTimeout(resolve, 250)); // the row slides out, then the action runs
+      await fixture.whenStable();
+      expect(el.textContent).toContain('No items yet');
+    });
   });
 });

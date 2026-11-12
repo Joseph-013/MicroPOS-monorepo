@@ -20,6 +20,12 @@ export interface ColorTokens {
   accent: string;
   accentForeground: string;
   destructive: string;
+  destructiveForeground: string;
+  /** Status colors for banners and messages. `info` uses `primary`. */
+  success: string;
+  successForeground: string;
+  warning: string;
+  warningForeground: string;
   border: string;
   input: string;
   ring: string;
@@ -47,6 +53,11 @@ export const light: ColorTokens = {
   accent: 'rgba(29, 31, 32, 0.07)',
   accentForeground: '#1d1f20',
   destructive: '#b3413a',
+  destructiveForeground: '#ffffff',
+  success: '#1d7a4a',
+  successForeground: '#ffffff',
+  warning: '#b45309',
+  warningForeground: '#ffffff',
   border: 'rgba(29, 31, 32, 0.16)',
   input: 'rgba(29, 31, 32, 0.16)',
   ring: '#005e8c',
@@ -73,6 +84,11 @@ export const dark: ColorTokens = {
   accent: 'rgba(242, 242, 243, 0.08)',
   accentForeground: '#f2f2f3',
   destructive: '#e07a72',
+  destructiveForeground: '#2a0b09',
+  success: '#4ade80',
+  successForeground: '#052e16',
+  warning: '#fbbf24',
+  warningForeground: '#2b1d02',
   border: 'rgba(242, 242, 243, 0.16)',
   input: 'rgba(242, 242, 243, 0.16)',
   ring: '#dee9f0',

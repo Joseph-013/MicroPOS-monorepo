@@ -33,6 +33,20 @@ export const STORAGE_MIGRATIONS_LIST: readonly StorageMigration[] = [
       if (theme !== null && THEME_VALUES.has(theme)) store.set('theme', JSON.stringify(theme));
     },
   },
+  {
+    // The "on-screen keyboard" setting was introduced: every existing install gets an explicit default (off).
+    version: 2,
+    migrate(store) {
+      if (store.get('onScreenKeyboard') === null) store.set('onScreenKeyboard', 'false');
+    },
+  },
+  {
+    // The QWERTY keyboard gained an optional numpad: existing installs get an explicit default (off).
+    version: 3,
+    migrate(store) {
+      if (store.get('showNumpad') === null) store.set('showNumpad', 'false');
+    },
+  },
 ];
 
 export const STORAGE_MIGRATIONS = new InjectionToken<readonly StorageMigration[]>(

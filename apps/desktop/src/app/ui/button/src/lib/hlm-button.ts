@@ -23,16 +23,16 @@ export const buttonVariants = cva(
       },
       size: {
         default:
-          'h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pe-2 has-data-[icon=inline-start]:ps-2',
+          'h-(--control-height) gap-1.5 px-2.5 has-data-[icon=inline-end]:pe-2 has-data-[icon=inline-start]:ps-2',
         xs: "h-6 gap-1 px-2 text-xs has-data-[icon=inline-end]:pe-1.5 has-data-[icon=inline-start]:ps-1.5 [&_ng-icon:not([class*='text-'])]:text-[length:--spacing(3)]",
-        sm: "h-7 gap-1 px-2.5 text-[0.8rem] has-data-[icon=inline-end]:pe-1.5 has-data-[icon=inline-start]:ps-1.5 [&_ng-icon:not([class*='text-'])]:text-[length:--spacing(3.5)]",
-        lg: 'h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pe-3 has-data-[icon=inline-start]:ps-3',
-        icon: 'size-8',
+        sm: "h-(--control-height-sm) gap-1 px-2.5 text-[0.8rem] has-data-[icon=inline-end]:pe-1.5 has-data-[icon=inline-start]:ps-1.5 [&_ng-icon:not([class*='text-'])]:text-[length:--spacing(3.5)]",
+        lg: 'h-(--control-height-lg) gap-1.5 px-4 text-base has-data-[icon=inline-end]:pe-3 has-data-[icon=inline-start]:ps-3',
+        icon: 'size-(--control-height)',
         'icon-xs':
           "size-6 [&_ng-icon:not([class*='text-'])]:text-[length:--spacing(3)]",
         'icon-sm':
-          'size-7',
-        'icon-lg': 'size-9',
+          'size-(--control-height-sm)',
+        'icon-lg': 'size-(--control-height-lg)',
       },
     },
     defaultVariants: {

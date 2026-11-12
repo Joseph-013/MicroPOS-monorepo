@@ -13,7 +13,7 @@ import { classes } from '@spartan-ng/helm/utils';
   providers: [
     provideBrnPopoverConfig({
       align: 'start',
-      sideOffset: 6,
+      sideOffset: 8, // keep in step with --popup-offset in styles.css
     }),
     provideBrnPopoverDefaultOptions({ role: null }),
   ],

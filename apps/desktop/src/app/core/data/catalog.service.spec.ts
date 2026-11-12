@@ -1,7 +1,9 @@
 import { TestBed } from '@angular/core/testing';
-import type { CatalogProduct, DesktopApi } from '@micropos/core';
+import { type CatalogProduct, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
 import { CatalogService } from './catalog.service';
+
+const noDraft = { loadDraft: () => Promise.resolve(null), saveDraft: () => Promise.resolve(), clearDraft: () => Promise.resolve() };
 
 const product = (over: Partial<CatalogProduct>): CatalogProduct => ({
   id: 'x',
@@ -23,6 +25,8 @@ describe('CatalogService', () => {
   it('loads products and categories through the bridge', async () => {
     const service = setup({
       platform: 'linux',
+      version: () => Promise.resolve(DESKTOP_API_VERSION),
+      checkout: noDraft,
       catalog: {
         listProducts: () => Promise.resolve([product({ id: 'a', name: 'Milk', barcode: '111', sku: 'S-1', plu: '4' })]),
         listCategories: () => Promise.resolve([{ id: 'c', name: 'Dairy' }]),
@@ -43,6 +47,8 @@ describe('CatalogService', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const failing = setup({
       platform: 'linux',
+      version: () => Promise.resolve(DESKTOP_API_VERSION),
+      checkout: noDraft,
       catalog: { listProducts: () => Promise.reject(new Error('boom')), listCategories: () => Promise.resolve([]) },
     });
     await failing.load();

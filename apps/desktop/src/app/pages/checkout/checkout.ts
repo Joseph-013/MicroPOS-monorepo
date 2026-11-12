@@ -1,57 +1,72 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideMinus, lucidePlus } from '@ng-icons/lucide';
-import type { CatalogProduct } from '@micropos/core';
+import { lucideMinus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
+import { type CatalogProduct, type DraftLine, formatQuantity, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
+import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmComboboxImports } from '@spartan-ng/helm/combobox';
+import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
-import { HlmTabsImports } from '@spartan-ng/helm/tabs';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { BannerService } from '../../core/banner';
 import { CatalogService } from '../../core/data/catalog.service';
+import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
 import { MoneyPipe } from '../../core/money.pipe';
+import { AppSettings } from '../../core/settings/app-settings.service';
+import { OnScreenKeypadDirective } from '../../core/keypad';
+import { FocusSelectDirective } from '../../core/ui/focus-select.directive';
+import { HoldRepeatDirective } from '../../core/ui/hold-repeat.directive';
+import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { claimScanner } from '../../core/scanner';
 
 export const ALL_CATEGORIES = 'All categories';
 
-interface OrderLine {
-  productId: string;
-  name: string;
-  quantity: number;
-  /** Unit price in cents. */
-  unitPrice: number;
-}
+const PAYMENT_METHODS = { cash: 'Cash', card: 'Card', other: 'Other' } as const;
+type PaymentMethod = keyof typeof PAYMENT_METHODS;
 
 /** Checkout: order lines on the left, payment controls on the right, item browser in a dialog. */
 @Component({
   imports: [
     NgIcon,
+    FocusSelectDirective,
+    OnScreenKeypadDirective,
+    HoldRepeatDirective,
+    SwipeActions,
     MoneyPipe,
+    HlmAlertDialogImports,
     HlmBadgeImports,
     HlmButtonImports,
     HlmCardImports,
     HlmComboboxImports,
+    HlmContextMenuImports,
     HlmDialogImports,
+    HlmDropdownMenuImports,
     HlmInputImports,
     HlmLabelImports,
-    HlmTabsImports,
+    HlmSelectImports,
   ],
-  providers: [provideIcons({ lucideMinus, lucidePlus })],
+  providers: [provideIcons({ lucideMinus, lucidePlus, lucideTrash2 })],
   templateUrl: './checkout.html',
 })
 export class CheckoutPage {
   protected readonly catalog = inject(CatalogService);
+  private readonly draft = inject(CheckoutDraftService);
+  private readonly banner = inject(BannerService);
 
-  // Order (not saved yet: sales are not wired to the database).
-  protected readonly lines = signal<OrderLine[]>([]);
-  protected readonly unknownCode = signal('');
-  protected readonly lineTotals = computed(() => this.lines().map((l) => ({ ...l, total: l.quantity * l.unitPrice })));
+  // The order in progress. It is saved automatically as a draft and restored when the page opens.
+  protected readonly lines = signal<DraftLine[]>([]);
+  protected readonly lineTotals = computed(() => this.lines().map((l) => ({ ...l, total: lineTotal(l.unitPrice, l.quantityMilli) })));
   protected readonly subtotal = computed(() => this.lineTotals().reduce((sum, l) => sum + l.total, 0));
   protected readonly discount = signal(0);
+  protected readonly paymentMethod = signal<PaymentMethod>('cash');
+  /** Label shown in the closed select (the raw value is lowercase). */
+  protected readonly paymentLabel = (method: PaymentMethod): string => PAYMENT_METHODS[method] ?? '';
   protected readonly total = computed(() => this.subtotal() - this.discount());
-  protected readonly quickTender = [2000, 5000, 10000];
 
   // Item browser (dialog). One search box matches name, barcode, SKU and PLU.
   protected readonly category = signal<string | null>(ALL_CATEGORIES);
@@ -75,29 +90,106 @@ export class CheckoutPage {
       );
   });
 
+  /** True once the saved draft has been read; saving waits for this so an empty start never overwrites it. */
+  private readonly draftRestored = signal(false);
+
   constructor() {
     void this.catalog.load();
+
+    void this.draft.restore().then((saved) => {
+      // A scan can arrive before the read finishes; keep what is already on screen in that case.
+      if (this.lines().length === 0) this.lines.set(saved);
+      this.draftRestored.set(true);
+    });
+    effect(() => {
+      const lines = this.lines();
+      if (this.draftRestored()) this.draft.save(lines);
+    });
+    inject(DestroyRef).onDestroy(() => this.draft.flush());
+
     // Take control of the scanner while checkout is open; released automatically when the page is destroyed.
     claimScanner(({ code }) => {
       const product = this.catalog.findByCode(code);
       if (product) this.add(product);
-      this.unknownCode.set(product ? '' : code);
+      else this.banner.warning(`Unknown barcode ${code}`, { duration: 'long', key: 'unknown-barcode' });
     });
   }
+
+  /** The Add button in the item browser: add the item and confirm it in a banner. */
+  protected addFromBrowser(product: CatalogProduct): void {
+    this.add(product);
+    // Same key per product, so tapping Add repeatedly keeps one banner alive instead of queueing many.
+    this.banner.success(`${product.name} added`, { key: `added:${product.id}` });
+  }
+
+  protected readonly quantityLabel = formatQuantity;
 
   protected add(product: CatalogProduct): void {
     this.lines.update((lines) =>
       lines.some((l) => l.productId === product.id)
-        ? lines.map((l) => (l.productId === product.id ? { ...l, quantity: l.quantity + 1 } : l))
-        : [...lines, { productId: product.id, name: product.name, quantity: 1, unitPrice: product.price }],
+        ? lines.map((l) => (l.productId === product.id ? { ...l, quantityMilli: this.clamp(l.quantityMilli + MILLI) } : l))
+        : [...lines, { productId: product.id, name: product.name, quantityMilli: MILLI, unitPrice: product.price }],
     );
   }
 
-  protected change(productId: string, delta: number): void {
+  /**
+   * Steps a line's quantity by `deltaMilli`. A tap that reaches zero removes the line; a held press
+   * (`repeating`) stops at the last unit instead, so holding "-" cannot wipe a line out by accident.
+   */
+  protected change(productId: string, deltaMilli: number, repeating = false): void {
     this.lines.update((lines) =>
       lines
-        .map((l) => (l.productId === productId ? { ...l, quantity: l.quantity + delta } : l))
-        .filter((l) => l.quantity > 0),
+        .map((l) => {
+          if (l.productId !== productId) return l;
+          const next = l.quantityMilli + deltaMilli;
+          return repeating && next <= 0 ? l : { ...l, quantityMilli: this.clamp(next) };
+        })
+        .filter((l) => l.quantityMilli > 0),
     );
+  }
+
+  private clamp(quantityMilli: number): number {
+    return Math.min(quantityMilli, MAX_QUANTITY_UNITS * MILLI);
+  }
+
+  /** Swipe an order line to the left to remove it (touch). */
+  protected readonly lineSwipeLeft: SwipeAction[] = [{ id: 'remove', label: 'Remove', icon: 'lucideTrash2', tone: 'destructive', exit: true }];
+
+  protected runLineAction(event: SwipeActionEvent, line: DraftLine): void {
+    if (event.action.id === 'remove') this.removeLine(line.productId);
+  }
+
+  protected readonly settings = inject(AppSettings);
+
+  /** The line whose quantity is being typed in place; null when none. */
+  protected readonly inlineEditing = signal<string | null>(null);
+
+  /**
+   * Tap a quantity to enter an exact amount (decimals allowed, e.g. 1.25 kg): it becomes a field in place. With
+   * the on-screen keyboard setting on, a keypad floats next to the field (`appOnScreenKeypad`).
+   */
+  protected editQuantity(line: DraftLine): void {
+    this.inlineEditing.set(line.productId);
+  }
+
+  /** Ends in-place editing: Enter or leaving the field keeps a valid amount, Escape or a bad one keeps the old. */
+  protected finishInline(line: DraftLine, text: string, keep: boolean): void {
+    if (this.inlineEditing() !== line.productId) return; // already finished (Enter, then the blur it causes)
+    this.inlineEditing.set(null);
+    const quantityMilli = keep ? parseQuantityMilli(text) : null;
+    if (quantityMilli === null) return;
+    this.lines.update((lines) => lines.map((l) => (l.productId === line.productId ? { ...l, quantityMilli } : l)));
+  }
+
+  /** Takes one line off the order (context menu or swipe). */
+  protected removeLine(productId: string): void {
+    this.lines.update((lines) => lines.filter((l) => l.productId !== productId));
+  }
+
+  /** Empties the order and removes the saved draft. */
+  protected clearOrder(): void {
+    this.lines.set([]);
+    this.discount.set(0);
+    this.draft.clear();
   }
 }

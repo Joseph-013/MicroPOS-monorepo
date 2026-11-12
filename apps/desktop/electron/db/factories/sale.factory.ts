@@ -64,7 +64,7 @@ export function buildSale(opts: SaleOptions): SaleDraft {
 
   const payments: SaleDraft['payments'] = [];
   if (status === 'completed') {
-    const tendered = method === 'cash' ? Math.ceil(total / 500) * 500 : null; // bills in $5 steps
+    const tendered = method === 'cash' ? Math.ceil(total / 10000) * 10000 : null; // handed over in whole 100-peso steps
     payments.push({
       id: uuid7(completedAt),
       orderId,

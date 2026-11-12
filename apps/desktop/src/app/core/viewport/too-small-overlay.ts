@@ -1,4 +1,5 @@
 import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { isPopoverOpen, keepOnTop } from './top-layer';
 
 /** Smallest window the layouts are designed for (CSS pixels). */
 export const MIN_WINDOW = { width: 1024, height: 600 } as const;
@@ -8,7 +9,7 @@ export const MIN_WINDOW = { width: 1024, height: 600 } as const;
  *
  * It is a manual popover so it lives in the browser's top layer, like the CDK overlays that
  * dialogs and menus use. `z-index` cannot beat the top layer, so it is re-raised whenever
- * another popover opens, which keeps it above them.
+ * another popover opens (see `keepOnTop`). Priority 2: it stays above the banner too.
  */
 @Component({
   selector: 'app-too-small-overlay',
@@ -16,6 +17,7 @@ export const MIN_WINDOW = { width: 1024, height: 600 } as const;
     <div
       #panel
       popover="manual"
+      data-top-layer-priority="2"
       class="bg-background/95 fixed inset-0 m-0 h-full w-full max-w-none items-center justify-center border-0 p-4 backdrop-blur-sm [&:popover-open]:flex"
     >
       @if (tooSmall()) {
@@ -38,40 +40,18 @@ export class TooSmallOverlay {
 
   constructor() {
     const onResize = (): void => this.size.set(this.measure());
-    // Any other popover opening (dialog, menu...) would land above us; move back to the top.
-    const onToggle = (event: Event): void => {
-      const panel = this.panel().nativeElement;
-      if (event.target !== panel && (event as ToggleEvent).newState === 'open' && this.tooSmall()) this.raise();
-    };
     window.addEventListener('resize', onResize);
-    document.addEventListener('toggle', onToggle, true);
-    inject(DestroyRef).onDestroy(() => {
-      window.removeEventListener('resize', onResize);
-      document.removeEventListener('toggle', onToggle, true);
-    });
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('resize', onResize));
+    keepOnTop(() => this.panel().nativeElement, 2, () => this.tooSmall());
 
     effect(() => {
       const panel = this.panel().nativeElement;
       if (this.tooSmall()) {
-        if (!this.isOpen(panel)) panel.showPopover?.();
-      } else if (this.isOpen(panel)) {
+        if (!isPopoverOpen(panel)) panel.showPopover?.();
+      } else if (isPopoverOpen(panel)) {
         panel.hidePopover?.();
       }
     });
-  }
-
-  private raise(): void {
-    const panel = this.panel().nativeElement;
-    panel.hidePopover?.();
-    panel.showPopover?.();
-  }
-
-  private isOpen(panel: HTMLElement): boolean {
-    try {
-      return panel.matches(':popover-open');
-    } catch {
-      return false; // no Popover API (e.g. jsdom)
-    }
   }
 
   private measure(): { width: number; height: number } {

@@ -2,6 +2,7 @@ erDiagram
     employees ||--o{ login_sessions : "signs in"
     employees ||--o{ orders : "rings up"
     employees |o--o{ audit_log : "performs"
+    settings }o..o{ products : "checkout.draft lines (JSON, no FK)"
     products ||--o{ product_categories : "in"
     categories ||--o{ product_categories : "groups"
     orders ||--|{ order_lines : "has"
@@ -95,7 +96,7 @@ erDiagram
         int created_at
     }
     settings {
-        text key PK
-        text value
+        text key PK "store.name, receipt.footer, checkout.draft"
+        text value "JSON"
         int updated_at
     }

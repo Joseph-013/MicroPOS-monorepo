@@ -183,7 +183,7 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
     tx.insert(settings)
       .values([
         { key: 'store.name', value: 'MicroPOS Demo Store' },
-        { key: 'store.currency', value: 'USD' },
+        { key: 'store.currency', value: 'PHP' },
         { key: 'receipt.footer', value: 'Thank you for shopping with us!' },
       ])
       .run();
