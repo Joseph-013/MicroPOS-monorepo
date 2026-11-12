@@ -1,0 +1,71 @@
+<div class="grid gap-6 md:grid-cols-2">
+  <section hlmCard>
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Buttons and tags</h2>
+    </div>
+    <div hlmCardContent class="flex flex-col gap-4">
+      <div class="flex flex-wrap gap-2">
+        <button hlmBtn type="button">Primary</button>
+        <button hlmBtn variant="outline" type="button">Secondary</button>
+        <button hlmBtn variant="ghost" type="button">Ghost</button>
+        <button hlmBtn type="button" disabled>Disabled</button>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <span hlmBadge variant="tagOutline">Produce</span>
+        <span hlmBadge variant="tagAccent">Paid</span>
+        <span hlmBadge variant="tagNeutral">Refunded</span>
+      </div>
+    </div>
+  </section>
+
+  <section hlmCard>
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Form</h2>
+    </div>
+    <div hlmCardContent class="flex flex-col gap-3">
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="cash">Cash tendered</label>
+        <input hlmInput id="cash" type="text" placeholder="0.00" />
+      </div>
+      <button hlmBtn type="button">Complete sale</button>
+    </div>
+  </section>
+
+  <section hlmCard class="md:col-span-2">
+    <div hlmCardHeader>
+      <h2 hlmCardTitle>Table</h2>
+    </div>
+    <div hlmCardContent>
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh>Order</th>
+            <th hlmTh>Date</th>
+            <th hlmTh>Total</th>
+            <th hlmTh>Status</th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          <tr hlmTr>
+            <td hlmTd>SO-1042</td>
+            <td hlmTd>2026-08-07</td>
+            <td hlmTd>$24.31</td>
+            <td hlmTd><span hlmBadge variant="tagAccent">Completed</span></td>
+          </tr>
+          <tr hlmTr>
+            <td hlmTd>SO-1039</td>
+            <td hlmTd>2026-08-06</td>
+            <td hlmTd>$7.28</td>
+            <td hlmTd><span hlmBadge variant="tagNeutral">Refunded</span></td>
+          </tr>
+          <tr hlmTr>
+            <td hlmTd>SO-1037</td>
+            <td hlmTd>2026-08-05</td>
+            <td hlmTd>$15.02</td>
+            <td hlmTd><span hlmBadge variant="tagOutline">Pending</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

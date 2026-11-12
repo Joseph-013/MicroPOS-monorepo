@@ -1,0 +1,107 @@
+<nav
+  #rail
+  aria-label="Main"
+  class="bg-background border-border fixed inset-y-0 left-0 z-20 flex flex-col overflow-hidden border-r p-2 transition-[width,box-shadow] duration-200 ease-out"
+  [class.shadow-lg]="expanded() && !pinned()"
+  [style.width]="expanded() ? '16rem' : '3.5rem'"
+  (mouseenter)="setHovered(true)"
+  (mouseleave)="setHovered(false)"
+  (focusin)="setHovered(true)"
+  (focusout)="onFocusOut($event, rail)"
+>
+  <div class="relative mb-3 flex h-10 items-center justify-between pl-[11px]">
+    <!-- Temporary collapsed-state mark until a real icon exists. -->
+    <span
+      aria-hidden="true"
+      class="text-primary pointer-events-none absolute top-0 left-0 flex size-10 items-center justify-center transition-opacity duration-150"
+      [class.opacity-0]="expanded()"
+    >
+      <ng-icon name="lucideComputer" size="22" strokeWidth="2.75" />
+    </span>
+    <app-logo class="shrink-0 transition-opacity duration-150" [class.opacity-0]="!expanded()" />
+    <button
+      type="button"
+      class="text-muted-foreground hover:bg-accent hover:text-foreground flex size-10 shrink-0 items-center justify-center transition-opacity duration-150"
+      [class.opacity-0]="!expanded()"
+      [class.pointer-events-none]="!expanded()"
+      [tabindex]="expanded() ? 0 : -1"
+      [attr.aria-pressed]="pinned()"
+      [attr.aria-label]="pinned() ? 'Unpin navigation' : 'Pin navigation open'"
+      (click)="togglePin()"
+    >
+      <ng-icon [name]="pinned() ? 'lucidePinOff' : 'lucidePin'" size="16" strokeWidth="1.5" />
+    </button>
+  </div>
+
+  <ul class="flex flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden">
+    @for (item of nav; track item.id) {
+      <li>
+        <ng-container *ngTemplateOutlet="itemTpl; context: { $implicit: item, level: 0 }" />
+      </li>
+    }
+  </ul>
+
+  <ng-template #itemTpl let-item let-level="level">
+    @if (item.children) {
+      <button
+        type="button"
+        class="hover:bg-accent flex h-10 w-full items-center gap-3 text-left text-sm whitespace-nowrap transition-colors"
+        [class.font-semibold]="hasActive(item)"
+        [class.text-primary]="hasActive(item)"
+        [style.padding-left.px]="indent(level)"
+        style="padding-right: 11px"
+        [attr.aria-expanded]="isOpen(item)"
+        [attr.aria-controls]="'nav-group-' + item.id"
+        [attr.title]="expanded() ? null : item.label"
+        (click)="toggleGroup(item)"
+      >
+        @if (item.icon) {
+          <ng-icon [name]="item.icon" size="18" strokeWidth="1.5" class="shrink-0" />
+        }
+        <span class="flex-1 transition-opacity duration-150" [class.opacity-0]="!expanded()">{{ item.label }}</span>
+        <ng-icon
+          name="lucideChevronRight"
+          size="16"
+          strokeWidth="1.5"
+          class="shrink-0 transition-[transform,opacity] duration-150"
+          [class.rotate-90]="isOpen(item)"
+          [class.opacity-0]="!expanded()"
+        />
+      </button>
+      @if (expanded() && isOpen(item)) {
+        <ul [id]="'nav-group-' + item.id" class="mt-1.5 flex flex-col gap-1.5">
+          @for (child of item.children; track child.id) {
+            <li>
+              <ng-container *ngTemplateOutlet="itemTpl; context: { $implicit: child, level: level + 1 }" />
+            </li>
+          }
+        </ul>
+      }
+    } @else {
+      <a
+        [routerLink]="item.path"
+        routerLinkActive="bg-primary text-primary-foreground hover:bg-primary"
+        [attr.title]="expanded() ? null : item.label"
+        class="hover:bg-accent text-foreground flex h-10 items-center gap-3 text-sm whitespace-nowrap transition-colors"
+        [style.padding-left.px]="indent(level)"
+        style="padding-right: 11px"
+      >
+        @if (item.icon) {
+          <ng-icon [name]="item.icon" size="18" strokeWidth="1.5" class="shrink-0" />
+        }
+        <span class="transition-opacity duration-150" [class.opacity-0]="!expanded()">{{ item.label }}</span>
+      </a>
+    }
+  </ng-template>
+
+  <button
+    type="button"
+    class="hover:bg-accent text-foreground flex h-10 items-center gap-3 px-[11px] text-sm whitespace-nowrap transition-colors"
+    [attr.aria-label]="'Theme: ' + currentMode().label + ' (click to change)'"
+    [attr.title]="expanded() ? null : 'Theme: ' + currentMode().label"
+    (click)="cycleTheme()"
+  >
+    <ng-icon [name]="currentMode().icon" size="18" strokeWidth="1.5" class="shrink-0" />
+    <span class="transition-opacity duration-150" [class.opacity-0]="!expanded()">Theme: {{ currentMode().label }}</span>
+  </button>
+</nav>

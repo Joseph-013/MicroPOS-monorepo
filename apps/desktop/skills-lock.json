@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "skills": {
+    "spartan": {
+      "source": "spartan-ng/spartan",
+      "sourceType": "github",
+      "skillPath": "skills/spartan/SKILL.md",
+      "computedHash": "0473760ecc7fb0c567644a58542f8ccfa738ca9d092c98a02f0141b67cf7ef4f"
+    }
+  }
+}

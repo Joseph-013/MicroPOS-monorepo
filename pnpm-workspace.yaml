@@ -1,0 +1,15 @@
+nodeLinker: hoisted
+
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  '@parcel/watcher': false
+  esbuild: false
+  lmdb: false
+  msgpackr-extract: false
+  nx: false
+  better-sqlite3: true
