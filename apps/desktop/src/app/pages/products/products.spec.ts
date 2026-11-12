@@ -692,6 +692,27 @@ describe('ProductsPage', () => {
       expect(el.textContent).not.toContain('selected'); // selection is cleared
     });
 
+    it('the confirmation lists exactly what it is about to act on, for one row and for a selection', async () => {
+      await open([record('1', 'Milk', { sku: 'MLK-1' }), record('2', 'Eggs'), record('3', 'Tea')]);
+      tick('Select Milk').click();
+      tick('Select Tea').click();
+      await settle();
+      buttonByText(el, 'Delete 2').click();
+      await settle();
+      const items = (): string[] => Array.from(confirmDialog()!.querySelectorAll('app-confirm-items li span:first-child')).map((label) => label.textContent!.trim());
+      expect(items().sort()).toEqual(['Milk', 'Tea']);
+      expect(confirmDialog()!.textContent).toContain('MLK-1'); // the SKU as secondary text
+      (document.querySelector('[hlmAlertDialogCancel]') as HTMLElement).click();
+      await settle();
+
+      // A single row (context-menu route) lists just that row.
+      el.querySelector('[data-row-id="2"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+      await settle();
+      (Array.from(document.querySelectorAll('[hlmDropdownMenuItem]')).find((b) => b.textContent?.trim() === 'Delete') as HTMLElement).click();
+      await settle();
+      expect(items()).toEqual(['Eggs']);
+    });
+
     it('a selection survives changing pages, so the bulk buttons stay', async () => {
       await open(Array.from({ length: 70 }, (_, i) => record(`p${i + 1}`, `Item ${String(i + 1).padStart(2, '0')}`, { createdAt: 1000 - i })));
       tick('Select Item 01').click();

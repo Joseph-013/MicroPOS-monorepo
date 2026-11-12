@@ -25,6 +25,7 @@ import { AdjustStockForm, type AdjustStockContext } from './adjust-stock-form';
 import { ReceiveStockForm, type ReceiveStockContext } from './receive-stock-form';
 import { rowTarget } from '../../core/row-target';
 import { RowSelection } from '../../core/ui/row-selection';
+import { ConfirmItems, type ConfirmItem } from '../../core/ui/confirm-items';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { openRepackage } from './repackage-form';
 
@@ -56,6 +57,7 @@ export const COLUMNS_TEMPLATE =
 @Component({
   imports: [
     AppPager,
+    ConfirmItems,
     DatePipe,
     DateRangeFilter,
     FilterInput,
@@ -194,11 +196,14 @@ export class InventoryPage {
   protected readonly swipeWriteOff: SwipeAction[] = [{ id: 'writeoff', label: 'Write off', icon: 'lucideTrash2', tone: 'destructive' }];
   protected readonly pending = signal<BatchRecord[] | null>(null);
   protected readonly confirmTitle = signal('');
+  /** What the dialog is about to act on. */
+  protected readonly confirmItems = signal<ConfirmItem[]>([]);
 
   protected askWriteOff(batches: BatchRecord[]): void {
     const withStock = batches.filter((b) => b.onHandMilli > 0);
     if (withStock.length === 0) return;
     this.confirmTitle.set(withStock.length === 1 ? `Write off ${withStock[0]!.productName}${withStock[0]!.batchNumber ? ' ' + withStock[0]!.batchNumber : ''}?` : `Write off ${withStock.length} batches?`);
+    this.confirmItems.set(withStock.map((b) => ({ label: b.batchNumber ? `${b.productName} · ${b.batchNumber}` : b.productName, detail: `${formatQuantity(b.onHandMilli)}${b.unit === 'each' ? '' : ' ' + b.unit}` })));
     this.pending.set(withStock);
   }
 

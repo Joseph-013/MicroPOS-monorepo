@@ -19,6 +19,7 @@ import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
 import { rowTarget } from '../../core/row-target';
 import { RowSelection } from '../../core/ui/row-selection';
+import { ConfirmItems, type ConfirmItem } from '../../core/ui/confirm-items';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { CategoryForm, type CategoryFormContext } from './category-form';
@@ -41,6 +42,7 @@ export const COLUMNS_TEMPLATE = '3.5rem minmax(14rem,3fr) minmax(8rem,1fr) minma
 @Component({
   imports: [
     AppPager,
+    ConfirmItems,
     DatePipe,
     DateRangeFilter,
     FilterInput,
@@ -163,6 +165,8 @@ export class CategoriesPage {
   protected readonly confirmTitle = signal('');
   protected readonly confirmText = signal('');
   protected readonly confirmLabel = signal('Delete');
+  /** What the dialog is about to act on. */
+  protected readonly confirmItems = signal<ConfirmItem[]>([]);
 
   protected ask(kind: BulkKind, categories: CategoryRecord[]): void {
     if (categories.length === 0) return;
@@ -170,6 +174,7 @@ export class CategoriesPage {
     this.confirmTitle.set(kind === 'delete' ? `Delete ${what}?` : `Restore ${what}?`);
     this.confirmText.set(kind === 'delete' ? 'Products keep their other categories.' : 'Their products return to them.');
     this.confirmLabel.set(kind === 'delete' ? 'Delete' : 'Restore');
+    this.confirmItems.set(categories.map((c) => ({ label: c.name, detail: c.productCount === 1 ? '1 product' : `${c.productCount} products` })));
     this.pending.set({ kind, categories });
   }
 

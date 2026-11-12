@@ -156,6 +156,7 @@
       <h3 hlmAlertDialogTitle>{{ confirmTitle() }}</h3>
       <p hlmAlertDialogDescription>All remaining stock is removed as expired or waste.</p>
     </hlm-alert-dialog-header>
+    <app-confirm-items [items]="confirmItems()" />
     <hlm-alert-dialog-footer>
       <button hlmAlertDialogCancel type="button">Cancel</button>
       <button hlmAlertDialogAction variant="destructive" type="button" (click)="confirmWriteOff()">Write off</button>

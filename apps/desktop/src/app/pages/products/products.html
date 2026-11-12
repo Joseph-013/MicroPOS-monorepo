@@ -228,6 +228,7 @@
       <h3 hlmAlertDialogTitle>{{ confirmTitle() }}</h3>
       <p hlmAlertDialogDescription>{{ confirmText() }}</p>
     </hlm-alert-dialog-header>
+    <app-confirm-items [items]="confirmItems()" />
     <hlm-alert-dialog-footer>
       <button hlmAlertDialogCancel type="button">Cancel</button>
       <button hlmAlertDialogAction [variant]="confirmLabel() === 'Delete' ? 'destructive' : 'default'" type="button" (click)="confirm()">{{ confirmLabel() }}</button>

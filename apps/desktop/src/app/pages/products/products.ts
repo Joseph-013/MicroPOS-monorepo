@@ -22,6 +22,7 @@ import { BannerService } from '../../core/banner';
 import { EDIT_PRODUCT_PARAM } from '../../core/product-link';
 import { HIGHLIGHT_PARAM, scrollToRow, rowTarget } from '../../core/row-target';
 import { RowSelection } from '../../core/ui/row-selection';
+import { ConfirmItems, type ConfirmItem } from '../../core/ui/confirm-items';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { InventoryService } from '../../core/data/inventory.service';
 import { openRepackage } from '../inventory/repackage-form';
@@ -69,6 +70,7 @@ const SORT_VALUES: Record<SortKey, (p: ProductRecord) => string | number | null>
 @Component({
   imports: [
     AppPager,
+    ConfirmItems,
     DatePipe,
     DateRangeFilter,
     FilterInput,
@@ -261,6 +263,8 @@ export class ProductsPage {
   protected readonly confirmTitle = signal('');
   protected readonly confirmText = signal('');
   protected readonly confirmLabel = signal('Delete');
+  /** What the dialog is about to act on. */
+  protected readonly confirmItems = signal<ConfirmItem[]>([]);
 
   protected ask(kind: BulkKind, products: ProductRecord[]): void {
     if (products.length === 0) return;
@@ -270,6 +274,7 @@ export class ProductsPage {
       kind === 'delete' ? 'They will no longer appear at checkout. Past orders keep them.' : 'They will be back in the catalog.',
     );
     this.confirmLabel.set(kind === 'delete' ? 'Delete' : 'Restore');
+    this.confirmItems.set(products.map((p) => ({ label: p.name, detail: p.sku ?? p.barcode ?? undefined })));
     this.pending.set({ kind, products });
   }
 
