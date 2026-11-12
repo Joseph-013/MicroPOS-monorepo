@@ -28,7 +28,10 @@
       "@spartan-ng/helm/switch": ["./src/app/ui/switch/src/index.ts"],
       "@spartan-ng/helm/radio-group": ["./src/app/ui/radio-group/src/index.ts"],
       "@spartan-ng/helm/select": ["./src/app/ui/select/src/index.ts"],
-      "@spartan-ng/helm/tabs": ["./src/app/ui/tabs/src/index.ts"]
+      "@spartan-ng/helm/tabs": ["./src/app/ui/tabs/src/index.ts"],
+      "@spartan-ng/helm/combobox": ["./src/app/ui/combobox/src/index.ts"],
+      "@spartan-ng/helm/input-group": ["./src/app/ui/input-group/src/index.ts"],
+      "@spartan-ng/helm/command": ["./src/app/ui/command/src/index.ts"]
     }
   },
   "angularCompilerOptions": {

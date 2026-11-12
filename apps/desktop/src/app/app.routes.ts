@@ -7,8 +7,7 @@ export const routes: Routes = [
   {
     path: 'checkout',
     title: 'Checkout',
-    loadComponent: placeholder,
-    data: { title: 'Checkout' },
+    loadComponent: () => import('./pages/checkout/checkout').then((m) => m.CheckoutPage),
   },
   { path: 'items', pathMatch: 'full', redirectTo: 'items/products' },
   {

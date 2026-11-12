@@ -43,10 +43,14 @@ function copyModule(name, buildPath, platform, arch) {
 module.exports = {
   packagerConfig: {
     asar: true,
+    // Generated SQL migrations, applied on startup (resources/migrations).
+    extraResource: ['./electron/db/migrations'],
     // See RUNTIME_MODULES above: no pruning, node_modules excluded, runtime deps copied in afterCopy.
     prune: false,
     ignore: [
       /^\/(src|electron|public|node_modules|\.angular|\.vscode|out|local-data)(\/|$)/,
+      // Dev-only dummy data tooling (needs faker, which is not shipped).
+      /^\/dist\/electron\/db\/(factories|seed-cli)/,
       /^\/(angular\.json|drizzle\.config\.ts|tsconfig.*\.json|forge\.config\.js|CLAUDE\.md|README\.md|\.mcp\.json)$/,
     ],
     afterCopy: [

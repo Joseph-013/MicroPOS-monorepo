@@ -53,8 +53,8 @@ export const light: ColorTokens = {
   mark: 'rgba(29, 31, 32, 0.55)',
   tagAccentBg: '#d8e7f0',
   tagAccentFg: '#005e8c',
-  tagNeutralBg: '#f5f5f8',
-  tagNeutralFg: '#424244',
+  tagNeutralBg: '#e0ecf2',
+  tagNeutralFg: '#2f4652',
 };
 
 export const dark: ColorTokens = {
@@ -79,8 +79,8 @@ export const dark: ColorTokens = {
   mark: 'rgba(242, 242, 243, 0.55)',
   tagAccentBg: '#233640',
   tagAccentFg: '#f4fbff',
-  tagNeutralBg: '#2b2b2d',
-  tagNeutralFg: '#e7e7ea',
+  tagNeutralBg: '#243843',
+  tagNeutralFg: '#c5d4dc',
 };
 
 export const fonts = {

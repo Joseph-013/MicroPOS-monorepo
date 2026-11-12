@@ -1,6 +1,7 @@
 import { app, BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 import { createDatabase } from './db';
+import { registerIpcHandlers } from './ipc';
 
 const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
 
@@ -34,8 +35,26 @@ function createWindow(): void {
 
 let database: ReturnType<typeof createDatabase> | undefined;
 
+/**
+ * Packaged: the per-user data folder. Development: apps/desktop/local-data/micropos-dev.db, the same file
+ * `pnpm db:migrate` and `pnpm db:seed` write to, so the dev app shows whatever they set up.
+ */
+function databaseFile(): string {
+  return app.isPackaged
+    ? path.join(app.getPath('userData'), 'micropos.db')
+    : path.join(app.getAppPath(), 'local-data', 'micropos-dev.db');
+}
+
+/** Generated SQL migrations: copied next to the app when packaged (see forge.config.js extraResource). */
+function migrationsFolder(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'migrations')
+    : path.join(app.getAppPath(), 'electron', 'db', 'migrations');
+}
+
 void app.whenReady().then(() => {
-  database = createDatabase(path.join(app.getPath('userData'), 'micropos.db'));
+  database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
+  registerIpcHandlers(database.db);
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

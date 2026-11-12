@@ -11,3 +11,6 @@ export interface LineItem {
 export function subtotal(items: LineItem[]): Money {
   return items.reduce((sum, i) => sum + i.unitPrice * i.qty, 0);
 }
+
+export type { CatalogCategory, CatalogProduct } from './catalog.js';
+export type { DesktopApi } from './desktop-api.js';

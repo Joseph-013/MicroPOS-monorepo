@@ -64,7 +64,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Main/preload: `electron/*.ts`, compiled with `tsc -p tsconfig.electron.json` to `dist/electron` (CommonJS). `package.json` `main` points at `dist/electron/main.js`.
 - Commands: `pnpm --filter @micropos/desktop start | build | package | make | typecheck | test`.
 - DevTools open automatically, docked inside the window, whenever the app is not packaged (`!app.isPackaged`, covers `pnpm dev` and `pnpm start`); packaged builds never open them.
-- Renderer has no Node access (contextIsolation, sandbox). Expose capabilities via IPC in `electron/preload.ts`.
+- Renderer has no Node access (contextIsolation, sandbox). The preload runs sandboxed and cannot `require` local files, so `build:electron` bundles `electron/preload.ts` into one file with esbuild after `tsc`. Keep the sandbox on; never import Node modules in the preload.
 - Angular and `@micropos/core` are bundled into the renderer, so they live in `devDependencies`. `forge.config.js` sets `prune: false` and excludes `node_modules` because Forge's dependency walker can't resolve hoisted workspace deps. When adding native runtime deps (better-sqlite3), they must be shipped and unpacked from the asar; revisit this config then.
 - Not containerized (see `.dockerignore`).
 
@@ -72,9 +72,12 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 
 - Copy: titles and labels are short, professional, sentence case ("Checkout", "Sales Orders"). No descriptions, subtitles or helper text unless critically necessary, e.g. confirmation dialogs.
 - Shape: square and boxy everywhere. No `rounded-*` classes; the theme radius is 0. Only radio buttons stay circular (as in the design). Dialogs are square with the `blueprint` corner marks; only confirmation (alert) dialogs carry a description.
+- Scrollbars are styled globally in `styles.css` (slim, square, no arrows); don't restyle them per component.
+- Keep borders minimal: corner marks (`blueprint`) are for large panels only. Repeated items (grid cells, list rows) get a single hairline border with no marks and no outlined tags (`before:hidden`, `tagNeutral`).
 - Space is at a premium: keep page padding tight (main content uses `p-3`) and put titles close to the edges.
 - Styles are plain CSS (Tailwind v4 via PostCSS), not Sass; global styles live in `src/styles.css`.
 - Kiosk behavior: text selection is off app-wide (`html { user-select: none }` in `styles.css`). Inputs and textareas stay selectable; opt other text in with Tailwind `select-text` or `select-all` (order numbers, receipt text, error messages).
+- Minimum window is 1024 × 600 (`MIN_WINDOW` in `core/viewport/too-small-overlay.ts`); below it a full-window warning covers the app. Design layouts for that minimum.
 - Touch first: keep targets comfortable (nav rail is 3.5rem collapsed with 40px rows).
 - Colors and fonts come from `@micropos/theme` tokens (Tailwind classes such as `bg-primary`, `text-muted-foreground`); don't hard-code values.
 
@@ -92,3 +95,25 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Scans never leak into the UI: the first characters of a burst pass through (they look like typing), then once 3 fast keys (2 outside text fields) confirm a scanner the field is rolled back and every remaining key, including Enter, is blocked. That covers inputs, Space on a focused button or checkbox, and select type-ahead.
 - To let a text field receive scans (e.g. a barcode lookup), put `appScanInput` on it (`(scan)` emits the code). While it is focused, a scan types into it like normal input, Enter included, and claims do not get that scan. Fields without it never keep scanned text.
 - `KioskFocusService` stops mouse/touch presses on buttons from taking focus (clicks still work), so focus stays on the field a scan should go to. Add `data-allow-focus` to anything that must take focus.
+
+## Database (SQLite + Drizzle)
+
+- Main process only (`electron/db/`); the renderer reaches it over IPC. Schema is one file per table in `electron/db/schema/` (exported from `schema/index.ts`). Conventions: UUIDv7 text ids (`uuid7()`), money in integer cents, timestamps as epoch milliseconds, soft delete via `deleted_at` on catalog/people tables, orders are never deleted (void or refund instead), a partial unique index for any unique field on a soft-deletable table, and an index on every foreign key.
+- Change workflow: edit the schema, run `pnpm db:generate` (writes a new SQL file in `electron/db/migrations/`; commit it, never hand-edit a shipped migration). Pending migrations are applied automatically when the app opens the database; packaged builds ship them via Forge `extraResource`.
+- Commands (work from the repo root or `apps/desktop`; modeled on Laravel): `pnpm db:migrate` applies pending migrations; `pnpm db:migrate --fresh` drops every table, migrates from scratch and creates one admin account; `pnpm db:migrate --fresh --seed` also runs the factories; `pnpm db:seed` runs the factories only (refuses a database that already has a catalog); `--database=<file>` targets another file. The default file is `apps/desktop/local-data/micropos-dev.db`, which is also what the unpackaged dev app opens (packaged builds use the per-user data folder). Close the dev app before `--fresh`, then restart it.
+- The bootstrap admin (`seeders/admin.seeder.ts`) is employee number `1001`, PIN from `MICROPOS_ADMIN_PIN` or the dev default `1234`. Dev tooling only: the CLI is not shipped in packaged builds.
+- PINs are stored only as scrypt hashes (`electron/auth/pin.ts`).
+
+### Factories and dummy data
+
+- `electron/db/factories/` builds consistent dummy data (faker): employees, catalog, sales with lines and payments, voids, refunds, login sessions, audit entries, settings. Dev-only: not shipped in packaged builds and never imported by production code paths.
+- **When the schema changes, check the factories.** New or renamed columns, new tables, changed constraints or enums (employee roles, order statuses, payment methods) usually need a matching change in the builders (`*.factory.ts`) and in `seed.ts` (insert order, FK order, totals that satisfy CHECK constraints). Update them in the same change.
+- Verify with `pnpm test:db` (runs migrations on a temp database, seeds it, and checks constraints, totals, payments and foreign keys). Add a test for any new rule.
+- Seeding is done through the commands above (`--seed`). Factories reuse the existing admin instead of creating another. Dummy sign-ins: `1001` (admin), `1002` (manager), `1003`+ (cashiers); dummy PIN `1234`.
+
+## IPC bridge (renderer to database)
+
+- The renderer never touches SQLite. It calls `window.micropos` (typed as `DesktopApi` in `@micropos/core`), exposed by the sandboxed preload (`electron/preload.ts`), answered by `ipcMain.handle` handlers in `electron/ipc/`. In Angular, inject `DESKTOP_API` (`core/api/desktop-api.ts`) or a service built on it, such as `CatalogService`; tests provide a fake `DESKTOP_API`.
+- Adding a call: (1) add the DTO and method to `packages/core` (`catalog.ts`, `desktop-api.ts`) and rebuild core; (2) write the query as a plain function in `electron/db/queries/` and test it in `db.spec.ts`; (3) add the channel to `electron/ipc/channels.ts`; (4) register the handler in `electron/ipc/index.ts`; (5) expose it in `electron/preload.ts`; (6) use it from a service. Handlers stay thin: validate input, call the query, return plain data.
+- DTOs in `@micropos/core` are types only (the CommonJS main process imports them with `import type`).
+- For the dev app, run `pnpm db:migrate --fresh --seed` first so there is data to read.

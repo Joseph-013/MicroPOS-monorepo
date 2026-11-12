@@ -11,6 +11,9 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "dev:web": "pnpm --filter @micropos/web dev",
     "dev:desktop": "pnpm --filter @micropos/core --filter @micropos/theme build && pnpm --filter @micropos/desktop dev",
-    "dev": "pnpm dev:desktop"
+    "dev": "pnpm dev:desktop",
+    "db:migrate": "pnpm --filter @micropos/desktop db:migrate",
+    "db:seed": "pnpm --filter @micropos/desktop db:seed",
+    "db:generate": "pnpm --filter @micropos/desktop db:generate"
   }
 }

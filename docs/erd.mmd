@@ -1,8 +1,9 @@
 erDiagram
     employees ||--o{ login_sessions : "signs in"
     employees ||--o{ orders : "rings up"
-    employees ||--o{ audit_log : "performs"
-    categories ||--o{ products : "groups"
+    employees |o--o{ audit_log : "performs"
+    products ||--o{ product_categories : "in"
+    categories ||--o{ product_categories : "groups"
     orders ||--|{ order_lines : "has"
     products |o--o{ order_lines : "sold as"
     orders ||--|{ payments : "paid_by"
@@ -38,9 +39,15 @@ erDiagram
     }
     categories {
         text id PK
-        text name
+        text name UK
         int sort_order
+        int created_at
+        int updated_at
         int deleted_at
+    }
+    product_categories {
+        text product_id PK
+        text category_id PK
     }
     products {
         text id PK
@@ -48,10 +55,11 @@ erDiagram
         text sku UK
         text barcode UK
         text plu UK
-        text category_id FK
         int price
         int cost
         int active
+        int created_at
+        int updated_at
         int deleted_at
     }
     orders {
@@ -65,6 +73,7 @@ erDiagram
         int total
         int completed_at
         int created_at
+        int updated_at
     }
     order_lines {
         text id PK

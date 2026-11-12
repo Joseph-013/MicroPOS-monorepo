@@ -3,7 +3,14 @@
   "compilerOptions": {
     "outDir": "dist/electron",
     "rootDir": "electron",
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["electron"]
+  "include": [
+    "electron"
+  ],
+  "exclude": [
+    "electron/**/*.spec.ts"
+  ]
 }

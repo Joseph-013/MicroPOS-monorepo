@@ -14,6 +14,7 @@ Each app gets its own CLAUDE.md with app-specific notes once scaffolded.
 - `pnpm install` (root only; never install inside an app with npm/yarn)
 - `pnpm -r build` / `pnpm test` / `pnpm typecheck`
 - `pnpm --filter <package-name> <script>` to target one package
+- Database (desktop, Laravel-style): `pnpm db:migrate [--fresh] [--seed]`, `pnpm db:seed`, `pnpm db:generate`; see `apps/desktop/CLAUDE.md`.
 - Docker: `docker build -f apps/web/Dockerfile .` (context is the repo root) or `docker compose up`
 
 ## Rules
@@ -25,7 +26,7 @@ Each app gets its own CLAUDE.md with app-specific notes once scaffolded.
 - better-sqlite3 is used only in Electron's main process; the renderer reaches it over IPC. Mobile cannot use it.
 
 ## Docs
-- `docs/erd.mmd` is the source for the database ERD (Mermaid) and `docs/erd.png` is the rendered image. Whenever the database schema changes (Drizzle schema in `apps/desktop/electron/db/schema.ts` or its migrations), update `docs/erd.mmd` and regenerate `docs/erd.png` in the same change.
+- `docs/erd.mmd` is the source for the database ERD (Mermaid) and `docs/erd.png` is the rendered image. Whenever the database schema changes (Drizzle schema in `apps/desktop/electron/db/schema.ts` or its migrations), update `docs/erd.mmd` and regenerate `docs/erd.png` in the same change. Also check the dummy-data factories (`apps/desktop/electron/db/factories/`) and update them if the change affects them; see `apps/desktop/CLAUDE.md`.
 
 ## Config notes
 - `nodeLinker: hoisted` in `pnpm-workspace.yaml` (pnpm 12 ignores `node-linker` in `.npmrc`; the `.npmrc` line is kept for older tooling). Needed so Electron Forge can find native modules and Metro can resolve workspace packages. Don't remove it without testing desktop packaging.
