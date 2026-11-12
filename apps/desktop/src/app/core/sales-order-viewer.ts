@@ -5,8 +5,9 @@ import { SalesOrderForm, type SalesOrderFormContext } from '../pages/orders/sale
 import { OrdersService } from './data/orders.service';
 import { ParamDialogViewer } from './param-dialog-viewer';
 
-/** `?view-sales-order=<order id>` on any page opens that order in a dialog over the page. */
-export const VIEW_SALES_ORDER_PARAM = 'view-sales-order';
+import { VIEW_SALES_ORDER_PARAM } from './sales-order-param';
+
+export { VIEW_SALES_ORDER_PARAM };
 
 /** Opens the sales order named by `?view-sales-order=<id>` in view mode (see `ParamDialogViewer`). */
 @Service()

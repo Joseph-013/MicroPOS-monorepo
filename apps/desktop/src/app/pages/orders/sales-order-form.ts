@@ -1,20 +1,24 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideExternalLink } from '@ng-icons/lucide';
-import { formatQuantity, isWeighed, type SalesOrderDetail } from '@micropos/core';
+import { canReverseOrder, formatQuantity, isWeighed, type SalesOrderDetail } from '@micropos/core';
 import { injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
+import { OrdersService } from '../../core/data/orders.service';
 import { MoneyPipe } from '../../core/money.pipe';
+import { OrderActions } from '../../core/order-actions';
 import { ProductViewer } from '../../core/product-viewer';
 import { HIGHLIGHT_PARAM } from '../../core/row-target';
+import { VIEW_SALES_ORDER_PARAM } from '../../core/sales-order-param';
+import type { OrderActionKind } from './order-action-form';
 
 export interface SalesOrderFormContext {
   order: SalesOrderDetail;
-  /** `view` is the only mode so far: a recorded order is read-only (void and refund come later). */
+  /** `view` is the only mode: a recorded order is never edited. Void and refund are separate confirmations opened from here. */
   mode?: 'view';
 }
 
@@ -29,21 +33,29 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', other: 'Other' } as c
   template: `
     <hlm-dialog-header>
       <h3 hlmDialogTitle class="flex items-center gap-3">
-        <span class="select-text">{{ order.orderNumber }}</span>
-        <span hlmBadge [variant]="statusVariant()">{{ statusLabels[order.status] }}</span>
+        <span class="select-text">{{ order().orderNumber }}</span>
+        <span hlmBadge [variant]="statusVariant()">{{ statusLabel() }}</span>
       </h3>
     </hlm-dialog-header>
 
     <div class="-mx-2 flex min-h-0 flex-col gap-4 overflow-y-auto px-2 py-1">
       <dl class="text-muted-foreground grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
         <dt>Date</dt>
-        <dd class="text-foreground">{{ (order.completedAt ?? order.createdAt) | date: 'MMM d, y, h:mm a' }}</dd>
+        <dd class="text-foreground">{{ (order().completedAt ?? order().createdAt) | date: 'MMM d, y, h:mm a' }}</dd>
         <dt>Cashier</dt>
-        <dd class="text-foreground">{{ order.employeeName }}</dd>
+        <dd class="text-foreground">{{ order().employeeName }}</dd>
+        @if (order().refundOf; as source) {
+          <dt>Refund of</dt>
+          <dd><button type="button" class="text-primary underline-offset-4 hover:underline" (click)="openOrder(source.id)">{{ source.orderNumber }}</button></dd>
+        }
+        @if (order().refundedBy; as refund) {
+          <dt>Refunded by</dt>
+          <dd><button type="button" class="text-primary underline-offset-4 hover:underline" (click)="openOrder(refund.id)">{{ refund.orderNumber }}</button></dd>
+        }
       </dl>
 
       <ul class="divide-border flex flex-col divide-y border-y" aria-label="Items">
-        @for (line of order.lines; track line.id) {
+        @for (line of order().lines; track line.id) {
           <li class="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
             <div class="min-w-0">
               @if (line.productId) {
@@ -79,21 +91,21 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', other: 'Other' } as c
       <dl class="flex flex-col gap-1 text-sm">
         <div class="flex justify-between">
           <dt>Subtotal</dt>
-          <dd>{{ order.subtotal | money }}</dd>
+          <dd>{{ order().subtotal | money }}</dd>
         </div>
-        @if (order.discountTotal) {
+        @if (order().discountTotal) {
           <div class="text-muted-foreground flex justify-between">
             <dt>Discount</dt>
-            <dd>−{{ order.discountTotal | money }}</dd>
+            <dd>−{{ order().discountTotal | money }}</dd>
           </div>
         }
         <div class="font-heading flex justify-between border-t pt-2 text-2xl">
           <dt>Total</dt>
-          <dd>{{ order.total | money }}</dd>
+          <dd>{{ order().total | money }}</dd>
         </div>
       </dl>
 
-      @for (payment of order.payments; track $index) {
+      @for (payment of order().payments; track $index) {
         <dl class="text-muted-foreground grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
           <dt>Paid by</dt>
           <dd class="text-foreground">{{ methodLabels[payment.method] }}: {{ payment.amount | money }}</dd>
@@ -118,17 +130,41 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', other: 'Other' } as c
           <ng-icon name="lucideExternalLink" size="18" />
         </a>
       }
+      @if (canReverse()) {
+        <button hlmBtn variant="destructive" type="button" class="px-4" (click)="reverse('void')">Void</button>
+        <button hlmBtn variant="outline" type="button" class="px-4" (click)="reverse('refund')">Refund</button>
+      }
       <button hlmBtn hlmDialogClose variant="outline" type="button" class="px-6">Close</button>
     </hlm-dialog-footer>
   `,
 })
 export class SalesOrderForm {
-  protected readonly order = injectBrnDialogContext<SalesOrderFormContext>().order;
+  /** The order shown; replaced with a fresh copy after a void or refund. */
+  protected readonly order = signal(injectBrnDialogContext<SalesOrderFormContext>().order);
+  private readonly actions = inject(OrderActions);
+  private readonly orders = inject(OrdersService);
+  private readonly router = inject(Router);
+  protected readonly canReverse = computed(() => canReverseOrder({ status: this.order().status, isRefund: !!this.order().refundOf }));
+  protected readonly statusLabel = computed(() => (this.order().refundOf ? 'Refund' : STATUS_LABELS[this.order().status]));
+
+  /** Confirms and does a void or refund of this order, then shows its new state. */
+  protected async reverse(kind: OrderActionKind): Promise<void> {
+    const order = this.order();
+    const outcome = await this.actions.run(kind, [{ id: order.id, orderNumber: order.orderNumber, total: order.total }]);
+    if (!outcome?.done.length) return;
+    const fresh = await this.orders.get(order.id);
+    if (fresh) this.order.set(fresh);
+  }
+
+  /** The linked sale or refund replaces this dialog. */
+  protected openOrder(id: string): void {
+    void this.router.navigate([], { queryParams: { [VIEW_SALES_ORDER_PARAM]: id }, queryParamsHandling: 'merge' });
+  }
   /** Offer the link to the Sales Orders page only when the dialog is over some other page. */
   protected readonly onOrdersPage = inject(Router).url.split(/[?#]/)[0] === '/orders';
   /** The Sales Orders page, on the page of the table that holds this order, with its row highlighted. */
   protected orderQuery(): Record<string, string> {
-    return { [HIGHLIGHT_PARAM]: this.order.id };
+    return { [HIGHLIGHT_PARAM]: this.order().id };
   }
 
   private readonly productViewer = inject(ProductViewer);
@@ -147,7 +183,8 @@ export class SalesOrderForm {
   protected readonly isWeighed = isWeighed;
 
   protected statusVariant(): 'success' | 'destructive' | 'outline' {
-    return this.order.status === 'completed' ? 'success' : this.order.status === 'open' ? 'outline' : 'destructive';
+    const { status, refundOf } = this.order();
+    return refundOf ? 'outline' : status === 'completed' ? 'success' : status === 'open' ? 'outline' : 'destructive';
   }
 
   protected quantity(line: SalesOrderDetail['lines'][number]): string {

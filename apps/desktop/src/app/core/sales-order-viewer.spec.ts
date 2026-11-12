@@ -31,6 +31,8 @@ const ORDER: SalesOrderDetail = {
     { id: 'l1', productId: 'p1', name: 'Whole Milk', unitPrice: 250, quantityMilli: 2_000, lineTotal: 500, unit: 'each' },
     { id: 'l2', productId: null, name: 'Ground Beef', unitPrice: 1000, quantityMilli: 500, lineTotal: 500, unit: 'kg' },
   ],
+  refundOf: null,
+  refundedBy: null,
   payments: [{ method: 'cash', amount: 900, tendered: 1_000, change: 100, reference: null }],
 };
 
@@ -52,9 +54,28 @@ const PRODUCT: ProductRecord = {
   deletedAt: null,
 };
 
+/** What the fake main process answers: the order as stored now, and the calls it received. */
+const fake = { order: ORDER as SalesOrderDetail, voids: [] as unknown[], refunds: [] as unknown[] };
+
 function setup() {
+  fake.order = ORDER;
+  fake.voids = [];
+  fake.refunds = [];
   const api = {
-    orders: { get: (id: string) => Promise.resolve(id === 'o1' ? ORDER : null), list: () => Promise.resolve([]) },
+    orders: {
+      get: (id: string) => Promise.resolve(id === 'o1' ? fake.order : null),
+      list: () => Promise.resolve([]),
+      void: (input: unknown) => {
+        fake.voids.push(input);
+        fake.order = { ...fake.order, status: 'voided' };
+        return Promise.resolve({ ok: true as const, orderId: 'o1', orderNumber: 'SO-1001' });
+      },
+      refund: (input: unknown) => {
+        fake.refunds.push(input);
+        fake.order = { ...fake.order, status: 'refunded', refundedBy: { id: 'r1', orderNumber: 'SO-1002' } };
+        return Promise.resolve({ ok: true as const, orderId: 'o1', orderNumber: 'SO-1001', refundOrderId: 'r1', refundOrderNumber: 'SO-1002' });
+      },
+    },
     products: { list: () => Promise.resolve([PRODUCT]) },
   } as unknown as DesktopApi;
   void DESKTOP_API_VERSION;
@@ -193,5 +214,96 @@ describe('SalesOrderViewer', () => {
     expect(TestBed.inject(BannerService).current()?.text).toBe('Order not found');
     expect(router.url).toBe('/orders');
     expect(dialogText()).toBe('');
+  });
+
+  describe('void and refund', () => {
+    const text = (selector: string): string => document.querySelector(selector)?.textContent?.replace(/\s+/g, ' ') ?? '';
+    const button = (root: string, label: string): HTMLButtonElement =>
+      Array.from(document.querySelectorAll<HTMLButtonElement>(`${root} button`)).find((b) => b.textContent?.trim() === label)!;
+    const typeReason = async (value: string): Promise<void> => {
+      const input = document.querySelector('#order-reason') as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await settle();
+    };
+
+    const openOrder = async (order: SalesOrderDetail): Promise<void> => {
+      const { router } = setup();
+      fake.order = order;
+      await router.navigateByUrl('/orders?view-sales-order=o1');
+      await settle();
+    };
+
+    it('a completed sale offers Void and Refund', async () => {
+      await openOrder(ORDER);
+      expect(button('#sales-order', 'Void')).toBeTruthy();
+      expect(button('#sales-order', 'Refund')).toBeTruthy();
+    });
+
+    it('a voided sale offers neither', async () => {
+      await openOrder({ ...ORDER, status: 'voided' });
+      expect(text('#sales-order')).toContain('Voided');
+      expect(button('#sales-order', 'Void')).toBeUndefined();
+      expect(button('#sales-order', 'Refund')).toBeUndefined();
+    });
+
+    it('a refund order offers neither, is labelled Refund and links to the sale it reverses', async () => {
+      await openOrder({ ...ORDER, total: -900, refundOf: { id: 'o0', orderNumber: 'SO-1000' } });
+      expect(button('#sales-order', 'Void')).toBeUndefined();
+      expect(button('#sales-order', 'Refund')).toBeUndefined();
+      expect(text('#sales-order')).toContain('Refund of');
+      expect(text('#sales-order')).toContain('SO-1000');
+    });
+
+    it('voiding lists the order, needs a reason, calls the API and shows the order voided', async () => {
+      const { router } = setup();
+      await router.navigateByUrl('/orders?view-sales-order=o1');
+      await settle();
+      button('#sales-order', 'Void').click();
+      await settle();
+
+      expect(text('#order-action')).toContain('Void SO-1001?');
+      expect(text('#order-action')).toContain('₱9.00'); // what is about to be voided
+      expect(button('#order-action', 'Void').disabled).toBe(true); // no reason yet
+      await typeReason('  Wrong item  ');
+      button('#order-action', 'Void').click();
+      await settle();
+
+      expect(fake.voids).toEqual([{ orderId: 'o1', reason: 'Wrong item' }]);
+      expect(document.querySelector('#order-action')).toBeNull();
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Order SO-1001 voided');
+      expect(text('#sales-order')).toContain('Voided'); // the dialog under it shows the new state
+      expect(button('#sales-order', 'Void')).toBeUndefined();
+    });
+
+    it('refunding says which refund order was made and links the two orders', async () => {
+      const { router } = setup();
+      await router.navigateByUrl('/orders?view-sales-order=o1');
+      await settle();
+      button('#sales-order', 'Refund').click();
+      await settle();
+      expect(text('#order-action')).toContain('Refund SO-1001?');
+      expect(text('#order-action')).toContain('Refund total');
+      await typeReason('Spoiled');
+      button('#order-action', 'Refund').click();
+      await settle();
+      expect(fake.refunds).toEqual([{ orderId: 'o1', reason: 'Spoiled' }]);
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Order SO-1001 refunded (SO-1002)');
+      expect(text('#sales-order')).toContain('Refunded by');
+      expect(text('#sales-order')).toContain('SO-1002');
+    });
+
+    it('cancelling does nothing', async () => {
+      const { router } = setup();
+      await router.navigateByUrl('/orders?view-sales-order=o1');
+      await settle();
+      button('#sales-order', 'Void').click();
+      await settle();
+      button('#order-action', 'Cancel').click();
+      await settle();
+      expect(fake.voids).toEqual([]);
+      expect(document.querySelector('#order-action')).toBeNull();
+      expect(button('#sales-order', 'Void')).toBeTruthy();
+    });
   });
 });
