@@ -547,6 +547,8 @@ export function restockSale(
   type: Extract<StockMovementType, 'refund' | 'void'>,
   employeeId: string | null = null,
   at = Date.now(),
+  /** The open transaction to write in (when this is part of a larger one); otherwise one is started. */
+  tx?: Pick<AppDatabase, 'insert'>,
 ): number {
   const rows = db
     .select()
@@ -555,9 +557,10 @@ export function restockSale(
     .all();
   if (rows.some((r) => r.type === 'refund' || r.type === 'void')) return 0;
   const sold = rows.filter((r) => r.type === 'sale');
-  db.transaction((tx) => {
+  const write = (target: Pick<AppDatabase, 'insert'>): void => {
     for (const row of sold) {
-      tx.insert(stockMovements)
+      target
+        .insert(stockMovements)
         .values({
           productId: row.productId,
           batchId: row.batchId,
@@ -569,7 +572,9 @@ export function restockSale(
         })
         .run();
     }
-  });
+  };
+  if (tx) write(tx);
+  else db.transaction((t) => write(t));
   return sold.length;
 }
 

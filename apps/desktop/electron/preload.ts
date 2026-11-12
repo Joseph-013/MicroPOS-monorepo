@@ -50,6 +50,8 @@ const api: DesktopApi = {
   orders: {
     list: () => ipcRenderer.invoke(CHANNELS.orders.list),
     get: (id) => ipcRenderer.invoke(CHANNELS.orders.get, id),
+    void: (input) => ipcRenderer.invoke(CHANNELS.orders.void, input),
+    refund: (input) => ipcRenderer.invoke(CHANNELS.orders.refund, input),
   },
   checkout: {
     loadDraft: () => ipcRenderer.invoke(CHANNELS.checkout.loadDraft),

@@ -30,7 +30,7 @@ import { createCategory, deleteCategories, listCategoryRecords, restoreCategorie
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from './queries/repackage-draft';
 import { adjustStock, allocateSale, inventoryOverview, listBatches, receiveStock, repackageStock, restockSale } from './queries/inventory';
 import { clearProductDraft, loadProductDraft, sanitizeProductDraft, saveProductDraft } from './queries/product-draft';
-import { completeOrder, getOrder, listOrders, nextOrderNumber } from './queries/orders';
+import { completeOrder, getOrder, listOrders, nextOrderNumber, refundOrder, voidOrder } from './queries/orders';
 import { clearDraft, DRAFT_KEY, loadDraft, sanitizeDraft, saveDraft } from './queries/draft';
 import { isScaleBarcode, KNOWN_BARCODES, scalePlu, scaleWeightGrams } from './factories/known-barcodes';
 import { ean13CheckDigit } from './factories/ean13';
@@ -750,6 +750,79 @@ describe('inventory: batches, expiry and the stock ledger', () => {
       expect(list.map((o) => o.orderNumber)).toEqual(['SO-1002', 'SO-1001']);
       expect(list[0]).toMatchObject({ id: second.orderId, employeeName: 'Register', total: 1_849, itemCount: 2, methods: ['card'] });
       expect(list[1]).toMatchObject({ id: first.orderId, itemCount: 1, methods: ['cash'] });
+    });
+
+    describe('void and refund', () => {
+      const sell = (productId: string, quantityMilli = 4_000) => ok(cash([{ productId, quantityMilli, unitPrice: 100 }]));
+
+      it('a void puts the stock back, marks the order voided and writes an audit entry with the reason', () => {
+        const milk = product('expiry');
+        ok(receive(milk.id, { quantityMilli: 10_000 }));
+        const sale = sell(milk.id);
+        expect(onHand(milk.id)).toBe(6_000);
+
+        const result = ok(voidOrder(db, { orderId: sale.orderId, reason: '  Wrong item  ' }));
+        expect(result).toMatchObject({ orderId: sale.orderId, orderNumber: sale.orderNumber });
+        expect(onHand(milk.id)).toBe(10_000);
+        expect(db.select().from(orders).where(eq(orders.id, sale.orderId)).get()).toMatchObject({ status: 'voided' });
+        const [entry] = db.select().from(auditLog).where(eq(auditLog.entityId, sale.orderId)).all();
+        expect(entry).toMatchObject({ action: 'order.void', entity: 'order', detail: { orderNumber: sale.orderNumber, reason: 'Wrong item' } });
+        expect(entry.employeeId).toBeTruthy();
+        // The ledger shows the sale and its reversal.
+        const types = db.$client.prepare("SELECT type FROM stock_movements WHERE product_id = ? ORDER BY at, rowid").all(milk.id).map((r) => (r as { type: string }).type);
+        expect(types).toEqual(['receive', 'sale', 'void']);
+      });
+
+      it('a refund records a negative order linked to the sale, reverses its payment and returns the stock', () => {
+        const milk = product('quantity');
+        ok(receive(milk.id, { quantityMilli: 10_000 }));
+        const sale = sell(milk.id);
+        const result = ok(refundOrder(db, { orderId: sale.orderId, reason: 'Spoiled' }));
+        expect(result).toMatchObject({ orderId: sale.orderId, refundOrderNumber: 'SO-1002' });
+
+        expect(onHand(milk.id)).toBe(10_000);
+        expect(db.select().from(orders).where(eq(orders.id, sale.orderId)).get()?.status).toBe('refunded');
+        const refund = db.select().from(orders).where(eq(orders.id, result.refundOrderId!)).get()!;
+        expect(refund).toMatchObject({ refundOfOrderId: sale.orderId, status: 'completed', subtotal: -400, discountTotal: 0, total: -400 });
+        expect(db.select().from(orderLines).where(eq(orderLines.orderId, refund.id)).all()).toMatchObject([{ quantityMilli: -4_000, lineTotal: -400, unitPrice: 100 }]);
+        expect(db.select().from(payments).where(eq(payments.orderId, refund.id)).all()).toMatchObject([{ method: 'cash', amount: -400, tendered: null, change: null }]);
+
+        expect(getOrder(db, sale.orderId)).toMatchObject({ status: 'refunded', refundOf: null, refundedBy: { id: refund.id, orderNumber: 'SO-1002' } });
+        expect(getOrder(db, refund.id)).toMatchObject({ refundOf: { id: sale.orderId, orderNumber: sale.orderNumber }, refundedBy: null, total: -400 });
+        expect(listOrders(db).map((o) => [o.orderNumber, o.isRefund])).toEqual([['SO-1002', true], ['SO-1001', false]]);
+        expect(db.select().from(auditLog).where(eq(auditLog.entityId, sale.orderId)).get()).toMatchObject({ action: 'order.refund', detail: { reason: 'Spoiled', refundOrderNumber: 'SO-1002' } });
+      });
+
+      it('only a completed sale can be reversed, once, and a reason is required', () => {
+        const item = product('none');
+        const sale = sell(item.id, 1_000);
+        expect(voidOrder(db, { orderId: sale.orderId, reason: '' })).toMatchObject({ ok: false, error: 'Give a reason' });
+        expect(voidOrder(db, { orderId: sale.orderId, reason: '   ' })).toMatchObject({ ok: false });
+        expect(voidOrder(db, { orderId: 7, reason: 'x' })).toMatchObject({ ok: false });
+        expect(voidOrder(db, { orderId: 'nope', reason: 'x' })).toMatchObject({ ok: false, error: 'Order not found' });
+        expect(db.select().from(orders).where(eq(orders.id, sale.orderId)).get()?.status).toBe('completed'); // nothing changed
+
+        ok(voidOrder(db, { orderId: sale.orderId, reason: 'x' }));
+        expect(voidOrder(db, { orderId: sale.orderId, reason: 'x' })).toMatchObject({ ok: false, error: `${sale.orderNumber} is already voided` });
+        expect(refundOrder(db, { orderId: sale.orderId, reason: 'x' })).toMatchObject({ ok: false, error: `${sale.orderNumber} is already voided` });
+
+        const other = sell(item.id, 1_000);
+        const refunded = ok(refundOrder(db, { orderId: other.orderId, reason: 'x' }));
+        expect(refundOrder(db, { orderId: other.orderId, reason: 'x' })).toMatchObject({ ok: false, error: `${other.orderNumber} is already refunded` });
+        // A refund order is not a sale: it cannot be voided or refunded itself.
+        expect(voidOrder(db, { orderId: refunded.refundOrderId, reason: 'x' })).toMatchObject({ ok: false, error: expect.stringContaining('is a refund') });
+        expect(refundOrder(db, { orderId: refunded.refundOrderId, reason: 'x' })).toMatchObject({ ok: false, error: expect.stringContaining('is a refund') });
+      });
+
+      it('a sale whose stock was already put back is not put back twice', () => {
+        const milk = product('quantity');
+        ok(receive(milk.id, { quantityMilli: 10_000 }));
+        const sale = sell(milk.id);
+        ok(voidOrder(db, { orderId: sale.orderId, reason: 'x' }));
+        expect(onHand(milk.id)).toBe(10_000);
+        voidOrder(db, { orderId: sale.orderId, reason: 'x' });
+        expect(onHand(milk.id)).toBe(10_000);
+      });
     });
 
     it('prices a weighed line from its weight', () => {

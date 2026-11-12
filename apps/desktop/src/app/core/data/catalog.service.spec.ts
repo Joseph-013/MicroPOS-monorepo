@@ -49,7 +49,7 @@ describe('CatalogService', () => {
       inventory: { listBatches: () => Promise.resolve([]),
       overview: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), adjust: () => Promise.reject(new Error('unused')), repackage: () => Promise.reject(new Error('unused')), loadRepackageDraft: () => Promise.resolve(null), saveRepackageDraft: () => Promise.resolve(), clearRepackageDraft: () => Promise.resolve() },
       scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
-      orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null) },
+      orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), void: () => Promise.reject(new Error('unused')), refund: () => Promise.reject(new Error('unused')) },
       checkout: noDraft,
       products: noProducts,
       catalog: {
@@ -81,7 +81,7 @@ describe('CatalogService', () => {
       },
       inventory: { listBatches: () => Promise.resolve([]), overview: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), adjust: () => Promise.reject(new Error('unused')), repackage: () => Promise.reject(new Error('unused')), loadRepackageDraft: () => Promise.resolve(null), saveRepackageDraft: () => Promise.resolve(), clearRepackageDraft: () => Promise.resolve() },
       scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
-      orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null) },
+      orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), void: () => Promise.reject(new Error('unused')), refund: () => Promise.reject(new Error('unused')) },
       checkout: noDraft,
       products: noProducts,
       catalog: { listProducts: () => Promise.reject(new Error('boom')), listCategories: () => Promise.resolve([]) },

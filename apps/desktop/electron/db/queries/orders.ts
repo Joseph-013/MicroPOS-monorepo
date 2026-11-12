@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import {
   type CompleteOrderResult,
+  type OrderActionResult,
   lineTotal,
   MILLI,
   type OrderLineProblem,
@@ -11,9 +12,10 @@ import {
   type ProductUnit,
 } from '@micropos/core';
 import type { AppDatabase } from '../index';
+import { uuid7 } from '../uuid';
 import { asc } from 'drizzle-orm';
-import { employees, orderLines, orders, payments, products, settings } from '../schema';
-import { allocateSale } from './inventory';
+import { auditLog, employees, orderLines, orders, payments, products, settings } from '../schema';
+import { allocateSale, restockSale } from './inventory';
 import { DRAFT_KEY } from './draft';
 
 const MAX_LINES = 500;
@@ -193,6 +195,10 @@ export function getOrder(db: AppDatabase, id: unknown): SalesOrderDetail | null 
     .all();
   const paid = db.select().from(payments).where(eq(payments.orderId, id)).orderBy(asc(payments.createdAt)).all();
   const o = order.order;
+  const refundOf = o.refundOfOrderId
+    ? db.select({ id: orders.id, orderNumber: orders.orderNumber }).from(orders).where(eq(orders.id, o.refundOfOrderId)).get()
+    : undefined;
+  const refundedBy = db.select({ id: orders.id, orderNumber: orders.orderNumber }).from(orders).where(eq(orders.refundOfOrderId, id)).get();
   return {
     id: o.id,
     orderNumber: o.orderNumber,
@@ -203,6 +209,8 @@ export function getOrder(db: AppDatabase, id: unknown): SalesOrderDetail | null 
     total: o.total,
     createdAt: o.createdAt,
     completedAt: o.completedAt,
+    refundOf: refundOf ?? null,
+    refundedBy: refundedBy ?? null,
     lines: lines.map(({ line, unit }) => ({ id: line.id, productId: line.productId, name: line.name, unitPrice: line.unitPrice, quantityMilli: line.quantityMilli, lineTotal: line.lineTotal, unit })),
     payments: paid.map((p) => ({ method: p.method, amount: p.amount, tendered: p.tendered, change: p.change, reference: p.reference })),
   };
@@ -213,12 +221,92 @@ export function listOrders(db: AppDatabase): SalesOrderSummary[] {
   const rows = db.$client
     .prepare(
       `SELECT o.id AS id, o.order_number AS orderNumber, o.status AS status, e.name AS employeeName, o.total AS total,
-              o.created_at AS createdAt,
+              o.created_at AS createdAt, o.refund_of_order_id IS NOT NULL AS isRefund,
               (SELECT COUNT(*) FROM order_lines l WHERE l.order_id = o.id) AS itemCount,
               (SELECT GROUP_CONCAT(method) FROM (SELECT method FROM payments p WHERE p.order_id = o.id ORDER BY p.created_at, p.id)) AS methods
          FROM orders o JOIN employees e ON e.id = o.employee_id
         ORDER BY o.created_at DESC, o.order_number DESC`,
     )
-    .all() as (Omit<SalesOrderSummary, 'methods'> & { methods: string | null })[];
-  return rows.map((r) => ({ ...r, methods: r.methods ? (r.methods.split(',') as OrderPaymentMethod[]) : [] }));
+    .all() as (Omit<SalesOrderSummary, 'methods' | 'isRefund'> & { methods: string | null; isRefund: number })[];
+  return rows.map((r) => ({ ...r, isRefund: !!r.isRefund, methods: r.methods ? (r.methods.split(',') as OrderPaymentMethod[]) : [] }));
 }
+
+/** Thrown inside the transaction so everything written so far is rolled back. */
+class ActionFailure extends Error {}
+
+const MAX_REASON = 200;
+
+type ReverseKind = 'void' | 'refund';
+
+/**
+ * Voids or refunds a completed sale in one transaction. Both put the stock back into the batches it came from,
+ * write an audit entry (who, what, why) and refuse an order that is not a completed sale. A void keeps the order and
+ * marks it voided; a refund records a new order with negative lines and payments (linked back through
+ * `refundOfOrderId`) and marks the sale refunded. The whole order is reversed (partial refunds are not supported).
+ */
+function reverseOrder(db: AppDatabase, kind: ReverseKind, raw: unknown, now: number): OrderActionResult {
+  const input = raw as { orderId?: unknown; reason?: unknown } | null;
+  const reason = typeof input?.reason === 'string' ? input.reason.trim().slice(0, MAX_REASON) : '';
+  if (typeof input?.orderId !== 'string') return { ok: false, error: 'Choose an order' };
+  if (!reason) return { ok: false, error: 'Give a reason' };
+  const orderId = input.orderId;
+
+  try {
+    return db.transaction((tx) => {
+      const [order] = tx.select().from(orders).where(eq(orders.id, orderId)).all();
+      if (!order) throw new ActionFailure('Order not found');
+      if (order.refundOfOrderId) throw new ActionFailure(`${order.orderNumber} is a refund and cannot be ${kind === 'void' ? 'voided' : 'refunded'}`);
+      if (order.status !== 'completed') throw new ActionFailure(`${order.orderNumber} is already ${order.status}`);
+
+      const employeeId = sellingEmployee(tx);
+      const lines = tx.select().from(orderLines).where(eq(orderLines.orderId, orderId)).orderBy(asc(orderLines.id)).all();
+      for (const line of lines) restockSale(db, line.id, kind, employeeId, now, tx);
+
+      let refund: { id: string; orderNumber: string } | undefined;
+      if (kind === 'refund') {
+        refund = { id: uuid7(now), orderNumber: nextOrderNumber(db) };
+        tx.insert(orders)
+          .values({
+            id: refund.id,
+            orderNumber: refund.orderNumber,
+            employeeId,
+            refundOfOrderId: orderId,
+            status: 'completed',
+            subtotal: -order.subtotal,
+            discountTotal: -order.discountTotal,
+            total: -order.total,
+            completedAt: now,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .run();
+        for (const line of lines) {
+          tx.insert(orderLines)
+            .values({ orderId: refund.id, productId: line.productId, name: line.name, unitPrice: line.unitPrice, unitCost: line.unitCost, quantityMilli: -line.quantityMilli, lineTotal: -line.lineTotal })
+            .run();
+        }
+        for (const payment of tx.select().from(payments).where(eq(payments.orderId, orderId)).all()) {
+          tx.insert(payments).values({ orderId: refund.id, method: payment.method, amount: -payment.amount, tendered: null, change: null, reference: payment.reference, createdAt: now }).run();
+        }
+      }
+      tx.update(orders).set({ status: kind === 'void' ? 'voided' : 'refunded', updatedAt: now }).where(eq(orders.id, orderId)).run();
+      tx.insert(auditLog)
+        .values({
+          employeeId,
+          action: `order.${kind}`,
+          entity: 'order',
+          entityId: orderId,
+          detail: { orderNumber: order.orderNumber, reason, ...(refund ? { refundOrderNumber: refund.orderNumber } : {}) },
+          at: now,
+        })
+        .run();
+      return { ok: true as const, orderId, orderNumber: order.orderNumber, ...(refund ? { refundOrderId: refund.id, refundOrderNumber: refund.orderNumber } : {}) };
+    });
+  } catch (error) {
+    if (error instanceof ActionFailure) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
+export const voidOrder = (db: AppDatabase, raw: unknown, now = Date.now()): OrderActionResult => reverseOrder(db, 'void', raw, now);
+export const refundOrder = (db: AppDatabase, raw: unknown, now = Date.now()): OrderActionResult => reverseOrder(db, 'refund', raw, now);
