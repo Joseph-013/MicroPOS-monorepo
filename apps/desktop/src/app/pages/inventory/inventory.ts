@@ -158,9 +158,9 @@ export class InventoryPage {
   });
 
   // Selection (leftmost column): only rows on screen count.
-  protected readonly selection = new RowSelection(() => this.pager.rows());
-  protected readonly selected = computed(() => this.pager.rows().filter((b) => this.selection.has(b.id)));
-  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.selected().length === this.pager.rows().length);
+  protected readonly selection = new RowSelection(() => this.visible());
+  protected readonly selected = computed(() => this.visible().filter((b) => this.selection.has(b.id)));
+  protected readonly allSelected = computed(() => this.visible().length > 0 && this.selected().length === this.visible().length);
   protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
   /** Selected batches that still hold stock: what a write-off can act on. */
   protected readonly selectedWithStock = computed(() => this.selected().filter((b) => b.onHandMilli > 0));

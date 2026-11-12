@@ -127,11 +127,11 @@ export class CategoriesPage {
   }
 
   // Selection (leftmost column): only rows on screen count.
-  protected readonly selection = new RowSelection(() => this.pager.rows());
-  protected readonly selected = computed(() => this.pager.rows().filter((c) => this.selection.has(c.id)));
+  protected readonly selection = new RowSelection(() => this.visible());
+  protected readonly selected = computed(() => this.visible().filter((c) => this.selection.has(c.id)));
   protected readonly selectedLive = computed(() => this.selected().filter((c) => !c.deletedAt));
   protected readonly selectedDeleted = computed(() => this.selected().filter((c) => !!c.deletedAt));
-  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.selected().length === this.pager.rows().length);
+  protected readonly allSelected = computed(() => this.visible().length > 0 && this.selected().length === this.visible().length);
   protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
 
   protected isSelected(category: CategoryRecord): boolean {

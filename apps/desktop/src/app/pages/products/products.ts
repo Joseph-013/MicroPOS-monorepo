@@ -220,13 +220,13 @@ export class ProductsPage {
 
   // Selection (leftmost column). Only rows that are on screen count, so a filter can never hide a selected row
   // that a bulk action would still hit.
-  protected readonly selection = new RowSelection(() => this.pager.rows());
-  protected readonly selected = computed(() => this.pager.rows().filter((p) => this.selection.has(p.id)));
+  protected readonly selection = new RowSelection(() => this.visible());
+  protected readonly selected = computed(() => this.visible().filter((p) => this.selection.has(p.id)));
   protected readonly selectedLive = computed(() => this.selected().filter((p) => !p.deletedAt));
   protected readonly selectedDeleted = computed(() => this.selected().filter((p) => !!p.deletedAt));
   /** Some, but not every, visible row is ticked: the select-all checkbox shows a dash. */
   protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
-  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.selected().length === this.pager.rows().length);
+  protected readonly allSelected = computed(() => this.visible().length > 0 && this.selected().length === this.visible().length);
 
   protected isSelected(product: ProductRecord): boolean {
     return this.selection.has(product.id);

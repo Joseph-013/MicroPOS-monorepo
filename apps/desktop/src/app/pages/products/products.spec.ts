@@ -692,6 +692,24 @@ describe('ProductsPage', () => {
       expect(el.textContent).not.toContain('selected'); // selection is cleared
     });
 
+    it('a selection survives changing pages, so the bulk buttons stay', async () => {
+      await open(Array.from({ length: 70 }, (_, i) => record(`p${i + 1}`, `Item ${String(i + 1).padStart(2, '0')}`, { createdAt: 1000 - i })));
+      tick('Select Item 01').click();
+      await settle();
+      expect(el.textContent).toContain('1 selected');
+      (el.querySelector('button[aria-label="Next page"]') as HTMLButtonElement).click();
+      await settle();
+      expect(rowNames()[0]).toBe('Item 51');
+      expect(el.textContent).toContain('1 selected');
+      expect(buttonByText(el, 'Delete 1')).toBeDefined();
+
+      // A Shift + click range can span pages' worth of rows too.
+      const row = bodyRows().find((r) => r.textContent?.includes('Item 53'))!;
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true }));
+      await settle();
+      expect(el.textContent).toContain('53 selected'); // Item 01 .. Item 53
+    });
+
     it('Select all ticks every visible row only', async () => {
       await open([record('1', 'Milk'), record('2', 'Eggs')]);
       await type(el, 'input[aria-label="Filter name"]', 'eg');
