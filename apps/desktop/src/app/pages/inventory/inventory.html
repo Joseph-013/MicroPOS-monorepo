@@ -79,9 +79,10 @@
       </div>
 
       <div role="rowgroup">
-        @for (batch of visible(); track batch.id) {
+        @for (batch of pager.rows(); track batch.id) {
           <div
             class="border-b"
+            [attr.data-row-id]="batch.id"
             [animate.enter]="'row-enter'"
             animate.leave="row-leave"
             [hlmContextMenuTrigger]="rowMenu"
@@ -90,6 +91,7 @@
             <app-swipe-actions [swipeLeft]="batch.onHandMilli > 0 ? swipeWriteOff : []" [distance]="56" [step]="56" (action)="onSwipe($event, batch)">
               <div
                 role="row"
+                [class.row-target]="target() === batch.id"
                 class="hover:bg-muted/40 grid min-h-(--control-height) cursor-pointer grid-cols-(--cols) items-center"
                 [class.bg-muted]="isSelected(batch)"
                 [attr.aria-selected]="isSelected(batch)"
@@ -131,6 +133,7 @@
       </p>
     }
   </div>
+  <app-pager [pager]="pager" />
 </section>
 
 <!-- Right-click (or long-press) menu of a batch row. The row is looked up by id (the trigger keeps its first data). -->

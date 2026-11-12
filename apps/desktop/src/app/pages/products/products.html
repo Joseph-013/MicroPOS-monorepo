@@ -119,9 +119,10 @@
       </div>
 
       <div role="rowgroup">
-        @for (product of visible(); track product.id) {
+        @for (product of pager.rows(); track product.id) {
           <div
             class="border-b"
+            [attr.data-row-id]="product.id"
             [animate.enter]="animateRows() ? 'row-enter' : ''"
             animate.leave="row-leave"
             [class.row-flash]="flashing().has(product.id)"
@@ -131,6 +132,7 @@
             <app-swipe-actions [swipeLeft]="swipeFor(product)" [distance]="56" [step]="56" (action)="onSwipe($event, product)">
               <div
                 role="row"
+                [class.row-target]="target() === product.id"
                 class="hover:bg-muted/40 grid min-h-(--control-height) grid-cols-(--cols) items-center {{ product.deletedAt ? 'opacity-60' : 'cursor-pointer' }}"
                 [class.bg-muted]="isSelected(product)"
                 [attr.aria-selected]="isSelected(product)"
@@ -190,6 +192,7 @@
       </p>
     }
   </div>
+  <app-pager [pager]="pager" />
 </section>
 
 <!-- Right-click (or long-press) menu of a product row. -->

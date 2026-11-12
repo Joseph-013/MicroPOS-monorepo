@@ -64,9 +64,10 @@
       </div>
 
       <div role="rowgroup">
-        @for (category of visible(); track category.id) {
+        @for (category of pager.rows(); track category.id) {
           <div
             class="border-b"
+            [attr.data-row-id]="category.id"
             [animate.enter]="animateRows() ? 'row-enter' : ''"
             animate.leave="row-leave"
             [hlmContextMenuTrigger]="rowMenu"
@@ -75,6 +76,7 @@
             <app-swipe-actions [swipeLeft]="swipeFor(category)" [distance]="56" [step]="56" (action)="onSwipe($event, category)">
               <div
                 role="row"
+                [class.row-target]="target() === category.id"
                 class="hover:bg-muted/40 grid min-h-(--control-height) grid-cols-(--cols) items-center {{ category.deletedAt ? 'opacity-60' : 'cursor-pointer' }}"
                 [class.bg-muted]="isSelected(category)"
                 [attr.aria-selected]="isSelected(category)"
@@ -107,6 +109,7 @@
       </p>
     }
   </div>
+  <app-pager [pager]="pager" />
 </section>
 
 <!-- Right-click (or long-press) menu of a category row. -->

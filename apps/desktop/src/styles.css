@@ -157,3 +157,9 @@ span[data-required]::after {
 .row-flash {
   animation: row-flash 900ms ease-out;
 }
+
+/* A table row that is the target of a link or of the dialog being shown: highlighted, not selected. */
+.row-target {
+  background-color: color-mix(in oklab, var(--primary) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--primary);
+}

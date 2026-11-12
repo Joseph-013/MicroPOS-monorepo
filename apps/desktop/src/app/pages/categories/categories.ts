@@ -17,6 +17,8 @@ import { CatalogService } from '../../core/data/catalog.service';
 import { CategoriesService } from '../../core/data/categories.service';
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
+import { rowTarget } from '../../core/row-target';
+import { AppPager, Pager } from '../../core/ui/pager';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { CategoryForm, type CategoryFormContext } from './category-form';
 
@@ -37,6 +39,7 @@ export const COLUMNS_TEMPLATE = '3.5rem minmax(14rem,3fr) minmax(8rem,1fr) minma
 /** Categories: add, rename, order and delete the groups products belong to. */
 @Component({
   imports: [
+    AppPager,
     DatePipe,
     DateRangeFilter,
     FilterInput,
@@ -109,6 +112,13 @@ export class CategoriesPage {
       .sort(compare);
   });
 
+  protected readonly pager = new Pager(
+    () => this.visible(),
+    () => [this.nameFilter(), this.createdFrom(), this.createdTo(), this.sortKey(), this.sortDirection(), this.deletedOnly()],
+  );
+  /** The row being edited: highlighted, not selected. */
+  protected readonly target = rowTarget();
+
   protected resetFilters(): void {
     this.nameFilter.set('');
     this.createdFrom.set('');
@@ -117,10 +127,10 @@ export class CategoriesPage {
 
   // Selection (leftmost column): only rows on screen count.
   private readonly selectedIds = signal<ReadonlySet<string>>(new Set());
-  protected readonly selected = computed(() => this.visible().filter((c) => this.selectedIds().has(c.id)));
+  protected readonly selected = computed(() => this.pager.rows().filter((c) => this.selectedIds().has(c.id)));
   protected readonly selectedLive = computed(() => this.selected().filter((c) => !c.deletedAt));
   protected readonly selectedDeleted = computed(() => this.selected().filter((c) => !!c.deletedAt));
-  protected readonly allSelected = computed(() => this.visible().length > 0 && this.selected().length === this.visible().length);
+  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.selected().length === this.pager.rows().length);
   protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
 
   protected isSelected(category: CategoryRecord): boolean {
@@ -135,7 +145,7 @@ export class CategoriesPage {
     });
   }
   protected toggleAll(on: boolean): void {
-    this.selectedIds.set(on ? new Set(this.visible().map((c) => c.id)) : new Set());
+    this.selectedIds.set(on ? new Set(this.pager.rows().map((c) => c.id)) : new Set());
   }
   protected clearSelection(): void {
     this.selectedIds.set(new Set());
@@ -213,6 +223,7 @@ export class CategoriesPage {
   }
 
   private open(category?: CategoryRecord): void {
+    if (category) this.target.set(category.id);
     this.dialogs
       .open<boolean, CategoryFormContext>(CategoryForm, {
         // A service dialog needs an id of its own (see the Products page) so the Delete confirmation inside can open.

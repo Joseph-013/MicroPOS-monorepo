@@ -23,6 +23,8 @@ import { FilterInput } from '../../core/ui/filter-input';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { AdjustStockForm, type AdjustStockContext } from './adjust-stock-form';
 import { ReceiveStockForm, type ReceiveStockContext } from './receive-stock-form';
+import { rowTarget } from '../../core/row-target';
+import { AppPager, Pager } from '../../core/ui/pager';
 import { openRepackage } from './repackage-form';
 
 const STATUSES = { all: 'All', expired: 'Expired', soon: 'Expiring soon', ok: 'OK', none: 'No expiry' } as const;
@@ -52,6 +54,7 @@ export const COLUMNS_TEMPLATE =
 /** Inventory: every batch with stock left, its expiry and quantity; receive, adjust and write off stock. */
 @Component({
   imports: [
+    AppPager,
     DatePipe,
     DateRangeFilter,
     FilterInput,
@@ -155,8 +158,8 @@ export class InventoryPage {
 
   // Selection (leftmost column): only rows on screen count.
   private readonly selectedIds = signal<ReadonlySet<string>>(new Set());
-  protected readonly selected = computed(() => this.visible().filter((b) => this.selectedIds().has(b.id)));
-  protected readonly allSelected = computed(() => this.visible().length > 0 && this.selected().length === this.visible().length);
+  protected readonly selected = computed(() => this.pager.rows().filter((b) => this.selectedIds().has(b.id)));
+  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.selected().length === this.pager.rows().length);
   protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
   /** Selected batches that still hold stock: what a write-off can act on. */
   protected readonly selectedWithStock = computed(() => this.selected().filter((b) => b.onHandMilli > 0));
@@ -173,7 +176,7 @@ export class InventoryPage {
     });
   }
   protected toggleAll(on: boolean): void {
-    this.selectedIds.set(on ? new Set(this.visible().map((b) => b.id)) : new Set());
+    this.selectedIds.set(on ? new Set(this.pager.rows().map((b) => b.id)) : new Set());
   }
   protected clearSelection(): void {
     this.selectedIds.set(new Set());
@@ -232,6 +235,13 @@ export class InventoryPage {
     this.selectedIds.update((current) => new Set([...current].filter((id) => !ids.includes(id))));
   }
 
+  protected readonly pager = new Pager(
+    () => this.visible(),
+    () => [this.productFilter(), this.batchFilter(), this.status(), this.expiresFrom(), this.expiresTo(), this.sortKey(), this.sortDirection(), this.service.includeEmpty()],
+  );
+  /** The batch a dialog is open for: highlighted, not selected. */
+  protected readonly target = rowTarget();
+
   protected receive(): void {
     this.dialogs.open<boolean, ReceiveStockContext>(ReceiveStockForm, {
       id: 'receive-stock',
@@ -244,10 +254,12 @@ export class InventoryPage {
 
   /** Opens the Repackage dialog, for the batch's product when started from a row. */
   protected repackage(batch?: BatchRecord): void {
+    if (batch) this.target.set(batch.id);
     void openRepackage(this.dialogs, this.banner, this.service, batch && this.products.products().find((p) => p.id === batch.productId));
   }
 
   protected adjust(batch: BatchRecord): void {
+    this.target.set(batch.id);
     this.dialogs.open<boolean, AdjustStockContext>(AdjustStockForm, {
       id: 'adjust-stock',
       contentClass: 'w-[min(30rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',

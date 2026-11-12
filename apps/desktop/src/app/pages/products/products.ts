@@ -17,6 +17,8 @@ import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { BannerService } from '../../core/banner';
+import { rowTarget } from '../../core/row-target';
+import { AppPager, Pager } from '../../core/ui/pager';
 import { InventoryService } from '../../core/data/inventory.service';
 import { openRepackage } from '../inventory/repackage-form';
 import { CatalogService } from '../../core/data/catalog.service';
@@ -62,6 +64,7 @@ const SORT_VALUES: Record<SortKey, (p: ProductRecord) => string | number | null>
 /** Products: search, filter and manage the catalog. */
 @Component({
   imports: [
+    AppPager,
     DatePipe,
     DateRangeFilter,
     FilterInput,
@@ -181,6 +184,16 @@ export class ProductsPage {
   protected readonly columnsTemplate = COLUMNS_TEMPLATE;
 
   /** True while any column filter is set; enables the reset button. */
+  protected readonly pager = new Pager(
+    () => this.visible(),
+    () => [
+      this.nameFilter(), this.skuFilter(), this.codeFilter(), this.createdFrom(), this.createdTo(), this.category(), this.status(),
+      this.stockFilter(), this.sortKey(), this.sortDirection(), this.deletedOnly(),
+    ],
+  );
+  /** The product being edited (or opened from a link): highlighted, not selected. */
+  protected readonly target = rowTarget();
+
   protected readonly filtered = computed(
     () =>
       !!(this.nameFilter() || this.skuFilter() || this.codeFilter() || this.createdFrom() || this.createdTo()) ||
@@ -203,12 +216,12 @@ export class ProductsPage {
   // Selection (leftmost column). Only rows that are on screen count, so a filter can never hide a selected row
   // that a bulk action would still hit.
   private readonly selectedIds = signal<ReadonlySet<string>>(new Set());
-  protected readonly selected = computed(() => this.visible().filter((p) => this.selectedIds().has(p.id)));
+  protected readonly selected = computed(() => this.pager.rows().filter((p) => this.selectedIds().has(p.id)));
   protected readonly selectedLive = computed(() => this.selected().filter((p) => !p.deletedAt));
   protected readonly selectedDeleted = computed(() => this.selected().filter((p) => !!p.deletedAt));
   /** Some, but not every, visible row is ticked: the select-all checkbox shows a dash. */
   protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
-  protected readonly allSelected = computed(() => this.visible().length > 0 && this.selected().length === this.visible().length);
+  protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.selected().length === this.pager.rows().length);
 
   protected isSelected(product: ProductRecord): boolean {
     return this.selectedIds().has(product.id);
@@ -224,7 +237,7 @@ export class ProductsPage {
   }
 
   protected toggleAll(on: boolean): void {
-    this.selectedIds.set(on ? new Set(this.visible().map((p) => p.id)) : new Set());
+    this.selectedIds.set(on ? new Set(this.pager.rows().map((p) => p.id)) : new Set());
   }
 
   protected clearSelection(): void {
@@ -417,6 +430,7 @@ export class ProductsPage {
   }
 
   private async open(product?: ProductRecord): Promise<void> {
+    if (product) this.target.set(product.id);
     // A form left half-filled earlier comes back as it was (its draft is read before the dialog opens).
     const draft = await this.drafts.load(product?.id ?? 'new');
     const ref = this.dialogs.open<boolean, ProductFormContext>(ProductForm, {
