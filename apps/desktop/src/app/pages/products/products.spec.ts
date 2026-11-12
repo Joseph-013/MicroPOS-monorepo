@@ -224,6 +224,30 @@ describe('ProductsPage', () => {
     });
   });
 
+  describe('?highlight=<id>', () => {
+    it('shows the page that holds the product, highlights its row without opening anything, and uses the parameter up', async () => {
+      const many = Array.from({ length: 120 }, (_, i) => record(`p${i + 1}`, `Item ${String(i + 1).padStart(3, '0')}`));
+      await open(many, '/items/products?highlight=p110');
+      await settle();
+      expect(el.querySelector('app-pager')?.textContent?.replace(/\s+/g, ' ')).toContain('Page 3 of 3');
+      expect((el.querySelector('.row-target')!.closest('[data-row-id]') as HTMLElement).dataset['rowId']).toBe('p110');
+      expect(dialog()).toBeNull(); // highlighted, not opened
+      expect(TestBed.inject(Router).url).toBe('/items/products');
+    });
+
+    it('clears filters that hide the product, and switches to Deleted only for a deleted one', async () => {
+      await open([record('1', 'Milk'), record('2', 'Old Tea', { deletedAt: 5 })], '/items/products?highlight=1&category=Nothing');
+      await settle();
+      expect(rowNames()).toEqual(['Milk']); // the category filter was cleared
+      expect(el.querySelector('.row-target')).not.toBeNull();
+
+      await TestBed.inject(Router).navigateByUrl('/items/products?highlight=2');
+      await settle();
+      expect(rowNames()).toEqual(['Old Tea']);
+      expect(el.querySelector('.row-target')!.closest('[data-row-id]')?.getAttribute('data-row-id')).toBe('2');
+    });
+  });
+
   it('pages the table: 50 rows at a time', async () => {
     await open(Array.from({ length: 70 }, (_, i) => record(`p${i + 1}`, `Item ${i + 1}`)));
     expect(bodyRows()).toHaveLength(50);

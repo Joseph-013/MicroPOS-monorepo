@@ -20,7 +20,7 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { BannerService } from '../../core/banner';
 import { EDIT_PRODUCT_PARAM } from '../../core/product-link';
-import { scrollToRow, rowTarget } from '../../core/row-target';
+import { HIGHLIGHT_PARAM, scrollToRow, rowTarget } from '../../core/row-target';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { InventoryService } from '../../core/data/inventory.service';
 import { openRepackage } from '../inventory/repackage-form';
@@ -361,6 +361,14 @@ export class ProductsPage {
         takeUntilDestroyed(),
       )
       .subscribe((id) => void this.openById(id));
+    // `?highlight=<id>` (a link from another page) shows the product's page and highlights its row.
+    this.route.queryParamMap
+      .pipe(
+        map((params) => params.get(HIGHLIGHT_PARAM)),
+        filter((id): id is string => !!id),
+        takeUntilDestroyed(),
+      )
+      .subscribe((id) => void this.revealById(id));
 
     // A scan looks the code up: other filters are cleared and the barcode / PLU filter is set to the code. While a
     // dialog is open the form claims the scanner instead, so scans never change the table behind it.
@@ -442,6 +450,29 @@ export class ProductsPage {
 
   protected edit(product: ProductRecord): void {
     if (!product.deletedAt) void this.open(product); // deleted products are read-only here
+  }
+
+  /**
+   * Highlights a product named in the address and shows the page of the table that holds it. Filters that hide it
+   * are cleared, and a deleted product switches the table to "Deleted only". The parameter is used up at once.
+   */
+  private async revealById(id: string): Promise<void> {
+    await this.loaded;
+    void this.router.navigate([], { queryParams: { [HIGHLIGHT_PARAM]: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    const product = await this.service.find(id);
+    if (!product) return this.banner.error('Product not found', { key: 'product-missing' });
+    const deleted = !!product.deletedAt;
+    if (deleted !== this.deletedOnly()) {
+      this.deletedOnly.set(deleted);
+      this.clearSelection();
+      await this.service.setIncludeDeleted(deleted);
+    }
+    this.target.set(id);
+    if (!this.pager.showItem((p) => p.id === id)) {
+      this.resetFilters();
+      this.pager.showItem((p) => p.id === id);
+    }
+    scrollToRow(id);
   }
 
   /**
