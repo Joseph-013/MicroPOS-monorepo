@@ -19,6 +19,13 @@ export interface BannerOptions {
    * until the system calls `remove(key)` (e.g. an impending update).
    */
   dismissible?: boolean;
+  /** A button on the strip (for example "View"); running it also dismisses the banner. */
+  action?: BannerAction;
+}
+
+export interface BannerAction {
+  label: string;
+  run: () => void;
 }
 
 export interface BannerMessage {
@@ -30,6 +37,7 @@ export interface BannerMessage {
   key?: string;
   /** A click on the strip removes it. */
   dismissible: boolean;
+  action?: BannerAction;
 }
 
 const MAX_QUEUED = 5;
@@ -76,6 +84,7 @@ export class BannerService {
       durationMs: typeof duration === 'number' ? Math.max(0, duration) : BANNER_DURATIONS[duration],
       key: options.key,
       dismissible: options.dismissible ?? true,
+      action: options.action,
     };
 
     const { key } = options;

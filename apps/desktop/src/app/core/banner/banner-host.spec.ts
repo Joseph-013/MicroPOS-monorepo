@@ -50,4 +50,21 @@ describe('BannerHost', () => {
     expect(strip.className).toContain('bg-success');
     TestBed.inject(BannerService).clear();
   });
+
+  it('shows an action button on the strip; pressing it runs the action and dismisses the banner', async () => {
+    const fixture = TestBed.createComponent(BannerHost);
+    const banner = TestBed.inject(BannerService);
+    const run = vi.fn();
+    banner.success('Order SO-1001 completed', { duration: 'persistent', action: { label: 'View', run } });
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const [strip, action] = Array.from(el.querySelectorAll('button'));
+    expect(strip.textContent?.trim()).toBe('Order SO-1001 completed');
+    expect(action.textContent?.trim()).toBe('View');
+    expect(action.previousElementSibling).toBe(strip); // right beside the message
+    action.click();
+    await fixture.whenStable();
+    expect(run).toHaveBeenCalledOnce();
+    expect(el.querySelector('button')).toBeNull();
+  });
 });
