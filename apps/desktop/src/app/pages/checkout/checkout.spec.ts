@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { type CatalogProduct, type CheckoutDraft, type CompleteOrderInput, type CompleteOrderResult, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
+import { Router } from '@angular/router';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
 import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
@@ -420,6 +421,11 @@ describe('CheckoutPage', () => {
       expect(el.textContent).toContain('No items yet');
       expect(el.textContent).toContain('SO-1002');
       expect(TestBed.inject(BannerService).current()?.text).toBe('Order SO-1001 completed, change ₱1.42');
+      const action = TestBed.inject(BannerService).current()?.action;
+      expect(action?.label).toBe('View'); // opens the order over this page (?view-sales-order=o1)
+      action!.run();
+      await fixture.whenStable();
+      expect(TestBed.inject(Router).url).toContain('view-sales-order=o1');
       // The order is gone for good: the debounced draft save must not write it back.
       await flushSaves();
       expect(store.draft).toBeNull();

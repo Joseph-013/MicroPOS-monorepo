@@ -16,6 +16,7 @@ import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { BannerService } from '../../core/banner';
 import { CatalogService } from '../../core/data/catalog.service';
+import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
 import { formatCentsInput, parseCents } from '../../core/money-input';
 import { MoneyPipe } from '../../core/money.pipe';
@@ -62,6 +63,7 @@ export class CheckoutPage {
   protected readonly catalog = inject(CatalogService);
   private readonly draft = inject(CheckoutDraftService);
   private readonly banner = inject(BannerService);
+  private readonly viewer = inject(SalesOrderViewer);
 
   // The order in progress. It is saved automatically as a draft and restored when the page opens.
   protected readonly lines = signal<DraftLine[]>([]);
@@ -297,7 +299,11 @@ export class CheckoutPage {
       }
       this.resetOrder();
       const change = result.change > 0 ? `, change ${formatMoney(result.change)}` : '';
-      this.banner.success(`Order ${result.orderNumber} completed${change}`, { duration: 'long', key: 'complete-order' });
+      this.banner.success(`Order ${result.orderNumber} completed${change}`, {
+        duration: 6000,
+        key: 'complete-order',
+        action: { label: 'View', run: () => void this.viewer.open(result.orderId) },
+      });
       await this.refreshOrderNumber();
       void this.catalog.load(); // stock-dependent lists stay current
     } finally {
