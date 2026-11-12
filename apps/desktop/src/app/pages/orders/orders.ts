@@ -4,7 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX } from '@ng-icons/lucide';
-import type { OrderPaymentMethod, SalesOrderSummary } from '@micropos/core';
+import { canReverseOrder, type OrderPaymentMethod, type SalesOrderSummary } from '@micropos/core';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
@@ -14,12 +14,14 @@ import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { OrdersService } from '../../core/data/orders.service';
 import { MoneyPipe } from '../../core/money.pipe';
+import { OrderActions } from '../../core/order-actions';
 import { HIGHLIGHT_PARAM, scrollToRow, rowTarget } from '../../core/row-target';
 import { SalesOrderViewer, VIEW_SALES_ORDER_PARAM } from '../../core/sales-order-viewer';
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
 import { RowSelection } from '../../core/ui/row-selection';
 import { AppPager, Pager } from '../../core/ui/pager';
+import type { OrderActionKind } from './order-action-form';
 import { METHOD_LABELS, STATUS_LABELS } from './sales-order-form';
 
 type SortKey = 'number' | 'date' | 'cashier' | 'items' | 'method' | 'status' | 'total';
@@ -27,7 +29,8 @@ type SortDirection = 'asc' | 'desc';
 type Status = SalesOrderSummary['status'];
 
 const ALL = 'all';
-const STATUS_FILTERS = { [ALL]: 'All', ...STATUS_LABELS } as const;
+/** A refund order has status completed but is its own kind of row, so it gets its own filter. */
+const STATUS_FILTERS = { [ALL]: 'All', ...STATUS_LABELS, refund: 'Refund' } as const;
 const METHOD_FILTERS = { [ALL]: 'All', ...METHOD_LABELS } as const;
 type StatusFilter = keyof typeof STATUS_FILTERS;
 type MethodFilter = keyof typeof METHOD_FILTERS;
@@ -70,6 +73,7 @@ export const COLUMNS_TEMPLATE = '3.5rem minmax(8rem,1fr) 13rem minmax(9rem,1.4fr
 export class OrdersPage {
   protected readonly service = inject(OrdersService);
   private readonly viewer = inject(SalesOrderViewer);
+  private readonly actions = inject(OrderActions);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -135,7 +139,7 @@ export class OrdersPage {
           (!number || o.orderNumber.toLowerCase().includes(number)) &&
           (!cashier || o.employeeName.toLowerCase().includes(cashier)) &&
           (method === ALL || o.methods.includes(method as OrderPaymentMethod)) &&
-          (status === ALL || o.status === (status as Status)) &&
+          (status === ALL || (status === 'refund' ? o.isRefund : o.status === (status as Status) && !o.isRefund)) &&
           o.createdAt >= from &&
           o.createdAt <= to,
       )
@@ -171,6 +175,22 @@ export class OrdersPage {
     this.selection.clear();
   }
 
+  // Void and refund (completed sales only; a refund order cannot be reversed). Every route (the header buttons, the
+  // context menu) goes through `reverse`, which always asks for confirmation and a reason.
+  protected readonly canReverse = canReverseOrder;
+  protected readonly reversible = computed(() => this.selected().filter(canReverseOrder));
+
+  /** Right-click: acts on the whole selection when the row is part of one, else on the row. */
+  protected targetsFor(row: SalesOrderSummary): SalesOrderSummary[] {
+    const group = this.reversible();
+    return this.isSelected(row) && group.length > 1 ? group : [row];
+  }
+
+  protected async reverse(kind: OrderActionKind, orders: SalesOrderSummary[]): Promise<void> {
+    const outcome = await this.actions.run(kind, orders.filter(canReverseOrder).map((o) => ({ id: o.id, orderNumber: o.orderNumber, total: o.total })));
+    if (outcome) this.selection.remove(outcome.done.map((d) => d.orderId));
+  }
+
   /** A click on a row: Shift or Ctrl/Cmd selects (like a file explorer); a plain click opens the order. */
   protected onRowClick(event: MouseEvent, order: SalesOrderSummary): void {
     if (!this.selection.click(order.id, event)) this.view(order);
@@ -187,7 +207,13 @@ export class OrdersPage {
 
   protected readonly methodText = methodText;
 
-  protected statusVariant(status: Status): 'success' | 'destructive' | 'outline' {
+  /** The badge text: a refund order reads Refund rather than Completed. */
+  protected statusLabel(order: SalesOrderSummary): string {
+    return order.isRefund ? 'Refund' : STATUS_LABELS[order.status];
+  }
+  protected statusVariant(order: SalesOrderSummary): 'success' | 'destructive' | 'outline' {
+    const status = order.status;
+    if (order.isRefund) return 'outline';
     return status === 'completed' ? 'success' : status === 'open' ? 'outline' : 'destructive';
   }
 

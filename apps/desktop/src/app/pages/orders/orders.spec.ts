@@ -23,6 +23,7 @@ const order = (id: string, n: number, over: Partial<SalesOrderSummary> = {}): Sa
   employeeName: 'Casey Cashier',
   total: 1_000 * n,
   createdAt: Date.UTC(2026, 10, n, 12),
+  isRefund: false,
   itemCount: n,
   methods: ['cash'],
   ...over,
@@ -35,14 +36,18 @@ const ORDERS = [
 ];
 
 describe('OrdersPage', () => {
+  let reversed: [string, unknown][];
   let fixture: ComponentFixture<OrdersPage>;
   let el: HTMLElement;
 
   beforeEach(async () => {
+    reversed = [];
     const api = {
       orders: {
         list: () => Promise.resolve(ORDERS), get: (id: string) =>
-          Promise.resolve({ id, orderNumber: 'SO-3', status: 'voided', employeeName: 'Casey Cashier', subtotal: 0, discountTotal: 0, total: 0, createdAt: 0, completedAt: null, lines: [], payments: [] }),
+          Promise.resolve({ id, orderNumber: 'SO-3', status: 'voided', employeeName: 'Casey Cashier', subtotal: 0, discountTotal: 0, total: 0, createdAt: 0, completedAt: null, refundOf: null, refundedBy: null, lines: [], payments: [] }),
+        void: (input: unknown) => (reversed.push(['void', input]), Promise.resolve({ ok: true as const, orderId: (input as { orderId: string }).orderId, orderNumber: 'SO-X' })),
+        refund: (input: unknown) => (reversed.push(['refund', input]), Promise.resolve({ ok: true as const, orderId: (input as { orderId: string }).orderId, orderNumber: 'SO-X', refundOrderId: 'r', refundOrderNumber: 'SO-R' })),
       },
     } as unknown as DesktopApi;
     TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
@@ -134,6 +139,83 @@ describe('OrdersPage', () => {
       await fixture.whenStable();
       expect(selectedNumbers()).toEqual(['SO-4', 'SO-2']);
       expect(TestBed.inject(Router).url).toBe('/orders'); // nothing was opened
+    });
+
+    describe('void and refund', () => {
+      const button = (root: ParentNode, label: string): HTMLButtonElement | undefined =>
+        Array.from(root.querySelectorAll('button')).find((b) => b.textContent?.trim() === label);
+      const reason = async (text: string): Promise<void> => {
+        const input = document.querySelector('#order-reason') as HTMLInputElement;
+        input.value = text;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await fixture.whenStable();
+      };
+      const settle = async (): Promise<void> => {
+        for (let i = 0; i < 4; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          await fixture.whenStable();
+        }
+      };
+
+      it('offers Void and Refund for the selected completed sales only, never a voided one', async () => {
+        click(rowOf(1), { ctrlKey: true }); // completed
+        click(rowOf(3), { ctrlKey: true }); // voided
+        await fixture.whenStable();
+        expect(el.textContent).toContain('2 selected');
+        expect(button(el, 'Void 1')).toBeTruthy(); // SO-3 is already voided: not counted
+        expect(button(el, 'Refund 1')).toBeTruthy();
+
+        click(rowOf(3), { ctrlKey: true });
+        click(rowOf(1), { ctrlKey: true });
+        click(rowOf(3), { ctrlKey: true });
+        await fixture.whenStable();
+        expect(button(el, 'Void 1')).toBeUndefined(); // only the voided one is selected
+        expect(button(el, 'Refund 1')).toBeUndefined();
+      });
+
+      it('voids a selection after listing the orders and asking for a reason', async () => {
+        click(rowOf(1), { ctrlKey: true });
+        click(rowOf(4), { shiftKey: true }); // SO-4 down to SO-1: 4, 3 (voided), 2, 1
+        await fixture.whenStable();
+        button(el, 'Void 3')!.click(); // SO-3 is not counted
+        await settle();
+        const dialog = document.querySelector('#order-action')!;
+        expect(dialog.textContent).toContain('Void 3 orders?');
+        expect(Array.from(dialog.querySelectorAll('app-confirm-items li span:first-child')).map((e) => e.textContent!.trim()).sort()).toEqual(['SO-1', 'SO-2', 'SO-4']);
+        expect(button(dialog, 'Void')!.disabled).toBe(true);
+        await reason('Customer left');
+        button(dialog, 'Void')!.click();
+        await settle();
+
+        expect(reversed.map(([kind, input]) => [kind, (input as { orderId: string; reason: string }).orderId, (input as { reason: string }).reason]).sort()).toEqual([
+          ['void', 'a', 'Customer left'],
+          ['void', 'b', 'Customer left'],
+          ['void', 'd', 'Customer left'],
+        ]);
+        expect(document.querySelector('#order-action')).toBeNull();
+        expect(el.textContent).toContain('1 selected'); // the done rows left the selection; the voided one that was in the range stays
+      });
+
+      it('the context menu offers Void and Refund on a completed sale and neither on a voided one', async () => {
+        const open = async (n: number): Promise<HTMLElement[]> => {
+          rowOf(n).parentElement!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+          await settle();
+          return Array.from(document.querySelectorAll<HTMLElement>('[hlmDropdownMenuItem]'));
+        };
+        expect((await open(3)).map((i) => i.textContent?.trim())).toEqual(['View']);
+        document.body.click();
+        document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
+        await settle();
+        const items = await open(2);
+        expect(items.map((i) => i.textContent?.trim())).toEqual(['View', 'Void', 'Refund']);
+        items[2].click();
+        await settle();
+        expect(document.querySelector('#order-action')?.textContent).toContain('Refund SO-2?');
+        await reason('Wrong size');
+        button(document.querySelector('#order-action')!, 'Refund')!.click();
+        await settle();
+        expect(reversed).toEqual([['refund', { orderId: 'b', reason: 'Wrong size' }]]);
+      });
     });
 
     it('a plain click still opens the order', async () => {
@@ -253,5 +335,29 @@ describe('OrdersPage paging and highlighting', () => {
     expect(document.querySelector('#sales-order')?.textContent).toContain('SO-10');
     expect(footer()).toContain('Page 3 of 3');
     expect(rows().find((r) => r.dataset['rowId'] === 'o10')?.querySelector('.row-target')).toBeTruthy();
+  });
+});
+
+describe('OrdersPage refund rows', () => {
+  it('reads Refund for a refund order (not Completed) and filters it separately', async () => {
+    const list = [order('s', 1), order('r', 2, { isRefund: true, total: -1000 }), order('v', 3, { status: 'voided' })];
+    const api = { orders: { list: () => Promise.resolve(list), get: () => Promise.resolve(null) } } as unknown as DesktopApi;
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
+    const fixture = TestBed.createComponent(OrdersPage);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const badge = (n: number): string => Array.from(el.querySelectorAll('[role="row"]')).find((r) => r.textContent?.includes(`SO-${n}`))!.querySelector('[hlmBadge]')!.textContent!.trim();
+    expect([badge(1), badge(2), badge(3)]).toEqual(['Completed', 'Refund', 'Voided']);
+    expect(el.textContent).toContain('-₱10.00');
+
+    const page = fixture.componentInstance as unknown as { statusFilter: { set(v: string): void } };
+    const names = (): string[] => Array.from(el.querySelectorAll('[role="row"] [role="cell"]:nth-child(2)')).map((c) => c.textContent!.trim());
+    page.statusFilter.set('refund');
+    await fixture.whenStable();
+    expect(names()).toEqual(['SO-2']);
+    page.statusFilter.set('completed'); // completed no longer includes refund orders
+    await fixture.whenStable();
+    expect(names()).toEqual(['SO-1']);
+    fixture.destroy();
   });
 });
