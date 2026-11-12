@@ -137,10 +137,10 @@
                 [class.bg-muted]="isSelected(product)"
                 [attr.aria-selected]="isSelected(product)"
                 [attr.tabindex]="product.deletedAt ? null : 0"
-                (click)="edit(product)"
+                (click)="onRowClick($event, product)"
                 (keydown.enter)="onRowEnter($event, product)"
               >
-                <div role="cell" class="flex items-center px-3" (click)="$event.stopPropagation()">
+                <div role="cell" class="flex items-center px-3" (pointerdown)="selection.noteModifiers($event)" (click)="$event.stopPropagation()">
                   <hlm-checkbox [aria-label]="'Select ' + product.name" [checked]="isSelected(product)" (checkedChange)="toggleRow(product, $event)" />
                 </div>
                 <div role="cell" class="truncate px-3 text-base">{{ product.name }}</div>

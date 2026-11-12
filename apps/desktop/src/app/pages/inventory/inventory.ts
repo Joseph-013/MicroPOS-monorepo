@@ -24,6 +24,7 @@ import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../cor
 import { AdjustStockForm, type AdjustStockContext } from './adjust-stock-form';
 import { ReceiveStockForm, type ReceiveStockContext } from './receive-stock-form';
 import { rowTarget } from '../../core/row-target';
+import { RowSelection } from '../../core/ui/row-selection';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { openRepackage } from './repackage-form';
 
@@ -157,29 +158,29 @@ export class InventoryPage {
   });
 
   // Selection (leftmost column): only rows on screen count.
-  private readonly selectedIds = signal<ReadonlySet<string>>(new Set());
-  protected readonly selected = computed(() => this.pager.rows().filter((b) => this.selectedIds().has(b.id)));
+  protected readonly selection = new RowSelection(() => this.pager.rows());
+  protected readonly selected = computed(() => this.pager.rows().filter((b) => this.selection.has(b.id)));
   protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.selected().length === this.pager.rows().length);
   protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
   /** Selected batches that still hold stock: what a write-off can act on. */
   protected readonly selectedWithStock = computed(() => this.selected().filter((b) => b.onHandMilli > 0));
 
   protected isSelected(batch: BatchRecord): boolean {
-    return this.selectedIds().has(batch.id);
+    return this.selection.has(batch.id);
   }
   protected toggleRow(batch: BatchRecord, on: boolean): void {
-    this.selectedIds.update((ids) => {
-      const next = new Set(ids);
-      if (on) next.add(batch.id);
-      else next.delete(batch.id);
-      return next;
-    });
+    this.selection.toggle(batch.id, on);
   }
   protected toggleAll(on: boolean): void {
-    this.selectedIds.set(on ? new Set(this.pager.rows().map((b) => b.id)) : new Set());
+    this.selection.selectAll(on);
   }
+  /** A click on a row: Shift or Ctrl/Cmd selects (like a file explorer); a plain click opens it. */
+  protected onRowClick(event: MouseEvent, row: BatchRecord): void {
+    if (!this.selection.click(row.id, event)) this.adjust(row);
+  }
+
   protected clearSelection(): void {
-    this.selectedIds.set(new Set());
+    this.selection.clear();
   }
   protected resetFilters(): void {
     this.productFilter.set('');
@@ -232,7 +233,7 @@ export class InventoryPage {
     if (failed) this.banner.warning(`${written} written off, ${failed} could not be`, { key: 'inventory-bulk', duration: 'long' });
     else this.banner.success(`${written === 1 ? '1 batch' : `${written} batches`} written off`, { key: 'inventory-bulk' });
     const ids = batches.map((b) => b.id);
-    this.selectedIds.update((current) => new Set([...current].filter((id) => !ids.includes(id))));
+    this.selection.remove(ids);
   }
 
   protected readonly pager = new Pager(

@@ -248,6 +248,51 @@ describe('ProductsPage', () => {
     });
   });
 
+  describe('selecting like a file explorer', () => {
+    const rowEl = (name: string): HTMLElement => bodyRows().find((r) => r.textContent?.includes(name))!;
+    const click = (target: HTMLElement, init: MouseEventInit = {}): void => {
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init }));
+    };
+    const selectedNames = (): string[] => bodyRows().filter((r) => r.getAttribute('aria-selected') === 'true').map((r) => r.querySelectorAll('[role="cell"]')[1]!.textContent!.trim());
+    const items = ['Apple', 'Bread', 'Cheese', 'Dates', 'Eggs'].map((name, i) => record(`p${i}`, name, { createdAt: 1000 - i }));
+
+    it('Ctrl + left click toggles a row and Shift + left click selects a range, without opening the product', async () => {
+      await open(items); // newest first: Apple, Bread, Cheese, Dates, Eggs
+      expect(rowNames()).toEqual(['Apple', 'Bread', 'Cheese', 'Dates', 'Eggs']);
+      click(rowEl('Bread'), { ctrlKey: true });
+      click(rowEl('Dates'), { ctrlKey: true });
+      await fixture.whenStable();
+      expect(selectedNames()).toEqual(['Bread', 'Dates']);
+      expect(dialog()).toBeNull();
+
+      click(rowEl('Eggs'), { shiftKey: true }); // from the last clicked row (Dates) to Eggs
+      await fixture.whenStable();
+      expect(selectedNames()).toEqual(['Dates', 'Eggs']);
+      expect(el.textContent).toContain('2 selected');
+      expect(dialog()).toBeNull();
+    });
+
+    it('Shift + clicking a checkbox ticks everything between it and the last one clicked', async () => {
+      await open(items);
+      const box = (name: string): HTMLElement => rowEl(name).querySelector('hlm-checkbox button, hlm-checkbox [role="checkbox"], hlm-checkbox input')!;
+      const cell = (name: string): HTMLElement => rowEl(name).querySelector('[role="cell"]')!;
+      box('Apple').click();
+      await fixture.whenStable();
+      cell('Cheese').dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, shiftKey: true }));
+      box('Cheese').click();
+      await fixture.whenStable();
+      expect(selectedNames()).toEqual(['Apple', 'Bread', 'Cheese']);
+    });
+
+    it('a plain click still opens the product', async () => {
+      await open(items);
+      click(rowEl('Cheese'));
+      await settle();
+      expect(dialog()?.textContent).toContain('Edit product');
+      expect(selectedNames()).toEqual([]);
+    });
+  });
+
   it('pages the table: 50 rows at a time', async () => {
     await open(Array.from({ length: 70 }, (_, i) => record(`p${i + 1}`, `Item ${i + 1}`)));
     expect(bodyRows()).toHaveLength(50);

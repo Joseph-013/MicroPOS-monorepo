@@ -96,10 +96,10 @@
                 [class.bg-muted]="isSelected(batch)"
                 [attr.aria-selected]="isSelected(batch)"
                 tabindex="0"
-                (click)="adjust(batch)"
+                (click)="onRowClick($event, batch)"
                 (keydown.enter)="$event.defaultPrevented || adjust(batch)"
               >
-                <div role="cell" class="flex items-center px-3" (click)="$event.stopPropagation()">
+                <div role="cell" class="flex items-center px-3" (pointerdown)="selection.noteModifiers($event)" (click)="$event.stopPropagation()">
                   <hlm-checkbox [aria-label]="'Select ' + batch.productName + (batch.batchNumber ? ' ' + batch.batchNumber : '')" [checked]="isSelected(batch)" (checkedChange)="toggleRow(batch, $event)" />
                 </div>
                 <div role="cell" class="truncate px-3 text-base">{{ batch.productName }}</div>

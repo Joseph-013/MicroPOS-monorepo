@@ -21,6 +21,7 @@ import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { BannerService } from '../../core/banner';
 import { EDIT_PRODUCT_PARAM } from '../../core/product-link';
 import { HIGHLIGHT_PARAM, scrollToRow, rowTarget } from '../../core/row-target';
+import { RowSelection } from '../../core/ui/row-selection';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { InventoryService } from '../../core/data/inventory.service';
 import { openRepackage } from '../inventory/repackage-form';
@@ -219,8 +220,8 @@ export class ProductsPage {
 
   // Selection (leftmost column). Only rows that are on screen count, so a filter can never hide a selected row
   // that a bulk action would still hit.
-  private readonly selectedIds = signal<ReadonlySet<string>>(new Set());
-  protected readonly selected = computed(() => this.pager.rows().filter((p) => this.selectedIds().has(p.id)));
+  protected readonly selection = new RowSelection(() => this.pager.rows());
+  protected readonly selected = computed(() => this.pager.rows().filter((p) => this.selection.has(p.id)));
   protected readonly selectedLive = computed(() => this.selected().filter((p) => !p.deletedAt));
   protected readonly selectedDeleted = computed(() => this.selected().filter((p) => !!p.deletedAt));
   /** Some, but not every, visible row is ticked: the select-all checkbox shows a dash. */
@@ -228,24 +229,24 @@ export class ProductsPage {
   protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.selected().length === this.pager.rows().length);
 
   protected isSelected(product: ProductRecord): boolean {
-    return this.selectedIds().has(product.id);
+    return this.selection.has(product.id);
   }
 
   protected toggleRow(product: ProductRecord, on: boolean): void {
-    this.selectedIds.update((ids) => {
-      const next = new Set(ids);
-      if (on) next.add(product.id);
-      else next.delete(product.id);
-      return next;
-    });
+    this.selection.toggle(product.id, on);
   }
 
   protected toggleAll(on: boolean): void {
-    this.selectedIds.set(on ? new Set(this.pager.rows().map((p) => p.id)) : new Set());
+    this.selection.selectAll(on);
+  }
+
+  /** A click on a row: Shift or Ctrl/Cmd selects (like a file explorer); a plain click opens it. */
+  protected onRowClick(event: MouseEvent, row: ProductRecord): void {
+    if (!this.selection.click(row.id, event)) this.edit(row);
   }
 
   protected clearSelection(): void {
-    this.selectedIds.set(new Set());
+    this.selection.clear();
   }
 
   // Delete / restore. Every route (button, context menu, swipe) goes through `ask`, which always confirms.
@@ -320,7 +321,7 @@ export class ProductsPage {
         });
       } else this.banner.success(`${result.restored === 1 ? '1 product' : `${result.restored} products`} restored`, { key: 'products-bulk' });
     }
-    this.selectedIds.update((current) => new Set([...current].filter((id) => !ids.includes(id))));
+    this.selection.remove(ids);
   }
 
   // Row motion. New rows grow in (not on the very first load), removed rows fold away, and a row whose data

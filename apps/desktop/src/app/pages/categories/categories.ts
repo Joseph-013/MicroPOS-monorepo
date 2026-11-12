@@ -18,6 +18,7 @@ import { CategoriesService } from '../../core/data/categories.service';
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
 import { rowTarget } from '../../core/row-target';
+import { RowSelection } from '../../core/ui/row-selection';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { CategoryForm, type CategoryFormContext } from './category-form';
@@ -126,29 +127,29 @@ export class CategoriesPage {
   }
 
   // Selection (leftmost column): only rows on screen count.
-  private readonly selectedIds = signal<ReadonlySet<string>>(new Set());
-  protected readonly selected = computed(() => this.pager.rows().filter((c) => this.selectedIds().has(c.id)));
+  protected readonly selection = new RowSelection(() => this.pager.rows());
+  protected readonly selected = computed(() => this.pager.rows().filter((c) => this.selection.has(c.id)));
   protected readonly selectedLive = computed(() => this.selected().filter((c) => !c.deletedAt));
   protected readonly selectedDeleted = computed(() => this.selected().filter((c) => !!c.deletedAt));
   protected readonly allSelected = computed(() => this.pager.rows().length > 0 && this.selected().length === this.pager.rows().length);
   protected readonly someSelected = computed(() => this.selected().length > 0 && !this.allSelected());
 
   protected isSelected(category: CategoryRecord): boolean {
-    return this.selectedIds().has(category.id);
+    return this.selection.has(category.id);
   }
   protected toggleRow(category: CategoryRecord, on: boolean): void {
-    this.selectedIds.update((ids) => {
-      const next = new Set(ids);
-      if (on) next.add(category.id);
-      else next.delete(category.id);
-      return next;
-    });
+    this.selection.toggle(category.id, on);
   }
   protected toggleAll(on: boolean): void {
-    this.selectedIds.set(on ? new Set(this.pager.rows().map((c) => c.id)) : new Set());
+    this.selection.selectAll(on);
   }
+  /** A click on a row: Shift or Ctrl/Cmd selects (like a file explorer); a plain click opens it. */
+  protected onRowClick(event: MouseEvent, row: CategoryRecord): void {
+    if (!this.selection.click(row.id, event)) this.edit(row);
+  }
+
   protected clearSelection(): void {
-    this.selectedIds.set(new Set());
+    this.selection.clear();
   }
 
   // Delete / restore. Every route (button, context menu, swipe) goes through `ask`, which always confirms.
@@ -202,7 +203,7 @@ export class CategoriesPage {
       } else this.banner.success(`${result.restored === 1 ? '1 category' : `${result.restored} categories`} restored`, { key: 'categories-bulk' });
     }
     void this.catalog.load(); // checkout and the product form list categories too
-    this.selectedIds.update((current) => new Set([...current].filter((id) => !ids.includes(id))));
+    this.selection.remove(ids);
   }
 
   protected toggleDeleted(on: boolean): void {
