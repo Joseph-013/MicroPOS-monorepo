@@ -4,7 +4,7 @@ import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
 import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from '../db/queries/categories';
 import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock } from '../db/queries/inventory';
-import { completeOrder, nextOrderNumber } from '../db/queries/orders';
+import { completeOrder, getOrder, listOrders, nextOrderNumber } from '../db/queries/orders';
 import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../db/queries/repackage-draft';
 import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/queries/product-draft';
@@ -51,6 +51,8 @@ export function registerIpcHandlers(db: AppDatabase): void {
   ipcMain.handle(CHANNELS.inventory.saveRepackageDraft, (_event, draft: unknown) => saveRepackageDraft(db, draft));
   ipcMain.handle(CHANNELS.inventory.clearRepackageDraft, () => clearRepackageDraft(db));
   ipcMain.handle(CHANNELS.scanner.setEnabled, (_event, on: unknown) => setScannerEnabled(on !== false));
+  ipcMain.handle(CHANNELS.orders.list, () => listOrders(db));
+  ipcMain.handle(CHANNELS.orders.get, (_event, id: unknown) => getOrder(db, id));
   ipcMain.handle(CHANNELS.checkout.loadDraft, () => loadDraft(db));
   // The payload comes from the renderer, so it is validated (sanitizeDraft) before it is stored.
   ipcMain.handle(CHANNELS.checkout.saveDraft, (_event, draft: unknown) => saveDraft(db, draft));

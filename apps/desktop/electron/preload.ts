@@ -47,6 +47,10 @@ const api: DesktopApi = {
     },
     setEnabled: (enabled) => ipcRenderer.invoke(CHANNELS.scanner.setEnabled, enabled),
   },
+  orders: {
+    list: () => ipcRenderer.invoke(CHANNELS.orders.list),
+    get: (id) => ipcRenderer.invoke(CHANNELS.orders.get, id),
+  },
   checkout: {
     loadDraft: () => ipcRenderer.invoke(CHANNELS.checkout.loadDraft),
     saveDraft: (draft) => ipcRenderer.invoke(CHANNELS.checkout.saveDraft, draft),

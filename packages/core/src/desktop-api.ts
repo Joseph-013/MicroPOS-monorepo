@@ -1,13 +1,13 @@
 import type { AdjustStockInput, BatchRecord, InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from './inventory.js';
 import type { CatalogCategory, CatalogProduct, CategoryInput, CategoryRecord, RestoreCategoriesResult, SaveCategoryResult, ProductDraft, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from './catalog.js';
-import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult } from './draft.js';
+import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
 
 /**
  * Version of the renderer <-> main process contract. Bump it (here and in `electron/ipc/channels.ts`, which a
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 17;
+export const DESKTOP_API_VERSION = 19;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -74,6 +74,12 @@ export interface DesktopApi {
     onScan(listener: (scan: { code: string }) => void): () => void;
     /** Turn scan detection on or off; off lets scanner keys through as ordinary typing. */
     setEnabled(enabled: boolean): Promise<void>;
+  };
+  orders: {
+    /** Every recorded order, newest first. */
+    list(): Promise<SalesOrderSummary[]>;
+    /** One recorded order with its lines and payments, or null when there is no such order. */
+    get(id: string): Promise<SalesOrderDetail | null>;
   };
   checkout: {
     /** The saved order in progress, or null when there is none. */

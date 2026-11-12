@@ -6,9 +6,12 @@ import {
   type OrderLineProblem,
   ORDER_PAYMENT_METHODS,
   type OrderPaymentMethod,
+  type SalesOrderDetail,
+  type SalesOrderSummary,
   type ProductUnit,
 } from '@micropos/core';
 import type { AppDatabase } from '../index';
+import { asc } from 'drizzle-orm';
 import { employees, orderLines, orders, payments, products, settings } from '../schema';
 import { allocateSale } from './inventory';
 import { DRAFT_KEY } from './draft';
@@ -169,4 +172,53 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
     if (error instanceof Rollback) return error.result;
     throw error;
   }
+}
+
+/** One order with its lines and payments for viewing, or null when `id` is not an order. */
+export function getOrder(db: AppDatabase, id: unknown): SalesOrderDetail | null {
+  if (typeof id !== 'string') return null;
+  const [order] = db
+    .select({ order: orders, employeeName: employees.name })
+    .from(orders)
+    .innerJoin(employees, eq(employees.id, orders.employeeId))
+    .where(eq(orders.id, id))
+    .all();
+  if (!order) return null;
+  const lines = db
+    .select({ line: orderLines, unit: products.unit })
+    .from(orderLines)
+    .leftJoin(products, eq(products.id, orderLines.productId))
+    .where(eq(orderLines.orderId, id))
+    .orderBy(asc(orderLines.id))
+    .all();
+  const paid = db.select().from(payments).where(eq(payments.orderId, id)).orderBy(asc(payments.createdAt)).all();
+  const o = order.order;
+  return {
+    id: o.id,
+    orderNumber: o.orderNumber,
+    status: o.status,
+    employeeName: order.employeeName,
+    subtotal: o.subtotal,
+    discountTotal: o.discountTotal,
+    total: o.total,
+    createdAt: o.createdAt,
+    completedAt: o.completedAt,
+    lines: lines.map(({ line, unit }) => ({ id: line.id, productId: line.productId, name: line.name, unitPrice: line.unitPrice, quantityMilli: line.quantityMilli, lineTotal: line.lineTotal, unit })),
+    payments: paid.map((p) => ({ method: p.method, amount: p.amount, tendered: p.tendered, change: p.change, reference: p.reference })),
+  };
+}
+
+/** Every order for the Sales Orders list, newest first. */
+export function listOrders(db: AppDatabase): SalesOrderSummary[] {
+  const rows = db.$client
+    .prepare(
+      `SELECT o.id AS id, o.order_number AS orderNumber, o.status AS status, e.name AS employeeName, o.total AS total,
+              o.created_at AS createdAt,
+              (SELECT COUNT(*) FROM order_lines l WHERE l.order_id = o.id) AS itemCount,
+              (SELECT GROUP_CONCAT(method) FROM (SELECT method FROM payments p WHERE p.order_id = o.id ORDER BY p.created_at, p.id)) AS methods
+         FROM orders o JOIN employees e ON e.id = o.employee_id
+        ORDER BY o.created_at DESC, o.order_number DESC`,
+    )
+    .all() as (Omit<SalesOrderSummary, 'methods'> & { methods: string | null })[];
+  return rows.map((r) => ({ ...r, methods: r.methods ? (r.methods.split(',') as OrderPaymentMethod[]) : [] }));
 }

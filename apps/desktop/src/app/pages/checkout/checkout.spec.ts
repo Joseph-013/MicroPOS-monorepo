@@ -75,6 +75,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       saveDraft: () => Promise.resolve(),
       clearDraft: () => Promise.resolve(),
     },
+    orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null) },
     checkout: {
       loadDraft: () => Promise.resolve(store.draft),
       saveDraft: (draft) => {

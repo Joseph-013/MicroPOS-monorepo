@@ -48,3 +48,33 @@ export interface OrderLineProblem {
 export type CompleteOrderResult =
   | { ok: true; orderId: string; orderNumber: string; total: Money; change: Money }
   | { ok: false; error: string; lines: OrderLineProblem[] };
+
+/** A recorded sales order as shown when viewing it. */
+export interface SalesOrderDetail {
+  id: string;
+  orderNumber: string;
+  status: 'open' | 'completed' | 'voided' | 'refunded';
+  /** Who rang it up. */
+  employeeName: string;
+  subtotal: Money;
+  discountTotal: Money;
+  total: Money;
+  createdAt: number;
+  completedAt: number | null;
+  lines: { id: string; /** Null when the product was removed for good. */ productId: string | null; name: string; unitPrice: Money; quantityMilli: number; lineTotal: Money; unit: ProductUnit | null }[];
+  payments: { method: OrderPaymentMethod; amount: Money; tendered: Money | null; change: Money | null; reference: string | null }[];
+}
+
+/** One row of the Sales Orders list. */
+export interface SalesOrderSummary {
+  id: string;
+  orderNumber: string;
+  status: SalesOrderDetail['status'];
+  employeeName: string;
+  total: Money;
+  createdAt: number;
+  /** Number of lines. */
+  itemCount: number;
+  /** Payment methods used, in order ("cash", or "cash, card" for a split). */
+  methods: OrderPaymentMethod[];
+}

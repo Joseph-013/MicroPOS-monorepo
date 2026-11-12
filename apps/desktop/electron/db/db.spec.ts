@@ -30,7 +30,7 @@ import { createCategory, deleteCategories, listCategoryRecords, restoreCategorie
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from './queries/repackage-draft';
 import { adjustStock, allocateSale, inventoryOverview, listBatches, receiveStock, repackageStock, restockSale } from './queries/inventory';
 import { clearProductDraft, loadProductDraft, sanitizeProductDraft, saveProductDraft } from './queries/product-draft';
-import { completeOrder, nextOrderNumber } from './queries/orders';
+import { completeOrder, getOrder, listOrders, nextOrderNumber } from './queries/orders';
 import { clearDraft, DRAFT_KEY, loadDraft, sanitizeDraft, saveDraft } from './queries/draft';
 import { isScaleBarcode, KNOWN_BARCODES, scalePlu, scaleWeightGrams } from './factories/known-barcodes';
 import { ean13CheckDigit } from './factories/ean13';
@@ -728,6 +728,28 @@ describe('inventory: batches, expiry and the stock ledger', () => {
       expect(db.select().from(payments).where(eq(payments.orderId, result.orderId)).all()).toMatchObject([{ method: 'cash', amount: 450, tendered: 1_000, change: 550 }]);
       expect(onHand(milk.id)).toBe(8_000);
       expect(loadDraft(db)).toBeNull();
+    });
+
+    it('reads an order back with its lines, payments and who sold it, and lists orders newest first', () => {
+      const beef = product('none', { unit: 'kg', price: 899 });
+      const bread = product('none', { price: 300 });
+      const first = ok(completeOrder(db, { lines: [{ productId: bread.id, quantityMilli: 1_000, unitPrice: 300 }], discount: 0, payment: { method: 'cash', tendered: 500 } }, 1_000));
+      const second = ok(completeOrder(db, { lines: [{ productId: beef.id, quantityMilli: 1_500, unitPrice: 899 }, { productId: bread.id, quantityMilli: 2_000, unitPrice: 300 }], discount: 100, payment: { method: 'card', reference: 'S1' } }, 2_000));
+
+      const detail = getOrder(db, second.orderId)!;
+      expect(detail).toMatchObject({ orderNumber: 'SO-1002', status: 'completed', employeeName: 'Register', subtotal: 1_949, discountTotal: 100, total: 1_849, completedAt: 2_000 });
+      expect(detail.lines.map((l) => [l.name, l.quantityMilli, l.lineTotal, l.unit])).toEqual(
+        expect.arrayContaining([[beef.name, 1_500, 1_349, 'kg'], [bread.name, 2_000, 600, 'each']]),
+      );
+      expect(detail.payments).toEqual([{ method: 'card', amount: 1_849, tendered: null, change: null, reference: 'S1' }]);
+      expect(detail.lines.map((l) => l.productId).sort()).toEqual([beef.id, bread.id].sort());
+      expect(getOrder(db, 'nope')).toBeNull();
+      expect(getOrder(db, 42)).toBeNull();
+
+      const list = listOrders(db);
+      expect(list.map((o) => o.orderNumber)).toEqual(['SO-1002', 'SO-1001']);
+      expect(list[0]).toMatchObject({ id: second.orderId, employeeName: 'Register', total: 1_849, itemCount: 2, methods: ['card'] });
+      expect(list[1]).toMatchObject({ id: first.orderId, itemCount: 1, methods: ['cash'] });
     });
 
     it('prices a weighed line from its weight', () => {
