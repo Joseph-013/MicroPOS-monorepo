@@ -56,3 +56,4 @@ export { DESKTOP_API_VERSION, type DesktopApi } from './desktop-api.js';
 export { ORDER_PAYMENT_METHODS } from './draft.js';
 export type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, DraftLine, OrderLineProblem, OrderPaymentMethod } from './draft.js';
 export { formatQuantity, lineTotal, MAX_QUANTITY_DECIMALS, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from './quantity.js';
+export { gramsToQuantityMilli, isScaleBarcode, parseScaleBarcode, type ScaleLabel } from './scale-barcode.js';
