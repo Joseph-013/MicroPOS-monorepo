@@ -25,6 +25,7 @@ Each app gets its own CLAUDE.md with app-specific notes once scaffolded.
 - Depend on core with `"@micropos/core": "workspace:*"`.
 - better-sqlite3 is used only in Electron's main process; the renderer reaches it over IPC. Mobile cannot use it.
 - Whenever the system changes (a new page, feature, setting, IPC call or action), check whether permissions need updating: a new `Permission` or preset entry in `packages/core/src/auth.ts`, a `guarded()` channel in `electron/ipc/index.ts`, a route `requires()` and a nav entry. Details in `apps/desktop/CLAUDE.md` (Users and permissions).
+- Always check new or changed UI for overflow before calling it done, and fix it proactively: long names and values, many rows, large quantities and amounts, narrow windows, large text and the on-screen keyboard. Truncate with `min-w-0` + `truncate`, wrap, scroll inside the container, or let the element grow within a sensible maximum; never let content push a layout wider than the window or hide a button.
 - Every update of the desktop app bumps `version` in `apps/desktop/package.json` in the same change (patch fix, minor feature, major breaking or data reset); the Windows installer only upgrades to a higher version. Claude makes the bump (and names the version in its report) without being asked. Details in `apps/desktop/CLAUDE.md`.
 
 ## Docs
