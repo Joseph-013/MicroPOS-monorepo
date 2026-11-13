@@ -7,8 +7,6 @@ import { MoneyPipe } from '../../core/money.pipe';
 
 /** How long the thank-you stays before the welcome screen returns. */
 export const PAID_SCREEN_MS = 10_000;
-/** How long the line that was just scanned stays highlighted. */
-export const HIGHLIGHT_MS = 2_500;
 
 /**
  * What the customer sees at the till: the items as they are scanned with a running total, a thank-you once the sale is
@@ -72,11 +70,10 @@ export class CustomerDisplayPage {
   protected readonly shopping = computed(() => this.state().phase === 'shopping');
   protected readonly receipt = computed(() => (this.state().phase === 'paid' ? this.state().receipt : null));
   protected readonly itemCount = computed(() => this.state().lines.length);
-  /** The line that was added or changed by the latest update, highlighted for a moment. */
-  protected readonly highlighted = signal<number | null>(null);
+  /** The line Checkout added or changed last: it stays highlighted until another line is touched. */
+  protected readonly highlighted = computed(() => (this.state().phase === 'shopping' ? this.state().highlight : null));
 
   private readonly list = viewChild<ElementRef<HTMLElement>>('list');
-  private highlightTimer: ReturnType<typeof setTimeout> | undefined;
   private paidTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
@@ -85,37 +82,24 @@ export class CustomerDisplayPage {
       this.api.display.getState().then((state) => this.receive(state), () => undefined);
       destroy.onDestroy(this.api.display.onState((state) => this.receive(state)));
     }
-    destroy.onDestroy(() => {
-      clearTimeout(this.highlightTimer);
-      clearTimeout(this.paidTimer);
-    });
+    destroy.onDestroy(() => clearTimeout(this.paidTimer));
     // UI scale (Settings > Customer Display): everything here is sized in rem, so scaling the root size scales it all.
     effect(() => (document.documentElement.style.fontSize = `${this.settings.customerDisplayScale()}%`));
     destroy.onDestroy(() => (document.documentElement.style.fontSize = ''));
-    // The newest line is at the bottom: keep it in view as lines are added.
+    // Keep the highlighted line (the latest added or changed) in view, wherever it is in the list.
     effect(() => {
-      this.state();
+      this.state(); // also when the same line changes again
+      const index = this.highlighted();
       const list = this.list()?.nativeElement;
-      if (list) queueMicrotask(() => (list.scrollTop = list.scrollHeight));
+      if (list && index !== null) queueMicrotask(() => (list.children[index] as HTMLElement | undefined)?.scrollIntoView?.({ block: 'nearest' }));
     });
   }
 
   private receive(next: CustomerDisplayState): void {
-    const before = this.latest().lines;
     this.latest.set(next);
     this.paidExpired.set(false);
     clearTimeout(this.paidTimer);
     if (next.phase === 'paid') this.paidTimer = setTimeout(() => this.paidExpired.set(true), PAID_SCREEN_MS);
-
-    // Highlight what just changed: the first line that is new or differs from what was shown (the last one on a tie).
-    let changed: number | null = null;
-    next.lines.forEach((line, i) => {
-      const old = before[i];
-      if (!old || old.quantityMilli !== line.quantityMilli || old.unitPrice !== line.unitPrice || old.name !== line.name) changed = i;
-    });
-    clearTimeout(this.highlightTimer);
-    this.highlighted.set(next.phase === 'shopping' ? changed : null);
-    if (changed !== null) this.highlightTimer = setTimeout(() => this.highlighted.set(null), HIGHLIGHT_MS);
   }
 
   protected quantity(line: CustomerDisplayLine): string {

@@ -130,11 +130,13 @@
         <ul class="divide-border flex flex-col divide-y">
           @for (line of lineTotals(); track line.productId) {
             <li
+              [attr.data-row-id]="line.productId"
               [hlmContextMenuTrigger]="lineMenu"
               [hlmContextMenuTriggerData]="{ $implicit: line }"
             >
               <app-swipe-actions [swipeLeft]="lineSwipeLeft" (action)="runLineAction($event, line)">
-                <div class="grid grid-cols-[minmax(0,1fr)_auto_6rem] items-center gap-4 px-3 py-3">
+                <!-- The line added or changed last stays highlighted (the class goes on the row inside the swipe wrapper). -->
+                <div class="grid grid-cols-[minmax(0,1fr)_auto_6rem] items-center gap-4 px-3 py-3" [class.row-target]="highlightId() === line.productId">
                   <div class="min-w-0">
                     <p class="truncate text-base">{{ line.name }}</p>
                     <p class="text-muted-foreground text-sm">

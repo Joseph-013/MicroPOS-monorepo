@@ -31,8 +31,10 @@ export interface CustomerDisplayState {
   /** In the order they were added. */
   lines: CustomerDisplayLine[];
   total: Money;
+  /** Index in `lines` of the line added or changed last, which both screens keep highlighted and scrolled into view; null when none. */
+  highlight: number | null;
   /** Set when `phase` is `paid`. */
   receipt: CustomerDisplayReceipt | null;
 }
 
-export const IDLE_DISPLAY_STATE: CustomerDisplayState = { phase: 'idle', lines: [], total: 0, receipt: null };
+export const IDLE_DISPLAY_STATE: CustomerDisplayState = { phase: 'idle', lines: [], total: 0, highlight: null, receipt: null };

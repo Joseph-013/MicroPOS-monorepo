@@ -16,6 +16,7 @@ import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { BannerService } from '../../core/banner';
+import { scrollToRow } from '../../core/row-target';
 import { CatalogService } from '../../core/data/catalog.service';
 import { CustomerDisplayService } from '../../core/customer-display.service';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
@@ -154,14 +155,27 @@ export class CheckoutPage {
       );
   });
 
+  /** The line added or changed last: it stays highlighted (and was scrolled into view) until another line is touched. */
+  private readonly lastTouched = signal<string | null>(null);
+  protected readonly highlightId = computed(() => (this.lines().some((l) => l.productId === this.lastTouched()) ? this.lastTouched() : null));
+
+  /** Marks a line as the latest one added or changed and brings it into view (the customer display shows the same line). */
+  private touch(productId: string): void {
+    this.lastTouched.set(productId);
+    scrollToRow(productId);
+  }
+
   /** The sale just completed, shown on the customer display (thank-you and change) until the next item is scanned. */
   private readonly paidSale = signal<{ receipt: CustomerDisplayReceipt; lines: CustomerDisplayLine[] } | null>(null);
   /** What the customer sees: the order as it is rung up, the thank-you right after paying, or the welcome screen. */
   private readonly displayState = computed<CustomerDisplayState>(() => {
     const lines = this.lineTotals().map((l) => ({ name: l.name, unit: l.unit, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice, total: l.total }));
-    if (lines.length) return { phase: 'shopping', lines, total: this.total(), receipt: null };
+    if (lines.length) {
+      const highlight = this.lineTotals().findIndex((l) => l.productId === this.highlightId());
+      return { phase: 'shopping', lines, total: this.total(), highlight: highlight >= 0 ? highlight : null, receipt: null };
+    }
     const sale = this.paidSale();
-    return sale ? { phase: 'paid', lines: sale.lines, total: sale.receipt.total, receipt: sale.receipt } : IDLE_DISPLAY_STATE;
+    return sale ? { phase: 'paid', lines: sale.lines, total: sale.receipt.total, highlight: null, receipt: sale.receipt } : IDLE_DISPLAY_STATE;
   });
 
   /** True once the saved draft has been read; saving waits for this so an empty start never overwrites it. */
@@ -216,6 +230,7 @@ export class CheckoutPage {
         ? lines.map((l) => (l.productId === product.id ? { ...l, quantityMilli: this.clamp(l.quantityMilli + quantityMilli) } : l))
         : [...lines, { productId: product.id, name: product.name, quantityMilli: this.clamp(quantityMilli), unitPrice: product.price, unit: product.unit }],
     );
+    this.touch(product.id);
     return true;
   }
 
@@ -247,6 +262,7 @@ export class CheckoutPage {
           : lines.map((l) => (l.productId === product.id ? { ...l, quantityMilli: this.clamp(l.quantityMilli + MILLI) } : l))
         : [...lines, { productId: product.id, name: product.name, quantityMilli: MILLI, unitPrice: product.price, unit: product.unit }],
     );
+    this.touch(product.id);
     // Weighed items need their weight: open the quantity field right away.
     if (weighed) this.inlineEditing.set(product.id);
   }
@@ -267,6 +283,7 @@ export class CheckoutPage {
         })
         .filter((l) => l.quantityMilli > 0),
     );
+    this.touch(productId);
   }
 
   private clamp(quantityMilli: number): number {
@@ -300,6 +317,7 @@ export class CheckoutPage {
     const quantityMilli = keep ? parseQuantityMilli(text) : null;
     if (quantityMilli === null) return;
     this.lines.update((lines) => lines.map((l) => (l.productId === line.productId ? { ...l, quantityMilli } : l)));
+    this.touch(line.productId);
   }
 
   /** Takes one line off the order (context menu or swipe). */
@@ -315,6 +333,7 @@ export class CheckoutPage {
 
   private resetOrder(): void {
     this.paidSale.set(null);
+    this.lastTouched.set(null);
     this.lines.set([]);
     this.discount.set(0);
     this.tenderedText.set('');

@@ -647,6 +647,7 @@ describe('CheckoutPage', () => {
         phase: 'shopping',
         lines: [{ name: 'Whole Milk (1 gal)', unit: 'each', quantityMilli: 2000, unitPrice: 429, total: 858 }],
         total: 858,
+        highlight: 0,
         receipt: null,
       });
     });
@@ -681,7 +682,53 @@ describe('CheckoutPage', () => {
 
       scan(PRODUCTS[1].barcode!); // the next customer
       await fixture.whenStable();
-      expect(last()).toMatchObject({ phase: 'shopping', receipt: null, total: 429 });
+      expect(last()).toMatchObject({ phase: 'shopping', receipt: null, total: 429, highlight: 0 });
+    });
+  });
+
+  describe('highlighting the latest line', () => {
+    beforeEach(() => open());
+    const marked = (): string[] => [...el.querySelectorAll('li[data-row-id]')].filter((li) => li.querySelector('.row-target')).map((li) => li.textContent!.replace(/\s+/g, ' ').trim().slice(0, 12));
+    const last = (): CustomerDisplayState => store.published.at(-1)!;
+
+    it('highlights the line that was added or changed last, keeps it highlighted, and moves it when another is touched', async () => {
+      scan(PRODUCTS[1].barcode!); // Whole Milk
+      await fixture.whenStable();
+      expect(marked()).toEqual([expect.stringContaining('Whole Milk')]);
+      scan(PRODUCTS[0].barcode!);
+      await fixture.whenStable();
+      expect(marked()).toEqual([expect.stringContaining(PRODUCTS[0].name.slice(0, 8))]);
+      expect(last().highlight).toBe(1); // the customer display is told which line
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(marked()).toHaveLength(1); // no timeout
+
+      scan(PRODUCTS[1].barcode!); // the first line again: its quantity changes
+      await fixture.whenStable();
+      expect(marked()).toEqual([expect.stringContaining('Whole Milk')]);
+      expect(last().highlight).toBe(0);
+    });
+
+    it('moves the highlight when a quantity is stepped with + or -', async () => {
+      scan(PRODUCTS[1].barcode!);
+      scan(PRODUCTS[0].barcode!);
+      await fixture.whenStable();
+      (el.querySelector('li[data-row-id] button[aria-label="Increase quantity"]') as HTMLButtonElement).click(); // the first line
+      await fixture.whenStable();
+      expect(last().highlight).toBe(0);
+      expect(marked()).toEqual([expect.stringContaining('Whole Milk')]);
+    });
+
+    it('drops the highlight when the order is cleared', async () => {
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      expect(last().highlight).toBe(0);
+      buttonByText(el, 'Clear').click();
+      await fixture.whenStable();
+      ([...document.querySelectorAll('[hlmAlertDialogAction]')].pop() as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(marked()).toEqual([]);
+      expect(last().highlight).toBeNull();
     });
   });
 

@@ -2,10 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { type CustomerDisplayState, type DesktopApi, IDLE_DISPLAY_STATE } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { AppSettings } from '../../core/settings/app-settings.service';
-import { CustomerDisplayPage, HIGHLIGHT_MS, PAID_SCREEN_MS } from './customer-display';
+import { CustomerDisplayPage, PAID_SCREEN_MS } from './customer-display';
 
 const line = (name: string, quantityMilli: number, unitPrice: number, unit = 'each') => ({ name, unit, quantityMilli, unitPrice, total: Math.round((quantityMilli * unitPrice) / 1000) });
-const shopping = (lines: ReturnType<typeof line>[]): CustomerDisplayState => ({ phase: 'shopping', lines, total: lines.reduce((s, l) => s + l.total, 0), receipt: null });
+const shopping = (lines: ReturnType<typeof line>[], highlight: number | null = lines.length - 1): CustomerDisplayState => ({ phase: 'shopping', lines, total: lines.reduce((s, l) => s + l.total, 0), highlight, receipt: null });
 
 /** A fake main process: holds the latest state and lets the test push new ones to the page. */
 function setup(initial: CustomerDisplayState = IDLE_DISPLAY_STATE) {
@@ -65,26 +65,52 @@ describe('CustomerDisplayPage', () => {
     expect(el.textContent).toContain('1 item');
   });
 
-  it('highlights the line that was just added or changed, for a moment', async () => {
+  it('highlights the line Checkout says was added or changed last, and keeps it highlighted', async () => {
     const { fixture, el, send } = setup();
     await fixture.whenStable();
-    await send(shopping([line('Eggs', 1_000, 1_500)]));
-    await send(shopping([line('Eggs', 1_000, 1_500), line('Milk', 1_000, 4_000)]));
     const rows = (): HTMLElement[] => [...el.querySelectorAll<HTMLElement>('li')];
-    expect(rows().map((r) => r.classList.contains('row-target'))).toEqual([false, true]);
+    const marked = (): boolean[] => rows().map((r) => r.classList.contains('row-target'));
 
-    await send(shopping([line('Eggs', 2_000, 1_500), line('Milk', 1_000, 4_000)])); // the first one changed
-    expect(rows().map((r) => r.classList.contains('row-target'))).toEqual([true, false]);
+    await send(shopping([line('Eggs', 1_000, 1_500)]));
+    expect(marked()).toEqual([true]);
+    await send(shopping([line('Eggs', 1_000, 1_500), line('Milk', 1_000, 4_000)])); // a new line
+    expect(marked()).toEqual([false, true]);
+    await send(shopping([line('Eggs', 2_000, 1_500), line('Milk', 1_000, 4_000)], 0)); // an earlier line changed
+    expect(marked()).toEqual([true, false]);
 
-    vi.advanceTimersByTime(HIGHLIGHT_MS + 10);
+    vi.advanceTimersByTime(60_000); // no timeout: it stays until another line is touched
     await fixture.whenStable();
-    expect(rows().some((r) => r.classList.contains('row-target'))).toBe(false);
+    expect(marked()).toEqual([true, false]);
+    await send(shopping([line('Eggs', 2_000, 1_500), line('Milk', 1_000, 4_000)], 0)); // published again, nothing new
+    expect(marked()).toEqual([true, false]);
+  });
+
+  it('scrolls the highlighted line into view, wherever it is in the list', async () => {
+    const { fixture, el, send } = setup();
+    await fixture.whenStable();
+    const scrolled: string[] = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.textContent ?? '');
+    };
+    try {
+      const lines = [line('Eggs', 1_000, 1_500), line('Milk', 1_000, 4_000), line('Rice', 1_000, 5_000)];
+      await send(shopping(lines, 2));
+      await Promise.resolve();
+      expect(scrolled.at(-1)).toContain('Rice');
+      await send(shopping([line('Eggs', 3_000, 1_500), ...lines.slice(1)], 0)); // the first one changed, far from the bottom
+      await Promise.resolve();
+      expect(scrolled.at(-1)).toContain('Eggs');
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+    expect(el.querySelectorAll('li')).toHaveLength(3);
   });
 
   it('thanks the customer after the sale, with change and what went on account, then welcomes the next', async () => {
     const { fixture, el, send } = setup();
     await fixture.whenStable();
-    await send({ phase: 'paid', lines: [line('Eggs', 1_000, 1_500)], total: 1_500, receipt: { orderNumber: 'SO-1001', total: 1_500, change: 500, onAccount: 300 } });
+    await send({ phase: 'paid', lines: [line('Eggs', 1_000, 1_500)], total: 1_500, highlight: null, receipt: { orderNumber: 'SO-1001', total: 1_500, change: 500, onAccount: 300 } });
     const text = el.textContent!.replace(/\s+/g, ' ');
     expect(text).toContain('Thank you!');
     expect(text).toContain('₱15.00');
@@ -103,7 +129,7 @@ describe('CustomerDisplayPage', () => {
   it('leaves out change and account lines that do not apply', async () => {
     const { fixture, el, send } = setup();
     await fixture.whenStable();
-    await send({ phase: 'paid', lines: [], total: 1_500, receipt: { orderNumber: 'SO-1', total: 1_500, change: 0, onAccount: 0 } });
+    await send({ phase: 'paid', lines: [], total: 1_500, highlight: null, receipt: { orderNumber: 'SO-1', total: 1_500, change: 0, onAccount: 0 } });
     expect(el.textContent).not.toContain('Change');
     expect(el.textContent).not.toContain('account');
   });

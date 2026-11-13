@@ -29,5 +29,6 @@ export function sanitizeDisplayState(value: unknown): CustomerDisplayState {
     receipt = { orderNumber: r['orderNumber'], total: r['total'], change: r['change'], onAccount: r['onAccount'] };
   }
   if (phase === 'paid' && !receipt) return IDLE_DISPLAY_STATE;
-  return { phase, lines: lines as CustomerDisplayLine[], total: v['total'], receipt };
+  const highlight = isInt(v['highlight'], MAX_LINES) && v['highlight'] < lines.length ? v['highlight'] : null; // a missing or out-of-range index is just no highlight
+  return { phase, lines: lines as CustomerDisplayLine[], total: v['total'], highlight, receipt };
 }
