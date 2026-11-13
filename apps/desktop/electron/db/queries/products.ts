@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
-import type { ProductField, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from '@micropos/core';
+import { MAX_QUANTITY_UNITS, type ProductField, type ProductInput, type ProductRecord, type RestoreProductsResult, type SaveProductResult } from '@micropos/core';
 import type { AppDatabase } from '../index';
 import { categories, PRODUCT_TRACKING, type ProductTracking, PRODUCT_UNITS, type ProductUnit, productCategories, products } from '../schema';
 import { categoriesByProduct } from './catalog';
@@ -47,6 +47,15 @@ export function sanitizeProductInput(value: unknown): ProductInput | Invalid {
     }
     shelfLifeDays = days;
   }
+  // A critical level only means something for products whose stock is tracked.
+  let criticalLevelMilli: number | null = null;
+  if (tracking !== 'none' && v['criticalLevelMilli'] !== null && v['criticalLevelMilli'] !== undefined) {
+    const level = v['criticalLevelMilli'];
+    if (typeof level !== 'number' || !Number.isInteger(level) || level < 1 || level > MAX_QUANTITY_UNITS * 1000) {
+      return { field: 'criticalLevel', error: 'Enter a quantity' };
+    }
+    criticalLevelMilli = level;
+  }
   const ids = v['categoryIds'];
   if (!Array.isArray(ids) || ids.length > MAX_CATEGORIES || ids.some((id) => typeof id !== 'string')) {
     return { field: null, error: 'Categories are not valid' };
@@ -56,6 +65,7 @@ export function sanitizeProductInput(value: unknown): ProductInput | Invalid {
     unit: unit as ProductUnit,
     tracking: tracking as ProductTracking,
     shelfLifeDays,
+    criticalLevelMilli,
     sku,
     barcode,
     price: v['price'],
@@ -79,6 +89,7 @@ function selectRecords(db: AppDatabase, where: ReturnType<typeof and> | undefine
       unit: products.unit,
       tracking: products.tracking,
       shelfLifeDays: products.shelfLifeDays,
+      criticalLevelMilli: products.criticalLevelMilli,
       active: products.active,
       createdAt: products.createdAt,
       deletedAt: products.deletedAt,

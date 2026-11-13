@@ -109,6 +109,10 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
   );
   const extraRows = Array.from({ length: options.extraProducts ?? 24 }, (_, i) => buildProduct(knownRows.length + SAMPLE_PRODUCTS.length + i + 1, {}, start - DAY));
   const productRows = [...knownRows, ...sampleRows, ...extraRows];
+  // Most products whose stock is tracked have a critical level (a few units), so the stock concerns have something to show.
+  for (const p of productRows) {
+    if ((p.tracking ?? 'none') !== 'none' && faker.number.int({ min: 0, max: 9 }) < 7) p.criticalLevelMilli = (p.unit && p.unit !== 'each' ? faker.number.int({ min: 2, max: 8 }) : faker.number.int({ min: 3, max: 15 })) * 1000;
+  }
   // Every product belongs to one to three categories (the sample products have theirs written out).
   const productCategoryRows: NewProductCategory[] = productRows.flatMap((product, i) => {
     const sample = SAMPLE_PRODUCTS[i - knownRows.length];

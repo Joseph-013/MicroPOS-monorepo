@@ -33,6 +33,8 @@ export const products = sqliteTable(
     tracking: text({ enum: PRODUCT_TRACKING }).notNull().default('none'),
     /** Days from receiving to expiry; pre-fills the expiry date when stock arrives (tracking `expiry`). */
     shelfLifeDays: integer(),
+    /** Stock at or below this (thousandths of the unit) is flagged as low; null for no level. Only for products that track stock. */
+    criticalLevelMilli: integer(),
     active: integer({ mode: 'boolean' }).notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -45,6 +47,7 @@ export const products = sqliteTable(
     check('products_unit_valid', sql`${t.unit} IN ('each', 'kg', 'g', 'lb', 'oz')`),
     check('products_tracking_valid', sql`${t.tracking} IN ('none', 'quantity', 'batch', 'expiry')`),
     check('products_shelf_life_positive', sql`${t.shelfLifeDays} IS NULL OR ${t.shelfLifeDays} > 0`),
+    check('products_critical_level_positive', sql`${t.criticalLevelMilli} IS NULL OR ${t.criticalLevelMilli} > 0`),
     check('products_price_non_negative', sql`${t.price} >= 0`),
   ],
 );

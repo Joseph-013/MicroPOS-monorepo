@@ -533,7 +533,7 @@ describe('product management', () => {
 });
 
 describe('product form drafts', () => {
-  const draft = { name: 'Tea', unit: 'kg' as const, tracking: 'expiry' as const, shelfLifeDays: '7', sku: 'T-1', barcode: '4011', price: '12.5', cost: '', active: false, categoryIds: ['c1'] };
+  const draft = { name: 'Tea', unit: 'kg' as const, tracking: 'expiry' as const, shelfLifeDays: '7', criticalLevel: '5', sku: 'T-1', barcode: '4011', price: '12.5', cost: '', active: false, categoryIds: ['c1'] };
 
   it('saves, replaces, loads and clears a draft per form', () => {
     expect(loadProductDraft(db, 'new')).toBeNull();
@@ -550,7 +550,7 @@ describe('product form drafts', () => {
 
   it('sanitizes what the renderer sends and ignores malformed form keys', () => {
     expect(sanitizeProductDraft({ name: 5, unit: 'stone', categoryIds: ['a', 'a', 7], active: 'x' })).toEqual({
-      name: '', unit: 'each', tracking: 'none', shelfLifeDays: '', sku: '', barcode: '', price: '', cost: '', active: true, categoryIds: ['a'],
+      name: '', unit: 'each', tracking: 'none', shelfLifeDays: '', criticalLevel: '', sku: '', barcode: '', price: '', cost: '', active: true, categoryIds: ['a'],
     });
     saveProductDraft(db, 42, draft);
     saveProductDraft(db, '', draft);

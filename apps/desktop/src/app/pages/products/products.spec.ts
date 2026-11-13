@@ -34,6 +34,7 @@ const record = (id: string, name: string, over: Partial<ProductRecord> = {}): Pr
   unit: 'each',
   tracking: 'none',
   shelfLifeDays: null,
+  criticalLevelMilli: null,
   onHandMilli: null,
   nextExpiry: null,
   active: true,
@@ -77,6 +78,7 @@ function fakeApi(initial: ProductRecord[]) {
     },
     inventory: {
       listBatches: () => Promise.resolve([]),
+      concerns: () => Promise.resolve([]),
       overview: () => Promise.reject(new Error('unused')),
       receive: () => Promise.reject(new Error('unused')),
       adjust: () => Promise.reject(new Error('unused')),
@@ -124,7 +126,7 @@ function fakeApi(initial: ProductRecord[]) {
     auth: { status: () => Promise.resolve(null), choices: () => Promise.resolve([]), signIn: () => Promise.reject(new Error('unused')), signOut: () => Promise.resolve(), changePin: () => Promise.reject(new Error('unused')) },
     users: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), resetPin: () => Promise.reject(new Error('unused')), signInLog: () => Promise.resolve([]) },
     suppliers: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve() },
-    purchases: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), pay: () => Promise.reject(new Error('unused')), cancel: () => Promise.reject(new Error('unused')) },
+    purchases: { concerns: () => Promise.resolve([]), list: () => Promise.resolve([]), get: () => Promise.resolve(null), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), pay: () => Promise.reject(new Error('unused')), cancel: () => Promise.reject(new Error('unused')) },
     orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), void: () => Promise.reject(new Error('unused')), refund: () => Promise.reject(new Error('unused')) },
     checkout: { nextOrderNumber: () => Promise.resolve('SO-1001'), completeOrder: () => Promise.reject(new Error('unused')), loadDraft: () => Promise.resolve(null), saveDraft: () => Promise.resolve(), clearDraft: () => Promise.resolve() },
   };
@@ -546,6 +548,28 @@ describe('ProductsPage', () => {
       await settle();
       expect(calls.create[0]).toMatchObject({ tracking: 'expiry', shelfLifeDays: 14 });
     });
+
+    it('asks for a critical level only when stock is tracked, and saves it as a quantity', async () => {
+      await open([record('1', 'Milk')]);
+      buttonByText(el, 'Add product').click();
+      await settle();
+      expect(dialog().querySelector('#p-critical')).toBeNull(); // stock is not tracked
+      (dialog().querySelector('hlm-select-trigger[aria-label="Track stock"] button') as HTMLElement).click();
+      await settle();
+      ([...document.querySelectorAll('hlm-select-item')].find((i) => i.textContent?.trim() === 'By batch with expiry') as HTMLElement).click();
+      await settle();
+      await type(dialog(), '#p-name', 'Yogurt');
+      await type(dialog(), '#p-price', '5');
+      await type(dialog(), '#p-critical', 'abc');
+      buttonByText(dialog(), 'Save').click();
+      await settle();
+      expect(dialog().textContent).toContain('Enter a quantity');
+      expect(calls.create).toEqual([]);
+      await type(dialog(), '#p-critical', '12');
+      buttonByText(dialog(), 'Save').click();
+      await settle();
+      expect(calls.create[0]).toMatchObject({ tracking: 'expiry', criticalLevelMilli: 12_000 });
+    });
   });
 
   it('italicizes a PLU and leaves a barcode regular', async () => {
@@ -951,7 +975,7 @@ describe('ProductsPage', () => {
 
     it('drops a draft category that was deleted in the meantime', async () => {
       await open([record('1', 'Milk')]);
-      drafts.set('new', { name: 'Cheese', unit: 'each', tracking: 'none', shelfLifeDays: '', sku: '', barcode: '', price: '1', cost: '', active: true, categoryIds: ['c1', 'gone'] });
+      drafts.set('new', { name: 'Cheese', unit: 'each', tracking: 'none', shelfLifeDays: '', criticalLevel: '', sku: '', barcode: '', price: '1', cost: '', active: true, categoryIds: ['c1', 'gone'] });
       await openForm();
       expect((dialog().querySelector('#p-name') as HTMLInputElement).value).toBe('Cheese');
       buttonByText(dialog(), 'Save').click();

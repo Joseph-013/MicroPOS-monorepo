@@ -26,6 +26,7 @@ export function sanitizeProductDraft(value: unknown): ProductDraft {
     unit: PRODUCT_UNITS.includes(v['unit'] as ProductUnit) ? (v['unit'] as ProductUnit) : 'each',
     tracking: PRODUCT_TRACKING.includes(v['tracking'] as ProductTracking) ? (v['tracking'] as ProductTracking) : 'none',
     shelfLifeDays: text(v['shelfLifeDays'], 5),
+    criticalLevel: text(v['criticalLevel'], 12),
     sku: text(v['sku'], 64),
     barcode: text(v['barcode'], 64),
     price: text(v['price'], 20),

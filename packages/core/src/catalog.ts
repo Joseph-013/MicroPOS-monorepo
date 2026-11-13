@@ -73,6 +73,8 @@ export interface ProductRecord extends Omit<CatalogProduct, 'price'> {
   active: boolean;
   /** Days from receiving to expiry, to pre-fill the expiry date of new stock; null when not set. */
   shelfLifeDays: number | null;
+  /** Stock at or below this is low (thousandths of the unit); null for no level. */
+  criticalLevelMilli: number | null;
   /** Stock left across all batches, in thousandths of the unit; null when stock is not tracked. */
   onHandMilli: number | null;
   /** The soonest expiry among batches that still have stock; null when none. */
@@ -89,6 +91,8 @@ export interface ProductInput {
   unit: ProductUnit;
   tracking: ProductTracking;
   shelfLifeDays: number | null;
+  /** Stock at or below this is flagged as low (thousandths of the unit); null for none. Only kept for products that track stock. */
+  criticalLevelMilli: number | null;
   sku: string | null;
   barcode: string | null;
   price: Money;
@@ -97,7 +101,7 @@ export interface ProductInput {
   categoryIds: string[];
 }
 
-export type ProductField = 'name' | 'unit' | 'tracking' | 'shelfLifeDays' | 'sku' | 'barcode' | 'price' | 'cost';
+export type ProductField = 'name' | 'unit' | 'tracking' | 'shelfLifeDays' | 'criticalLevel' | 'sku' | 'barcode' | 'price' | 'cost';
 
 /**
  * A product form that was left half-filled, as the form holds it (money as the text typed, not cents), so it can be
@@ -108,6 +112,7 @@ export interface ProductDraft {
   unit: ProductUnit;
   tracking: ProductTracking;
   shelfLifeDays: string;
+  criticalLevel: string;
   sku: string;
   barcode: string;
   price: string;

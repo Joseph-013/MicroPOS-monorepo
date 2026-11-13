@@ -1,5 +1,5 @@
 import { Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
-import { isWeighed, PRODUCT_TRACKING, PRODUCT_UNITS, type ProductDraft, type ProductTracking, tracksExpiry, type ProductField, type ProductInput, type ProductRecord, type ProductUnit } from '@micropos/core';
+import { formatQuantity, isWeighed, parseQuantityMilli, PRODUCT_TRACKING, PRODUCT_UNITS, type ProductDraft, type ProductTracking, tracksExpiry, type ProductField, type ProductInput, type ProductRecord, type ProductUnit } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -123,6 +123,26 @@ export interface ProductFormContext {
         }
       </div>
 
+      @if (tracking() !== 'none') {
+        <div class="flex flex-col gap-2">
+          <label hlmLabel for="p-critical">Critical level{{ weighed() ? ' (' + unit() + ')' : '' }}</label>
+          <input
+            hlmInput
+            id="p-critical"
+            type="text"
+            placeholder="Optional"
+            appOnScreenKeypad
+            [keypadWholeDigits]="5"
+            [keypadDecimals]="weighed() ? 3 : 0"
+            [attr.inputmode]="settings.onScreenKeyboard() ? 'none' : weighed() ? 'decimal' : 'numeric'"
+            [forceInvalid]="invalid('criticalLevel')"
+            [value]="criticalLevel()"
+            (input)="criticalLevel.set($any($event.target).value)"
+          />
+          @if (errorFor('criticalLevel'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
+        </div>
+      }
+
       <div class="grid grid-cols-2 gap-3">
         <div class="flex flex-col gap-2">
           <label hlmLabel for="p-sku">SKU</label>
@@ -242,6 +262,7 @@ export class ProductForm {
     unit: this.product?.unit ?? 'each',
     tracking: this.product?.tracking ?? 'none',
     shelfLifeDays: this.product?.shelfLifeDays?.toString() ?? '',
+    criticalLevel: this.product?.criticalLevelMilli ? formatQuantity(this.product.criticalLevelMilli) : '',
     sku: this.product?.sku ?? '',
     barcode: this.product?.barcode ?? '',
     price: this.product ? formatCentsInput(this.product.price) : '',
@@ -263,6 +284,7 @@ export class ProductForm {
   protected readonly trackingLabel = (t: ProductTracking): string => TRACKING_LABELS[t] ?? '';
   protected readonly expires = computed(() => tracksExpiry(this.tracking()));
   protected readonly shelfLifeDays = signal(this.start.shelfLifeDays);
+  protected readonly criticalLevel = signal(this.start.criticalLevel ?? '');
   protected readonly unitLabel = (unit: ProductUnit): string => UNIT_LABELS[unit] ?? '';
   protected readonly weighed = computed(() => isWeighed(this.unit()));
   /** " per kg" next to the money labels of a weighed product. */
@@ -289,6 +311,7 @@ export class ProductForm {
     unit: this.unit(),
     tracking: this.tracking(),
     shelfLifeDays: this.shelfLifeDays(),
+    criticalLevel: this.criticalLevel(),
     sku: this.sku(),
     barcode: this.barcode(),
     price: this.price(),
@@ -340,6 +363,8 @@ export class ProductForm {
     if (this.expires() && this.shelfLifeDays().trim() && !/^\d{1,4}$/.test(this.shelfLifeDays().trim())) {
       return this.fail('shelfLifeDays', 'Enter a number of days');
     }
+    const level = this.tracking() !== 'none' && this.criticalLevel().trim() ? parseQuantityMilli(this.criticalLevel()) : null;
+    if (this.tracking() !== 'none' && this.criticalLevel().trim() && level === null) return this.fail('criticalLevel', 'Enter a quantity');
     const price = parseCents(this.price());
     if (price === null) return this.fail('price', 'Enter a valid price');
     const cost = this.cost().trim() ? parseCents(this.cost()) : null;
@@ -349,6 +374,7 @@ export class ProductForm {
       unit: this.unit(),
       tracking: this.tracking(),
       shelfLifeDays: this.expires() && this.shelfLifeDays().trim() ? Number(this.shelfLifeDays()) : null,
+      criticalLevelMilli: level,
       sku: this.sku() || null,
       barcode: this.barcode() || null,
       price,
@@ -388,6 +414,7 @@ export class ProductForm {
     this.unit.set(this.base.unit);
     this.tracking.set(this.base.tracking);
     this.shelfLifeDays.set(this.base.shelfLifeDays);
+    this.criticalLevel.set(this.base.criticalLevel);
     this.sku.set(this.base.sku);
     this.barcode.set(this.base.barcode);
     this.price.set(this.base.price);
