@@ -1,8 +1,11 @@
+import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
 import { devRoutes } from '../environments/dev-tools';
+import { LastRoute } from './core/last-route';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'checkout' },
+  // Opens on the page that was showing when the app was closed (Checkout the first time).
+  { path: '', pathMatch: 'full', redirectTo: () => inject(LastRoute).startUrl('/checkout') },
   {
     path: 'checkout',
     title: 'Checkout',

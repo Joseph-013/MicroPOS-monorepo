@@ -5,6 +5,7 @@ import { BannerHost, BannerService } from './core/banner';
 import { OnScreenKeyboardService } from './core/keyboard';
 import { CustomerDisplayService } from './core/customer-display.service';
 import { CustomerViewer } from './core/customer-viewer';
+import { LastRoute } from './core/last-route';
 import { KioskFocusService } from './core/kiosk/kiosk-focus.service';
 import { NavRail } from './core/nav-rail';
 import { NewProductViewer } from './core/new-product-viewer';
@@ -45,6 +46,7 @@ export class App {
   constructor() {
     if (this.isDisplay) return;
     void this.apiGuard.check();
+    inject(LastRoute).track();
     // The customer display opens with the app when asked to in Settings (it remembers its monitor and position).
     if (inject(AppSettings).customerDisplayOnStart()) void inject(CustomerDisplayService).show();
   }

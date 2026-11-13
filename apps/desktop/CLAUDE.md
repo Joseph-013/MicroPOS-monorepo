@@ -128,6 +128,7 @@ The Products table (`pages/products/`) is the reference; build every data table 
 - Use `StorageService` (`src/app/core/storage/`), never `localStorage` directly. Keys are namespaced `micropos.*`, values are JSON, reads fall back safely.
 - Changing the shape, name or meaning of a stored value requires a new entry in `storage.migrations.ts` (append-only, next version number, idempotent). Never edit a shipped migration.
 - Only per-device preferences belong here (theme, nav pin). Business data goes in SQLite via the main process.
+- **Last page:** `LastRoute` (`core/last-route.ts`) saves the last URL shown (query parameters included, so an open dialog and its draft come back) under `lastUrl`, and the `''` route redirects to it at start (Checkout when there is none, or when the saved route no longer exists, e.g. a development-only page). The customer display is never saved. No migration: a missing value means Checkout.
 - Keep the app `name` and the `file://` origin stable: both determine where storage lives.
 
 ## Barcode scanner
