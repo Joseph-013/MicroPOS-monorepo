@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import type { CustomerDisplayMode, DesktopApi } from '@micropos/core';
 import { DESKTOP_API } from '../core/api/desktop-api';
+import { AuthService } from '../core/auth/auth.service';
+import { fakeAuthApi, sessionUser } from '../core/auth/testing';
 import { AppSettings } from '../core/settings/app-settings.service';
 import { SettingsPage } from './settings';
 
@@ -83,7 +85,54 @@ describe('SettingsPage', () => {
     const fixture = TestBed.createComponent(SettingsPage);
     await fixture.whenStable();
     const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('h2')].map((h) => h.textContent!.trim());
-    expect(titles).toEqual(['Account', 'Input', 'Customer Display']);
+    expect(titles).toEqual(['Account', 'Credit Interest', 'Input', 'Customer Display']);
+  });
+
+  describe('Credit Interest', () => {
+    async function open(permissions: Parameters<typeof sessionUser>[0]) {
+      const auth = fakeAuthApi({ status: sessionUser(permissions) });
+      const saved: unknown[] = [];
+      const api = {
+        ...auth.api,
+        display: { isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined },
+        customers: { interestDefaults: () => Promise.resolve({ orderRateBp: 500, totalRateBp: 250 }), saveInterestDefaults: (v: unknown) => (saved.push(v), Promise.resolve(true)) },
+      } as unknown as DesktopApi;
+      TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
+      await TestBed.inject(AuthService).whenReady();
+      const fixture = TestBed.createComponent(SettingsPage);
+      await fixture.whenStable();
+      await new Promise((r) => setTimeout(r, 20));
+      await fixture.whenStable();
+      return { fixture, el: fixture.nativeElement as HTMLElement, saved };
+    }
+
+    it('shows the saved default rates and saves changed ones', async () => {
+      const { fixture, el, saved } = await open(['customers.manage']);
+      const order = el.querySelector('#interest-order') as HTMLInputElement;
+      const total = el.querySelector('#interest-total') as HTMLInputElement;
+      expect([order.value, total.value]).toEqual(['5', '2.5']);
+      total.value = '1.5';
+      total.dispatchEvent(new Event('input', { bubbles: true }));
+      (el.querySelector('app-credit-interest-settings form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+      await fixture.whenStable();
+      expect(saved).toEqual([{ orderRateBp: 500, totalRateBp: 150 }]);
+    });
+
+    it('refuses a rate that is not between 0.01% and 100%', async () => {
+      const { fixture, el, saved } = await open(['customers.manage']);
+      const order = el.querySelector('#interest-order') as HTMLInputElement;
+      order.value = '150';
+      order.dispatchEvent(new Event('input', { bubbles: true }));
+      (el.querySelector('app-credit-interest-settings form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+      await fixture.whenStable();
+      expect(saved).toEqual([]);
+      expect(el.textContent).toContain('Enter a rate between 0.01% and 100%');
+    });
+
+    it('is only for people who may change customers', async () => {
+      const { el } = await open(['checkout.sell', 'customers.view']);
+      expect(el.querySelector('app-credit-interest-settings')).toBeNull();
+    });
   });
 
   it('has a UI scale for the customer display: 100% by default, chosen from a list and remembered', async () => {

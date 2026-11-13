@@ -1,11 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import type { CustomerField, CustomerRecord } from '@micropos/core';
+import { formatRate, INTEREST_MODE_LABELS, INTEREST_MODES, type CustomerField, type CustomerRecord, type InterestMode, parseRate } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { CustomersService } from '../../core/data/customers.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
 import { formatCentsInput, parseCents } from '../../core/money-input';
@@ -19,7 +20,7 @@ export interface CustomerFormContext {
 /** Add / edit dialog of the Customers page. Closes with `true` once the change is saved. */
 @Component({
   host: { class: 'contents' },
-  imports: [OnScreenKeypadDirective, HlmAlertDialogImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports],
+  imports: [OnScreenKeypadDirective, HlmAlertDialogImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
   template: `
     <hlm-dialog-header>
       <h3 hlmDialogTitle>{{ customer ? 'Edit customer' : 'Add customer' }}</h3>
@@ -53,6 +54,37 @@ export interface CustomerFormContext {
         />
         @if (errorFor('creditLimit'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
       </div>
+      <div class="flex flex-col gap-2">
+        <label hlmLabel id="cu-interest-label">Interest on credit</label>
+        <hlm-select [value]="interestMode()" (valueChange)="setMode($event)" [itemToString]="modeLabel">
+          <hlm-select-trigger class="w-full" aria-labelledby="cu-interest-label">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            @for (mode of modes; track mode) {
+              <hlm-select-item [value]="mode">{{ modeLabel(mode) }}</hlm-select-item>
+            }
+          </hlm-select-content>
+        </hlm-select>
+      </div>
+      @if (interestMode() !== 'none') {
+        <div class="flex flex-col gap-2">
+          <label hlmLabel data-required for="cu-rate">Rate per month (%)</label>
+          <input
+            hlmInput
+            id="cu-rate"
+            type="text"
+            appOnScreenKeypad
+            [keypadWholeDigits]="3"
+            [keypadDecimals]="2"
+            [attr.inputmode]="settings.onScreenKeyboard() ? 'none' : 'decimal'"
+            [forceInvalid]="invalid('interest')"
+            [value]="rate()"
+            (input)="rate.set($any($event.target).value)"
+          />
+          @if (errorFor('interest'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
+        </div>
+      }
       <div class="flex flex-col gap-2">
         <label hlmLabel for="cu-note">Note</label>
         <input hlmInput id="cu-note" type="text" [forceInvalid]="invalid('note')" [value]="note()" (input)="note.set($any($event.target).value)" />
@@ -97,9 +129,28 @@ export class CustomerForm {
   protected readonly phone = signal(this.customer?.phone ?? '');
   protected readonly note = signal(this.customer?.note ?? '');
   protected readonly creditLimit = signal(formatCentsInput(this.customer?.creditLimit ?? null));
+  protected readonly modes = ['none', ...INTEREST_MODES] as const;
+  protected readonly interestMode = signal<InterestMode | 'none'>(this.customer?.interestMode ?? 'none');
+  protected readonly rate = signal(this.customer?.interestRateBp ? formatRate(this.customer.interestRateBp) : '');
+  protected readonly modeLabel = (mode: InterestMode | 'none'): string => (mode === 'none' ? 'No interest' : INTEREST_MODE_LABELS[mode]);
   protected readonly saving = signal(false);
   private readonly problem = signal<{ field: CustomerField | null; error: string } | null>(null);
   protected readonly formError = computed(() => (this.problem()?.field === null ? this.problem()!.error : null));
+
+  constructor() {
+    void this.customers.loadInterestDefaults();
+  }
+
+  /** Switching interest on starts from the saved default rate for that kind. */
+  protected setMode(mode: InterestMode | 'none' | null | undefined): void {
+    const next = mode ?? 'none';
+    if (next === this.interestMode()) return;
+    this.interestMode.set(next);
+    if (next !== 'none') {
+      const defaults = this.customers.interestDefaults();
+      this.rate.set(formatRate(next === 'order' ? defaults.orderRateBp : defaults.totalRateBp));
+    }
+  }
 
   protected invalid(field: CustomerField): boolean {
     return this.problem()?.field === field;
@@ -115,8 +166,11 @@ export class CustomerForm {
     const limitText = this.creditLimit().trim();
     const limit = limitText === '' ? null : parseCents(limitText);
     if (limitText !== '' && limit === null) return void this.problem.set({ field: 'creditLimit', error: 'Enter a valid credit limit' });
+    const mode = this.interestMode() === 'none' ? null : (this.interestMode() as InterestMode);
+    const rateBp = mode === null ? null : parseRate(this.rate());
+    if (mode !== null && rateBp === null) return void this.problem.set({ field: 'interest', error: 'Enter a rate between 0.01% and 100%' });
     this.saving.set(true);
-    const result = await this.customers.save(this.customer?.id ?? null, { name: this.name(), phone: this.phone() || null, note: this.note() || null, creditLimit: limit });
+    const result = await this.customers.save(this.customer?.id ?? null, { name: this.name(), phone: this.phone() || null, note: this.note() || null, creditLimit: limit, interestMode: mode, interestRateBp: rateBp });
     this.saving.set(false);
     if (result.ok) this.ref.close(true);
     else this.problem.set({ field: result.field, error: result.error });

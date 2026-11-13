@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { type CustomerAccount, type LedgerEntryRecord, type OrderPaymentMethod, ORDER_PAYMENT_METHODS } from '@micropos/core';
+import { type CustomerAccount, formatRate, INTEREST_MODE_LABELS, type LedgerEntryRecord, type OrderPaymentMethod, ORDER_PAYMENT_METHODS } from '@micropos/core';
 import { injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -44,6 +44,10 @@ export interface CustomerAccountContext {
         @if (account().customer.creditLimit !== null) {
           <dt class="text-muted-foreground">Credit limit</dt>
           <dd>{{ account().customer.creditLimit! | money }}</dd>
+        }
+        @if (interest(); as text) {
+          <dt class="text-muted-foreground">Interest</dt>
+          <dd>{{ text }}</dd>
         }
         @if (account().customer.phone) {
           <dt class="text-muted-foreground">Phone</dt>
@@ -150,6 +154,12 @@ export class CustomerAccountForm {
   protected readonly balance = computed(() => this.account().customer.balance);
   protected readonly absBalance = computed(() => Math.abs(this.balance()));
 
+  /** "3% a month, per sales order", or null for a customer without interest. */
+  protected readonly interest = computed(() => {
+    const c = this.account().customer;
+    return c.interestMode && c.interestRateBp ? `${formatRate(c.interestRateBp)}% a month, ${INTEREST_MODE_LABELS[c.interestMode].toLowerCase()}` : null;
+  });
+
   protected readonly receiving = signal(false);
   protected readonly amount = signal('');
   protected readonly method = signal<OrderPaymentMethod>('cash');
@@ -208,7 +218,7 @@ export class CustomerAccountForm {
   }
 
   protected verb(entry: LedgerEntryRecord): string {
-    return { charge: 'Sale', refund: 'Refund', void: 'Void', payment: 'Payment', adjustment: 'Adjustment' }[entry.type];
+    return { charge: 'Sale', refund: 'Refund', void: 'Void', payment: 'Payment', adjustment: 'Adjustment', interest: 'Interest' }[entry.type];
   }
   protected describe(entry: LedgerEntryRecord): string {
     if (entry.type === 'payment') return `Payment${entry.method ? ' · ' + METHOD_LABELS[entry.method] : ''}`;

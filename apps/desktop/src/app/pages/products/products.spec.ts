@@ -119,7 +119,7 @@ function fakeApi(initial: ProductRecord[]) {
         return Promise.resolve({ restored: ids.length, conflicts: [] });
       },
     },
-    customers: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve(), account: () => Promise.resolve(null), receivePayment: () => Promise.reject(new Error('unused')) },
+    customers: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve(), account: () => Promise.resolve(null), receivePayment: () => Promise.reject(new Error('unused')), interestDefaults: () => Promise.resolve({ orderRateBp: 300, totalRateBp: 300 }), saveInterestDefaults: () => Promise.resolve(true) },
     display: { show: () => Promise.resolve(), hide: () => Promise.resolve(), isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined, publish: () => Promise.resolve(), getState: () => Promise.resolve({ phase: 'idle', lines: [], total: 0, highlight: null, receipt: null }), onState: () => () => undefined },
     auth: { status: () => Promise.resolve(null), choices: () => Promise.resolve([]), signIn: () => Promise.reject(new Error('unused')), signOut: () => Promise.resolve(), changePin: () => Promise.reject(new Error('unused')) },
     users: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), resetPin: () => Promise.reject(new Error('unused')), signInLog: () => Promise.resolve([]) },

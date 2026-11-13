@@ -1,4 +1,5 @@
 import { inject, Service, signal } from '@angular/core';
+import { DEFAULT_INTEREST_DEFAULTS, type InterestDefaults } from '@micropos/core';
 import type {
   CustomerAccount,
   CustomerInput,
@@ -18,6 +19,8 @@ export class CustomersService {
 
   readonly customers = signal<CustomerRecord[]>([]);
   readonly status = signal<LoadStatus>('idle');
+  /** What interest starts from for a customer (the factory values until loaded). Needs the permission to manage customers. */
+  readonly interestDefaults = signal<InterestDefaults>(DEFAULT_INTEREST_DEFAULTS);
   /** Also list deleted customers (the page then shows only those). */
   readonly includeDeleted = signal(false);
 
@@ -102,5 +105,26 @@ export class CustomersService {
     }
     if (result.ok) await this.load();
     return result;
+  }
+
+  async loadInterestDefaults(): Promise<void> {
+    try {
+      const defaults = await this.api?.customers.interestDefaults();
+      if (defaults) this.interestDefaults.set(defaults);
+    } catch (error) {
+      console.error('Failed to load the interest defaults', error);
+    }
+  }
+
+  /** Saves the defaults; false when they could not be saved. */
+  async saveInterestDefaults(input: InterestDefaults): Promise<boolean> {
+    try {
+      if (!(await this.api?.customers.saveInterestDefaults(input))) return false;
+    } catch (error) {
+      console.error('Failed to save the interest defaults', error);
+      return false;
+    }
+    this.interestDefaults.set(input);
+    return true;
   }
 }

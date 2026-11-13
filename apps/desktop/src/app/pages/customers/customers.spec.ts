@@ -14,6 +14,8 @@ globalThis.ResizeObserver ??= class {
   disconnect(): void {}
 };
 
+Element.prototype.scrollIntoView ??= () => undefined;
+
 @Component({ template: '' })
 class Blank {}
 
@@ -23,6 +25,9 @@ const customer = (id: string, name: string, over: Partial<CustomerRecord> = {}):
   phone: null,
   note: null,
   creditLimit: null,
+  interestMode: null,
+  interestRateBp: null,
+  interestStartedAt: null,
   balance: 0,
   lastActivityAt: null,
   createdAt: 1,
@@ -40,7 +45,7 @@ function fakeApi(initial: CustomerRecord[]) {
       list: (options?: { includeDeleted?: boolean }) => Promise.resolve(rows.filter((c) => (options?.includeDeleted ? !!c.deletedAt : !c.deletedAt))),
       create: (input: CustomerInput) => {
         calls.created.push(input);
-        const c = customer(`n${rows.length}`, input.name, { phone: input.phone, note: input.note, creditLimit: input.creditLimit });
+        const c = customer(`n${rows.length}`, input.name, { phone: input.phone, note: input.note, creditLimit: input.creditLimit, interestMode: input.interestMode, interestRateBp: input.interestRateBp });
         rows.push(c);
         return Promise.resolve({ ok: true as const, customer: c });
       },
@@ -64,6 +69,8 @@ function fakeApi(initial: CustomerRecord[]) {
         const c = rows.find((r) => r.id === id);
         return Promise.resolve(c ? { customer: { ...c }, entries: ledger.get(id) ?? [] } : null);
       },
+      interestDefaults: () => Promise.resolve({ orderRateBp: 500, totalRateBp: 200 }),
+      saveInterestDefaults: () => Promise.resolve(true),
       receivePayment: (input: ReceivePaymentInput) => {
         calls.payments.push(input);
         const c = rows.find((r) => r.id === input.customerId)!;
@@ -231,9 +238,47 @@ describe('CustomersPage', () => {
     await type('#cu-limit', '1,500', dialog);
     button(dialog, 'Save')!.click();
     await settle();
-    expect(fake.calls.created).toEqual([{ name: 'Elena', phone: '0918', note: null, creditLimit: 150_000 }]);
+    expect(fake.calls.created).toEqual([{ name: 'Elena', phone: '0918', note: null, creditLimit: 150_000, interestMode: null, interestRateBp: null }]);
     expect(names()).toContain('Elena');
     expect(TestBed.inject(BannerService).current()?.text).toBe('Customer added');
+  });
+
+  it('adds interest to a customer, starting from the saved default rate for the kind', async () => {
+    await open();
+    button(el, 'Add customer')!.click();
+    await settle();
+    const dialog = document.querySelector('#customer-form')!;
+    expect(dialog.querySelector('#cu-rate')).toBeNull(); // most customers have none
+    await type('#cu-name', 'Elena', dialog);
+    const trigger = dialog.querySelector('hlm-select-trigger') as HTMLElement;
+    (trigger.querySelector('button') ?? trigger).click();
+    await settle();
+    (Array.from(document.querySelectorAll('hlm-select-item')).find((i) => i.textContent?.trim() === 'Per sales order') as HTMLElement).click();
+    await settle();
+    expect((dialog.querySelector('#cu-rate') as HTMLInputElement).value).toBe('5');
+    await type('#cu-rate', '2.5', dialog);
+    button(dialog, 'Save')!.click();
+    await settle();
+    expect(fake.calls.created).toEqual([{ name: 'Elena', phone: null, note: null, creditLimit: null, interestMode: 'order', interestRateBp: 250 }]);
+  });
+
+  it('asks for a valid rate once interest is chosen', async () => {
+    await open();
+    button(el, 'Add customer')!.click();
+    await settle();
+    const dialog = document.querySelector('#customer-form')!;
+    await type('#cu-name', 'Elena', dialog);
+    const trigger = dialog.querySelector('hlm-select-trigger') as HTMLElement;
+    (trigger.querySelector('button') ?? trigger).click();
+    await settle();
+    (Array.from(document.querySelectorAll('hlm-select-item')).find((i) => i.textContent?.trim() === 'On total credit') as HTMLElement).click();
+    await settle();
+    expect((dialog.querySelector('#cu-rate') as HTMLInputElement).value).toBe('2');
+    await type('#cu-rate', '250', dialog);
+    button(dialog, 'Save')!.click();
+    await settle();
+    expect(dialog.textContent).toContain('Enter a rate between 0.01% and 100%');
+    expect(fake.calls.created).toEqual([]);
   });
 
   it('asks for a name and a valid limit', async () => {
