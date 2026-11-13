@@ -32,6 +32,8 @@ erDiagram
         text employee_number UK
         text pin_hash
         text role
+        text permissions "JSON list; null = the role's preset"
+        int pin_change_required
         int active
         int failed_attempts
         int locked_until

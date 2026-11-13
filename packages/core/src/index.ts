@@ -95,3 +95,36 @@ export { canReverseOrder, ORDER_PAYMENT_METHODS } from './draft.js';
 export type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, DraftLine, OrderLineProblem, OrderPaymentMethod, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
 export { formatQuantity, lineTotal, MAX_QUANTITY_DECIMALS, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from './quantity.js';
 export { gramsToQuantityMilli, isScaleBarcode, parseScaleBarcode, type ScaleLabel } from './scale-barcode.js';
+
+export {
+  ALL_PERMISSIONS,
+  type ChangePinInput,
+  type ChangePinResult,
+  isPermission,
+  isValidPin,
+  matchingRole,
+  MAX_FAILED_SIGN_INS,
+  normalizePermissions,
+  PAGE_PERMISSIONS,
+  type Permission,
+  type PermissionInfo,
+  PERMISSIONS,
+  PIN_MAX_LENGTH,
+  PIN_MIN_LENGTH,
+  PIN_RULE,
+  type ResetPinResult,
+  ROLE_LABELS,
+  ROLE_PRESETS,
+  type SaveUserResult,
+  type SessionUser,
+  SIGN_IN_PAUSE_MS,
+  type SignInChoice,
+  type SignInLogEntry,
+  type SignInResult,
+  USER_ROLES,
+  type UserField,
+  type UserInput,
+  type UserRecord,
+  type UserRole,
+  validateUserInput,
+} from './auth.js';

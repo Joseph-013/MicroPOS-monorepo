@@ -1,3 +1,4 @@
+import type { ChangePinInput, ChangePinResult, ResetPinResult, SaveUserResult, SessionUser, SignInChoice, SignInLogEntry, SignInResult, UserInput, UserRecord } from './auth.js';
 import type { AdjustStockInput, BatchRecord, InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from './inventory.js';
 import type { CatalogCategory, CatalogProduct, CategoryInput, CategoryRecord, RestoreCategoriesResult, SaveCategoryResult, ProductDraft, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from './catalog.js';
 import type {
@@ -24,7 +25,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 28;
+export const DESKTOP_API_VERSION = 29;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -173,5 +174,27 @@ export interface DesktopApi {
      * and the stock taken (first-expiring-first-out), and removes the saved draft. Nothing is written if any line fails.
      */
     completeOrder(input: CompleteOrderInput): Promise<CompleteOrderResult>;
+  };
+  auth: {
+    /** Who is signed in, or null when the till is locked. */
+    status(): Promise<SessionUser | null>;
+    /** The people who can sign in (active, with a PIN), by name. */
+    choices(): Promise<SignInChoice[]>;
+    /** Signs in with a PIN. Too many wrong PINs in a row pause that person's sign-in for a minute. */
+    signIn(input: { userId: string; pin: string }): Promise<SignInResult>;
+    /** Locks the till and records the sign-out. */
+    signOut(): Promise<void>;
+    /** Changes the signed-in person's own PIN. */
+    changePin(input: ChangePinInput): Promise<ChangePinResult>;
+  };
+  users: {
+    list(): Promise<UserRecord[]>;
+    create(input: UserInput): Promise<SaveUserResult>;
+    /** Changes name, number, permissions and whether the person can sign in. The last user who may manage users cannot lose that. */
+    update(id: string, input: UserInput): Promise<SaveUserResult>;
+    /** Sets a new PIN for someone else; they must change it when they next sign in. */
+    resetPin(id: string, pin: string): Promise<ResetPinResult>;
+    /** Sign-ins, newest first (the latest 200). */
+    signInLog(): Promise<SignInLogEntry[]>;
   };
 }
