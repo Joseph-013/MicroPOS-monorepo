@@ -354,7 +354,7 @@ describe('InventoryPage', () => {
   });
 
   it('receives against a purchase order: its products only, quantity and cost from the order, until it is complete', async () => {
-    const line = (id: string, productId: string, productName: string, quantityMilli: number, unitCost: number): PurchaseDetail['lines'][number] => ({ id, productId, productName, unit: 'each', tracking: 'quantity', quantityMilli, receivedMilli: 0, unitCost, total: 0 });
+    const line = (id: string, productId: string, productName: string, quantityMilli: number, unitCost: number): PurchaseDetail['lines'][number] => ({ id, productId, productName, productCode: null, unit: 'each', tracking: 'quantity', quantityMilli, receivedMilli: 0, unitCost, total: 0 });
     const order = {
       id: 'o1', number: 'PO-1001', supplierId: 's', supplierName: 'Metro', status: 'ordered', orderedAt: 1, expectedAt: null, dueAt: null, receivedAt: null, reference: null, lineCount: 2,
       partlyReceived: false, total: 0, paid: 0, owed: 0, note: null, employeeName: null, payments: [],

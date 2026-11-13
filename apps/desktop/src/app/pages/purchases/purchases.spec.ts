@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import type { DesktopApi, PayPurchaseInput, PurchaseDetail, PurchaseInput, PurchaseSummary, ReceivePurchaseInput } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
+import { ScannerService } from '../../core/scanner';
 import { PurchaseViewer } from '../../core/purchase-viewer';
 import { PurchasesPage } from './purchases';
 
@@ -40,7 +41,7 @@ const purchase = (id: string, number: string, supplierName: string, over: Partia
   owed: 100_000,
   note: null,
   employeeName: 'Register',
-  lines: [{ id: `${id}-l1`, productId: 'p1', productName: 'Rice 25kg', unit: 'each', tracking: 'quantity', quantityMilli: 10_000, receivedMilli: 0, unitCost: 10_000, total: 100_000 }],
+  lines: [{ id: `${id}-l1`, productId: 'p1', productName: 'Rice 25kg', productCode: '111', unit: 'each', tracking: 'quantity', quantityMilli: 10_000, receivedMilli: 0, unitCost: 10_000, total: 100_000 }],
   payments: [],
   ...over,
 });
@@ -56,6 +57,7 @@ function fakeApi(initial: PurchaseDetail[]) {
   const calls = { created: [] as PurchaseInput[], payments: [] as PayPurchaseInput[], received: [] as ReceivePurchaseInput[], cancelled: [] as string[] };
   const find = (id: string): PurchaseDetail => rows.find((r) => r.id === id)!;
   const api = {
+    scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     products: {
       list: () =>
         Promise.resolve([
@@ -86,7 +88,10 @@ function fakeApi(initial: PurchaseDetail[]) {
       receive: (input: ReceivePurchaseInput) => {
         calls.received.push(input);
         const p = find(input.purchaseId);
-        const missing = p.lines.find((l) => l.tracking === 'expiry' && !input.lines.find((x) => x.lineId === l.id)?.batchNumber);
+        const missing = p.lines.find((l) => {
+          const given = input.lines.find((x) => x.lineId === l.id);
+          return l.tracking === 'expiry' && (given?.quantityMilli ?? 1) > 0 && !given?.batchNumber;
+        });
         if (missing) return Promise.resolve({ ok: false as const, lineId: missing.id, field: 'batchNumber' as const, error: `${missing.productName}: Enter a batch number` });
         p.status = 'received';
         p.receivedAt = 99;
@@ -118,6 +123,7 @@ describe('PurchasesPage', () => {
   async function open(rows = SAMPLE(), url = '/purchases'): Promise<void> {
     fake = fakeApi(rows);
     TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: fake.api }] });
+    TestBed.inject(ScannerService);
     TestBed.inject(PurchaseViewer); // started at launch by the app root, before the first navigation
     await TestBed.inject(Router).navigateByUrl(url);
     fixture = TestBed.createComponent(PurchasesPage);
@@ -233,11 +239,11 @@ describe('PurchasesPage', () => {
     expect(dialog.querySelector('#pp-amount')).not.toBeNull();
   });
 
-  it('receives an order: lot and expiry are asked for only where the product tracks them', async () => {
+  it('a delivery: scan or type what arrived per line, lot and expiry only where tracked, the rest stays to come', async () => {
     const dated = purchase('d', 'PO-1004', 'Metro', {
       lines: [
-        { id: 'd-l1', productId: 'p1', productName: 'Rice 25kg', unit: 'each', tracking: 'quantity', quantityMilli: 2_000, receivedMilli: 0, unitCost: 10_000, total: 20_000 },
-        { id: 'd-l2', productId: 'p2', productName: 'Milk', unit: 'each', tracking: 'expiry', quantityMilli: 6_000, receivedMilli: 0, unitCost: 5_000, total: 30_000 },
+        { id: 'd-l1', productId: 'p1', productName: 'Rice 25kg', productCode: '111', unit: 'each', tracking: 'quantity', quantityMilli: 2_000, receivedMilli: 0, unitCost: 10_000, total: 20_000 },
+        { id: 'd-l2', productId: 'p2', productName: 'Milk', productCode: '222', unit: 'each', tracking: 'expiry', quantityMilli: 6_000, receivedMilli: 0, unitCost: 5_000, total: 30_000 },
       ],
     });
     await open([dated]);
@@ -246,23 +252,48 @@ describe('PurchasesPage', () => {
     button(document.querySelector('#purchase-detail')!, 'Receive stock')!.click();
     await settle();
     const form = document.querySelector('#purchase-receive')!;
-    expect(form.querySelectorAll('input[id^="rc-lot-"]')).toHaveLength(1); // only Milk
-    expect(form.querySelector('#rc-lot-d-l2')).not.toBeNull();
-    expect(form.querySelector('#rc-exp-d-l2')).not.toBeNull();
+    expect(form.textContent).toContain('6 left of 6');
+    expect(button(form, 'Receive')!.disabled).toBe(true); // nothing has arrived yet
+    expect(form.querySelector('input[id^="rc-lot-"]')).toBeNull(); // lot and expiry wait for a quantity
 
-    button(form, 'Receive stock')!.click(); // no lot yet
+    TestBed.inject(ScannerService).receive('999'); // not on the order
+    await settle();
+    expect(form.textContent).toContain('No product with code 999 is waiting on PO-1004');
+    const scanner = TestBed.inject(ScannerService);
+    scanner.receive('222'); // a Milk comes out of the box
+    scanner.receive('222');
+    await settle();
+    expect((form.querySelector('input[aria-label="Arrived of Milk"]') as HTMLInputElement).value).toBe('2');
+    expect(form.querySelector('#rc-lot-d-l2')).not.toBeNull();
+    expect(form.querySelector('#rc-lot-d-l1')).toBeNull(); // Rice has not arrived
+
+    button(form, 'Receive')!.click(); // no lot yet
     await settle();
     expect(form.textContent).toContain('Milk: Enter a batch number');
+    expect(fake.calls.received).toHaveLength(1);
 
     await type('#rc-lot-d-l2', 'L-5', form);
     await type('#rc-exp-d-l2', '2027-01-31', form);
-    button(form, 'Receive stock')!.click();
+    button(form, 'Receive')!.click();
     await settle();
-    expect(fake.calls.received.at(-1)).toMatchObject({ purchaseId: 'd', lines: [{ lineId: 'd-l1', batchNumber: null, expiresAt: null }, { lineId: 'd-l2', batchNumber: 'L-5' }] });
+    expect(fake.calls.received.at(-1)).toMatchObject({ purchaseId: 'd', lines: [{ lineId: 'd-l1', quantityMilli: 0 }, { lineId: 'd-l2', quantityMilli: 2_000, batchNumber: 'L-5' }] });
     expect(TestBed.inject(BannerService).current()?.text).toBe('PO-1004 received into stock');
     expect(document.querySelector('#purchase-receive')).toBeNull();
-    expect(text('#purchase-detail')).toContain('Received');
-    expect(rowOf('PO-1004').textContent).toContain('Received');
+  });
+
+  it('Everything left fills every line with what has not arrived', async () => {
+    await open([purchase('d', 'PO-1004', 'Metro')]);
+    rowOf('PO-1004').click();
+    await settle();
+    button(document.querySelector('#purchase-detail')!, 'Receive stock')!.click();
+    await settle();
+    const form = document.querySelector('#purchase-receive')!;
+    button(form, 'Everything left')!.click();
+    await settle();
+    expect((form.querySelector('input[aria-label="Arrived of Rice 25kg"]') as HTMLInputElement).value).toBe('10');
+    button(form, 'Receive')!.click();
+    await settle();
+    expect(fake.calls.received.at(-1)).toMatchObject({ lines: [{ lineId: 'd-l1', quantityMilli: 10_000 }] });
   });
 
   it('an order with part of it received says so, can only be received in full for the rest, and cannot be edited', async () => {
