@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { formatQuantity, parseQuantityMilli, type ProductRecord, type StockField, tracksBatches, tracksExpiry } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -6,6 +6,7 @@ import { HlmComboboxImports } from '@spartan-ng/helm/combobox';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
+import { NewProductViewer } from '../../core/new-product-viewer';
 import { InventoryService } from '../../core/data/inventory.service';
 import { ProductsService } from '../../core/data/products.service';
 import { formatCentsInput, parseCents } from '../../core/money-input';
@@ -64,6 +65,10 @@ export const fromDateInput = (value: string): number | null => {
           </hlm-combobox-content>
         </hlm-combobox>
         @if (errorFor('product'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
+        @if (unknownCode(); as code) {
+          <!-- A scan for a product that does not exist: add it here, over this dialog, and it is picked when saved. -->
+          <button hlmBtn variant="outline" type="button" class="self-start px-4" (click)="createProduct(code)">Create product</button>
+        }
       </div>
 
       @if (product(); as p) {
@@ -147,6 +152,7 @@ export class ReceiveStockForm {
   protected readonly settings = inject(AppSettings);
   private readonly products = inject(ProductsService);
   private readonly inventory = inject(InventoryService);
+  private readonly newProduct = inject(NewProductViewer);
   private readonly ref = inject<BrnDialogRef<boolean>>(BrnDialogRef);
   private readonly start = injectBrnDialogContext<ReceiveStockContext>().product;
 
@@ -171,14 +177,40 @@ export class ReceiveStockForm {
   private readonly problem = signal<{ field: StockField | null; error: string } | null>(null);
   protected readonly formError = computed(() => (this.problem()?.field === null ? this.problem()!.error : null));
 
+  /** A scanned code no product has: offers to create the product. */
+  protected readonly unknownCode = signal<string | null>(null);
+  /** The code of a product being created from here; it is chosen as soon as it exists. */
+  private readonly creating = signal<string | null>(null);
+
   constructor() {
     if (this.start) this.applyDefaults(this.start);
     // A scan picks the product with that code (tracked products only).
     claimScanner(({ code }) => {
       const found = this.trackedProducts().find((p) => p.barcode === code);
-      if (found) this.choose(found.id);
-      else this.problem.set({ field: 'product', error: `No tracked product with code ${code}` });
+      if (found) return this.choose(found.id);
+      const untracked = this.products.products().find((p) => p.barcode === code && !p.deletedAt);
+      if (untracked) {
+        this.unknownCode.set(null);
+        this.problem.set({ field: 'product', error: `Stock is not tracked for ${untracked.name}` });
+      } else {
+        this.unknownCode.set(code);
+        this.problem.set({ field: 'product', error: `No product with code ${code}` });
+      }
     });
+    effect(() => {
+      const code = this.creating();
+      const created = code ? this.trackedProducts().find((p) => p.barcode === code) : undefined;
+      if (created) {
+        this.creating.set(null);
+        this.choose(created.id);
+      }
+    });
+  }
+
+  /** Opens the add-product form over this dialog with the code filled in (`?new-product=<code>`). */
+  protected createProduct(code: string): void {
+    this.creating.set(code);
+    void this.newProduct.open(code);
   }
 
   protected invalid(field: StockField): boolean {
@@ -189,6 +221,7 @@ export class ReceiveStockForm {
   }
 
   protected choose(id: string | null): void {
+    this.unknownCode.set(null);
     this.productId.set(id);
     this.problem.set(null);
     const p = this.trackedProducts().find((x) => x.id === id);

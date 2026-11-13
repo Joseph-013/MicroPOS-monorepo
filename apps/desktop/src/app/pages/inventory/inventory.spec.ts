@@ -4,13 +4,15 @@ import {
   type BatchRecord,
   DESKTOP_API_VERSION,
   type DesktopApi,
+  type ProductInput,
   type ProductRecord,
   type ReceiveStockInput,
   type RepackageDraft,
   type RepackageInput,
 } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
+import { NewProductViewer } from '../../core/new-product-viewer';
 import { ScannerService } from '../../core/scanner';
 import { InventoryPage } from './inventory';
 
@@ -69,7 +71,14 @@ function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = []) {
     platform: 'linux',
     version: () => Promise.resolve(DESKTOP_API_VERSION),
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
-    products: { list: () => Promise.resolve(catalog) },
+    products: {
+      list: () => Promise.resolve([...catalog]),
+      create: (input: ProductInput) => {
+        const created = product(`n${catalog.length}`, input.name, { barcode: input.barcode, tracking: input.tracking, price: input.price, cost: input.cost });
+        catalog.push(created);
+        return Promise.resolve({ ok: true as const, product: created });
+      },
+    },
     inventory: {
       listBatches: (options?: { includeEmpty?: boolean }) => Promise.resolve(rows.filter((b) => options?.includeEmpty || b.onHandMilli > 0)),
       receive: (input: ReceiveStockInput) => {
@@ -242,6 +251,39 @@ describe('InventoryPage', () => {
     expect(calls.receive[0]).toMatchObject({ productId: '1', batchNumber: 'L99', quantityMilli: 12_000, unitCost: 250 });
     expect(calls.receive[0]!.expiresAt).toBeGreaterThan(Date.now());
     expect(names()).toEqual(['Milk']);
+  });
+
+  it('a scan for an unknown product offers to create it over the dialog, then picks it', async () => {
+    await open([], [product('1', 'Milk', { tracking: 'none' })]);
+    TestBed.inject(NewProductViewer); // started at launch by the app root
+    buttonByText(el, 'Receive stock').click();
+    await settle();
+    const scanner = TestBed.inject(ScannerService);
+
+    scanner.receive('5901'); // exists, but stock is not tracked for it
+    await settle();
+    expect(dialog().textContent).toContain('Stock is not tracked for Milk');
+    expect(buttonByText(dialog(), 'Create product')).toBeUndefined();
+
+    scanner.receive('4800123');
+    await settle();
+    expect(dialog().textContent).toContain('No product with code 4800123');
+    buttonByText(dialog(), 'Create product').click();
+    await settle();
+    expect(TestBed.inject(Router).url).toBe('/?new-product=4800123');
+    const form = document.querySelector('#product-form')!;
+    expect(form.textContent).toContain('Add product');
+    expect((form.querySelector('#p-barcode') as HTMLInputElement).value).toBe('4800123');
+    await type(form, '#p-name', 'Instant coffee');
+    await type(form, '#p-price', '12');
+    buttonByText(form, 'Save').click();
+    await settle();
+
+    expect(TestBed.inject(Router).url).toBe('/'); // the parameter is gone
+    expect(document.querySelector('#product-form')).toBeNull();
+    // Back in Receive stock the new product is already chosen (it tracks stock by quantity).
+    expect((dialog().querySelector('input#r-product, #r-product input') as HTMLInputElement).value).toBe('Instant coffee');
+    expect(buttonByText(dialog(), 'Create product')).toBeUndefined();
   });
 
   it('takes an expiry given as a month only, as the last day of that month', async () => {
