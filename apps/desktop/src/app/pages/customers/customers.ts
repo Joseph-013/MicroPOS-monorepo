@@ -25,6 +25,7 @@ import { FilterInput } from '../../core/ui/filter-input';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { RowSelection } from '../../core/ui/row-selection';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
+import { CreditConcerns } from './credit-concerns';
 import { CustomerForm, type CustomerFormContext } from './customer-form';
 
 type SortKey = 'name' | 'phone' | 'balance' | 'limit' | 'activity';
@@ -32,7 +33,7 @@ type SortDirection = 'asc' | 'desc';
 type BulkKind = 'delete' | 'restore';
 
 const ALL = 'all';
-const BALANCE_FILTERS = { [ALL]: 'All', owes: 'Owes', settled: 'Settled', credit: 'Has credit', attention: 'Needs attention' } as const;
+const BALANCE_FILTERS = { [ALL]: 'All', owes: 'Owes', settled: 'Settled', credit: 'Has credit' } as const;
 type BalanceFilter = keyof typeof BALANCE_FILTERS;
 
 const SORT_VALUES: Record<SortKey, (c: CustomerRecord) => string | number | null> = {
@@ -87,12 +88,6 @@ export class CustomersPage {
   ];
   protected readonly balanceFilters = Object.keys(BALANCE_FILTERS) as BalanceFilter[];
   private readonly money = new MoneyPipe();
-  /** Why a customer is flagged, for the line under their name: "Over ₱5,000.00 · Unpaid 45 days". */
-  protected alertText(customer: CustomerRecord): string {
-    const alert = customer.alert;
-    if (!alert) return '';
-    return [alert.overAmount !== null ? `Over ${this.money.transform(alert.overAmount)}` : '', alert.unpaidDays !== null ? `Unpaid ${alert.unpaidDays} ${alert.unpaidDays === 1 ? 'day' : 'days'}` : ''].filter(Boolean).join(' · ');
-  }
   protected readonly balanceFilterLabel = (f: BalanceFilter): string => BALANCE_FILTERS[f] ?? '';
 
   // Column filters (second header row); they combine.
@@ -145,7 +140,7 @@ export class CustomersPage {
           !!c.deletedAt === deletedOnly &&
           (!name || c.name.toLowerCase().includes(name)) &&
           (!phone || !!c.phone?.toLowerCase().includes(phone)) &&
-          (balance === ALL || (balance === 'owes' ? c.balance > 0 : balance === 'credit' ? c.balance < 0 : balance === 'attention' ? !!c.alert : c.balance === 0)) &&
+          (balance === ALL || (balance === 'owes' ? c.balance > 0 : balance === 'credit' ? c.balance < 0 : c.balance === 0)) &&
           (noActivityFilter || (c.lastActivityAt !== null && c.lastActivityAt >= from && c.lastActivityAt <= to)),
       )
       .sort(compare);
@@ -293,6 +288,13 @@ export class CustomersPage {
   protected view(customer: CustomerRecord): void {
     void this.viewer.open(customer.id);
   }
+  /** Customers whose credit needs attention: the number on the button beside the title. */
+  protected readonly concerns = computed(() => this.service.customers().filter((c) => c.alert).length);
+
+  protected showConcerns(): void {
+    this.dialogs.open(CreditConcerns, { id: 'credit-concerns', contentClass: 'w-[min(32rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]' });
+  }
+
   protected add(): void {
     this.open();
   }

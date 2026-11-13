@@ -1,6 +1,21 @@
 <section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
   <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
-    <h1 class="text-2xl">Customers</h1>
+    <div class="flex items-center gap-3">
+      <h1 class="text-2xl">Customers</h1>
+      @if (concerns() > 0) {
+        <!-- Needs attention: opens the list of customers whose credit is over the limits set in Settings. -->
+        <button
+          hlmBtn
+          type="button"
+          class="bg-warning text-warning-foreground hover:bg-warning/90 min-w-(--control-height) px-3 font-semibold"
+          [attr.aria-label]="concerns() + (concerns() === 1 ? ' credit concern' : ' credit concerns')"
+          title="Credit concerns"
+          (click)="showConcerns()"
+        >
+          {{ concerns() }}
+        </button>
+      }
+    </div>
     <div class="flex items-center gap-3">
       @if (selected().length) {
         <span class="text-muted-foreground text-sm">{{ selected().length }} selected</span>
@@ -101,12 +116,7 @@
                 <div role="cell" class="flex items-center px-3" (pointerdown)="selection.noteModifiers($event)" (click)="$event.stopPropagation()">
                   <hlm-checkbox [aria-label]="'Select ' + customer.name" [checked]="isSelected(customer)" (checkedChange)="toggleRow(customer, $event)" />
                 </div>
-                <div role="cell" class="min-w-0 px-3 py-1">
-                  <p class="truncate text-base">{{ customer.name }}</p>
-                  @if (customer.alert) {
-                    <p class="text-destructive truncate text-xs" data-alert>{{ alertText(customer) }}</p>
-                  }
-                </div>
+                <div role="cell" class="truncate px-3 text-base">{{ customer.name }}</div>
                 <div role="cell" class="text-muted-foreground truncate px-3">{{ customer.phone ?? '-' }}</div>
                 <div role="cell" class="px-3 text-right {{ customer.balance > 0 ? 'text-destructive' : 'text-muted-foreground' }}">
                   {{ customer.balance < 0 ? 'Credit ' : '' }}{{ customer.balance === 0 ? '-' : (customer.balance < 0 ? -customer.balance : customer.balance) | money }}

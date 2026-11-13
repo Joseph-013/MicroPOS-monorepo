@@ -124,7 +124,7 @@ describe('CustomersPage', () => {
     document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
   });
 
-  const names = (): string[] => Array.from(el.querySelectorAll('[role="row"] [role="cell"]:nth-child(2) > p:first-child')).map((c) => c.textContent!.trim());
+  const names = (): string[] => Array.from(el.querySelectorAll('[role="row"] [role="cell"]:nth-child(2)')).map((c) => c.textContent!.trim());
   const rowOf = (name: string): HTMLElement => Array.from(el.querySelectorAll<HTMLElement>('[role="row"]')).find((r) => r.textContent?.includes(name))!;
   const type = async (selector: string, text: string, root: ParentNode = el): Promise<void> => {
     const input = root.querySelector(selector) as HTMLInputElement;
@@ -146,19 +146,32 @@ describe('CustomersPage', () => {
     expect(rowOf('Bong').querySelectorAll('[role="cell"]')[3].textContent!.trim()).toBe('-'); // settled
   });
 
-  it('flags customers who need attention with the reason, and filters to them', async () => {
+  it('has a button by the title with the number of concerns, opening the list, whose rows open the account', async () => {
     await open([
       customer('a', 'Aling Nena', { balance: 600_000, alert: { overAmount: 500_000, unpaidDays: 45 } }),
-      customer('b', 'Bakery Boy', { balance: 10_000, alert: { overAmount: null, unpaidDays: 1 } }),
+      customer('b', 'Bakery Boy', { balance: 900_000, alert: { overAmount: 500_000, unpaidDays: null } }),
       customer('c', 'Cora', { balance: 100 }),
     ]);
-    const alertOf = (name: string): string | null => rowOf(name).querySelector('[data-alert]')?.textContent?.trim() ?? null;
-    expect(alertOf('Aling Nena')).toBe('Over ₱5,000.00 · Unpaid 45 days');
-    expect(alertOf('Bakery Boy')).toBe('Unpaid 1 day');
-    expect(alertOf('Cora')).toBeNull();
-    (fixture.componentInstance as unknown as { balanceFilter: { set(v: string): void } }).balanceFilter.set('attention');
-    await fixture.whenStable();
-    expect(names()).toEqual(['Aling Nena', 'Bakery Boy']);
+    const concerns = el.querySelector('button[title="Credit concerns"]') as HTMLButtonElement;
+    expect(concerns.textContent?.trim()).toBe('2');
+    expect(concerns.getAttribute('aria-label')).toBe('2 credit concerns');
+    concerns.click();
+    await settle();
+    const dialog = document.querySelector('hlm-dialog-content, [role="dialog"]')!;
+    expect(dialog.textContent).toContain('Credit concerns');
+    const rows = Array.from(dialog.querySelectorAll('li button')).map((b) => Array.from(b.querySelectorAll('span > span, :scope > span:last-child')).map((x) => x.textContent!.trim()));
+    expect(rows).toEqual([
+      ['Bakery Boy', 'Over ₱5,000.00', '₱9,000.00'],
+      ['Aling Nena', 'Over ₱5,000.00 · Unpaid 45 days', '₱6,000.00'],
+    ]); // largest balance first
+    (dialog.querySelector('li button') as HTMLElement).click();
+    await settle();
+    expect(TestBed.inject(Router).url).toContain('view-customer=b');
+  });
+
+  it('has no concerns button when nothing needs attention', async () => {
+    await open();
+    expect(el.querySelector('button[title="Credit concerns"]')).toBeNull();
   });
 
   it('sorts by what they owe and filters by name, phone and balance', async () => {
