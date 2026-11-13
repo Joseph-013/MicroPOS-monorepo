@@ -18,6 +18,7 @@ import { BannerService } from '../../core/banner';
 import { CatalogService } from '../../core/data/catalog.service';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
+import { CustomersService } from '../../core/data/customers.service';
 import { formatCentsInput, parseCents } from '../../core/money-input';
 import { MoneyPipe } from '../../core/money.pipe';
 import { AppSettings } from '../../core/settings/app-settings.service';
@@ -64,6 +65,7 @@ export class CheckoutPage {
   private readonly draft = inject(CheckoutDraftService);
   private readonly banner = inject(BannerService);
   private readonly viewer = inject(SalesOrderViewer);
+  protected readonly customers = inject(CustomersService);
 
   // The order in progress. It is saved automatically as a draft and restored when the page opens.
   protected readonly lines = signal<DraftLine[]>([]);
@@ -78,7 +80,32 @@ export class CheckoutPage {
   /** Cash handed over, as typed; the change due is worked out from it. */
   protected readonly tenderedText = signal('');
   protected readonly tendered = computed(() => parseCents(this.tenderedText()));
-  protected readonly changeDue = computed(() => Math.max(0, (this.tendered() ?? 0) - this.total()));
+  protected readonly changeDue = computed(() => Math.max(0, (this.tendered() ?? 0) - (this.payNow() ?? this.total())));
+
+  // Credit: with a customer chosen, part of the total can be paid now and the rest goes on their account.
+  protected readonly customerId = signal<string | null>(null);
+  protected readonly customer = computed(() => this.customers.customers().find((c) => c.id === this.customerId()) ?? null);
+  protected readonly customerName = (id: string | null): string => this.customers.customers().find((c) => c.id === id)?.name ?? '';
+  /** What is paid now, as typed; empty means the whole total. */
+  protected readonly payNowText = signal('');
+  /** Cents paid now: the whole total without a customer or when the field is empty; null while the text is not an amount. */
+  protected readonly payNow = computed<number | null>(() => {
+    const text = this.payNowText().trim();
+    if (!this.customerId() || text === '') return this.total();
+    return parseCents(text);
+  });
+  protected readonly onAccount = computed(() => Math.max(0, this.total() - (this.payNow() ?? this.total())));
+  /** True when putting the rest on account would take the customer past their credit limit. */
+  protected readonly overLimit = computed(() => {
+    const customer = this.customer();
+    return !!customer && customer.creditLimit !== null && this.onAccount() > 0 && customer.balance + this.onAccount() > customer.creditLimit;
+  });
+  protected readonly customerSummary = computed(() => {
+    const c = this.customer();
+    if (!c) return '';
+    const owes = c.balance > 0 ? `Owes ${formatMoney(c.balance)}` : c.balance < 0 ? `Credit ${formatMoney(-c.balance)}` : 'Owes nothing';
+    return c.creditLimit === null ? owes : `${owes} · limit ${formatMoney(c.creditLimit)}`;
+  });
   /** Card slip, or a note for "other". */
   protected readonly reference = signal('');
   /** The number this order will get; read from the database. */
@@ -88,7 +115,11 @@ export class CheckoutPage {
     () =>
       this.lines().length > 0 &&
       !this.completing() &&
-      (this.paymentMethod() !== 'cash' || (this.tendered() !== null && this.tendered()! >= this.total())),
+      this.payNow() !== null &&
+      this.payNow()! <= this.total() &&
+      (this.onAccount() === 0 || !!this.customer()) &&
+      !this.overLimit() &&
+      (this.paymentMethod() !== 'cash' || this.payNow() === 0 || (this.tendered() !== null && this.tendered()! >= this.payNow()!)),
   );
 
   // Item browser (dialog). One search box matches name, barcode/PLU and SKU.
@@ -124,6 +155,7 @@ export class CheckoutPage {
   constructor() {
     void this.catalog.load();
     void this.refreshOrderNumber();
+    void this.customers.load();
 
     void this.draft.restore().then((saved) => {
       // A scan can arrive before the read finishes; keep what is already on screen in that case.
@@ -266,6 +298,8 @@ export class CheckoutPage {
     this.discount.set(0);
     this.tenderedText.set('');
     this.reference.set('');
+    this.customerId.set(null);
+    this.payNowText.set('');
   }
 
   private async refreshOrderNumber(): Promise<void> {
@@ -274,7 +308,7 @@ export class CheckoutPage {
 
   /** Cash tendered = exactly the total. */
   protected exactCash(): void {
-    this.tenderedText.set(formatCentsInput(this.total()));
+    this.tenderedText.set(formatCentsInput(this.payNow() ?? this.total()));
   }
 
   /**
@@ -290,7 +324,8 @@ export class CheckoutPage {
       const result = await this.draft.completeOrder({
         lines: this.lines().map((l) => ({ productId: l.productId, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice })),
         discount: this.discount(),
-        payment: { method, tendered: method === 'cash' ? (this.tendered() ?? undefined) : undefined, reference: this.reference().trim() || undefined },
+        ...(this.customerId() ? { customerId: this.customerId()!, amountPaid: this.payNow()! } : {}),
+        payment: { method, tendered: method === 'cash' && this.payNow() !== 0 ? (this.tendered() ?? undefined) : undefined, reference: this.reference().trim() || undefined },
       });
       if (!result.ok) {
         this.applyProblems(result.lines);
@@ -299,7 +334,9 @@ export class CheckoutPage {
       }
       this.resetOrder();
       const change = result.change > 0 ? `, change ${formatMoney(result.change)}` : '';
-      this.banner.success(`Order ${result.orderNumber} completed${change}`, {
+      const credit = result.onAccount > 0 ? `, ${formatMoney(result.onAccount)} on account` : '';
+      void this.customers.load(); // the balance changed
+      this.banner.success(`Order ${result.orderNumber} completed${change}${credit}`, {
         duration: 6000,
         key: 'complete-order',
         action: { label: 'View', run: () => void this.viewer.open(result.orderId) },

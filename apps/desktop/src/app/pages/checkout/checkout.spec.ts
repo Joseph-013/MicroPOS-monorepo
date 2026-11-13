@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { type CatalogProduct, type CheckoutDraft, type CompleteOrderInput, type CompleteOrderResult, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
+import { type CatalogProduct, type CustomerRecord, type CheckoutDraft, type CompleteOrderInput, type CompleteOrderResult, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
 import { Router } from '@angular/router';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
@@ -39,6 +39,8 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     orders: [] as CompleteOrderInput[],
     /** What the fake main process answers when an order is completed. */
     result: null as CompleteOrderResult | null,
+    /** Customers the register can put a sale on account for. */
+    customers: [] as CustomerRecord[],
   };
   const api: DesktopApi = {
     platform: 'linux',
@@ -76,7 +78,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       saveDraft: () => Promise.resolve(),
       clearDraft: () => Promise.resolve(),
     },
-    customers: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve(), account: () => Promise.resolve(null), receivePayment: () => Promise.reject(new Error('unused')) },
+    customers: { list: () => Promise.resolve(store.customers), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve(), account: () => Promise.resolve(null), receivePayment: () => Promise.reject(new Error('unused')) },
     orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), void: () => Promise.reject(new Error('unused')), refund: () => Promise.reject(new Error('unused')) },
     checkout: {
       loadDraft: () => Promise.resolve(store.draft),
@@ -460,6 +462,89 @@ describe('CheckoutPage', () => {
       complete().click();
       await fixture.whenStable();
       expect(store.orders[0].payment).toEqual({ method, tendered: undefined, reference: 'GCASH-123' });
+    });
+
+    describe('on account', () => {
+      const NENA: CustomerRecord = { id: 'a', name: 'Aling Nena', phone: null, note: null, creditLimit: 100_000, balance: 70_000, lastActivityAt: null, createdAt: 1, deletedAt: null };
+      const chooseCustomer = async (id: string | null): Promise<void> => {
+        (fixture.componentInstance as unknown as { customerId: { set(v: string | null): void } }).customerId.set(id);
+        await fixture.whenStable();
+      };
+      beforeEach(async () => {
+        await open();
+        store.customers = [NENA];
+        await (fixture.componentInstance as unknown as { customers: { load(): Promise<void> } }).customers.load();
+        scan(PRODUCTS[1].barcode!); // 4.29
+        await fixture.whenStable();
+      });
+
+      it('has no Pay now field until a customer is chosen, which also shows what they owe', async () => {
+        expect(el.querySelector('#pay-now')).toBeNull();
+        await chooseCustomer('a');
+        expect(el.querySelector('#pay-now')).not.toBeNull();
+        expect(el.textContent).toContain('Owes ₱700.00 · limit ₱1,000.00');
+        expect(el.textContent).toContain('On account'); // ₱0.00 while everything is paid now
+      });
+
+      it('part paid now: the rest goes on account, cash only has to cover what is paid', async () => {
+        await chooseCustomer('a');
+        await type('#pay-now', '3');
+        expect(el.textContent).toContain('₱1.29'); // 4.29 - 3.00 on account
+        expect(complete().disabled).toBe(true); // no cash yet
+        await type('#tendered', '5');
+        expect(complete().disabled).toBe(false);
+        expect(el.textContent).toContain('₱2.00'); // change due on the 3.00 paid, not on the total
+        store.result = { ok: true, orderId: 'o1', orderNumber: 'SO-1001', total: 429, change: 200, onAccount: 129 };
+        complete().click();
+        await fixture.whenStable();
+
+        expect(store.orders[0]).toEqual({
+          lines: [{ productId: '2', quantityMilli: 1000, unitPrice: 429 }],
+          discount: 0,
+          customerId: 'a',
+          amountPaid: 300,
+          payment: { method: 'cash', tendered: 500, reference: undefined },
+        });
+        expect(TestBed.inject(BannerService).current()?.text).toBe('Order SO-1001 completed, change ₱2.00, ₱1.29 on account');
+        expect(el.querySelector('#pay-now')).toBeNull(); // the customer was cleared for the next sale
+      });
+
+      it('paying nothing now puts the whole sale on account and needs no cash', async () => {
+        await chooseCustomer('a');
+        await type('#pay-now', '0');
+        expect(complete().disabled).toBe(false);
+        complete().click();
+        await fixture.whenStable();
+        expect(store.orders[0]).toMatchObject({ customerId: 'a', amountPaid: 0, payment: { method: 'cash', tendered: undefined } });
+      });
+
+      it('Exact fills what is paid now, not the total', async () => {
+        await chooseCustomer('a');
+        await type('#pay-now', '1.50');
+        buttonByText(el, 'Exact').click();
+        await fixture.whenStable();
+        expect((el.querySelector('#tendered') as HTMLInputElement).value).toBe('1.50');
+      });
+
+      it('refuses more than the total, and the rest on account when it would pass the credit limit', async () => {
+        await chooseCustomer('a');
+        await type('#pay-now', '9');
+        expect(complete().disabled).toBe(true); // more than the 4.29 total
+        store.customers = [{ ...NENA, balance: 99_900 }]; // owes 999.00 of a 1,000.00 limit
+        await (fixture.componentInstance as unknown as { customers: { load(): Promise<void> } }).customers.load();
+        await type('#pay-now', '1');
+        expect(el.textContent).toContain('That is over their credit limit');
+        expect(complete().disabled).toBe(true);
+        await type('#pay-now', '4.29'); // paid in full: nothing goes on account
+        expect(el.textContent).not.toContain('over their credit limit');
+      });
+
+      it('without a customer everything is paid now, as before', async () => {
+        await type('#tendered', '5');
+        complete().click();
+        await fixture.whenStable();
+        expect(store.orders[0]).toEqual({ lines: [{ productId: '2', quantityMilli: 1000, unitPrice: 429 }], discount: 0, payment: { method: 'cash', tendered: 500, reference: undefined } });
+      });
     });
 
     it('keeps the order when it is refused, brings a changed price in and drops an unavailable item', async () => {

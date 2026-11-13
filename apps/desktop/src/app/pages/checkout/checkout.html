@@ -234,6 +234,49 @@
       </dl>
 
       <div class="flex flex-col gap-2">
+        <label hlmLabel for="checkout-customer">Customer</label>
+        <hlm-combobox [value]="customerId()" (valueChange)="customerId.set($event ?? null)" [itemToString]="customerName" class="block">
+          <hlm-combobox-input id="checkout-customer" placeholder="No customer" [showClear]="!!customerId()" clearAriaLabel="Clear customer" />
+          <hlm-combobox-content *hlmComboboxPortal>
+            <hlm-combobox-empty>No customer found</hlm-combobox-empty>
+            <div hlmComboboxList>
+              @for (c of customers.customers(); track c.id) {
+                <hlm-combobox-item [value]="c.id">
+                  <span class="flex min-w-0 flex-col">
+                    <span class="truncate">{{ c.name }}</span>
+                    @if (c.phone) { <span class="text-muted-foreground truncate text-xs">{{ c.phone }}</span> }
+                  </span>
+                </hlm-combobox-item>
+              }
+            </div>
+          </hlm-combobox-content>
+        </hlm-combobox>
+        @if (customer()) { <p class="text-muted-foreground text-xs">{{ customerSummary() }}</p> }
+      </div>
+
+      @if (customer()) {
+        <div class="flex flex-col gap-2">
+          <label hlmLabel for="pay-now">Pay now</label>
+          <input
+            hlmInput
+            id="pay-now"
+            type="text"
+            [placeholder]="(total() / 100).toFixed(2)"
+            appOnScreenKeypad
+            [keypadWholeDigits]="7"
+            [keypadDecimals]="2"
+            [attr.inputmode]="settings.onScreenKeyboard() ? 'none' : 'decimal'"
+            [value]="payNowText()"
+            (input)="payNowText.set($any($event.target).value)"
+          />
+          <p class="flex justify-between text-sm">
+            <span>On account</span><span [class.text-destructive]="overLimit() || onAccount() > 0">{{ onAccount() | money }}</span>
+          </p>
+          @if (overLimit()) { <p class="text-destructive text-sm">That is over their credit limit</p> }
+        </div>
+      }
+
+      <div class="flex flex-col gap-2">
         <label hlmLabel>Payment method</label>
         <hlm-select [(value)]="paymentMethod" [itemToString]="paymentLabel">
           <hlm-select-trigger class="w-full">
