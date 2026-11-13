@@ -103,9 +103,9 @@ function createWindow(): void {
     void win.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
-  // Development only: never in a packaged build. Docked inside the window.
+  // Development only: never in a packaged build. In a window of its own, so it never takes room from the till's layout.
   if (!app.isPackaged) {
-    win.webContents.openDevTools({ mode: 'right' });
+    win.webContents.openDevTools({ mode: 'detach' });
   }
 }
 
