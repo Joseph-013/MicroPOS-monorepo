@@ -7,11 +7,12 @@ import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { BannerService } from '../../core/banner';
 import { AuthService } from '../../core/auth/auth.service';
 import { UsersService } from '../../core/data/users.service';
+import { AppPager, Pager } from '../../core/ui/pager';
 import { UserForm, type UserFormContext } from './user-form';
 
 /** Users: who can sign in at this till, what each may do, and the sign-ins so far. */
 @Component({
-  imports: [DatePipe, HlmButtonImports, HlmCardImports],
+  imports: [DatePipe, AppPager, HlmButtonImports, HlmCardImports],
   template: `
     <section hlmCard class="gap-0">
       <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
@@ -49,7 +50,7 @@ import { UserForm, type UserFormContext } from './user-form';
             <div role="columnheader" class="flex h-(--control-height) items-center px-3 font-medium">{{ title }}</div>
           }
         </div>
-        @for (entry of service.signIns(); track entry.id) {
+        @for (entry of signInPager.rows(); track entry.id) {
           <div role="row" class="grid min-h-(--control-height) grid-cols-(--cols) items-center border-b">
             <div role="cell" class="truncate px-3">{{ entry.userName }}</div>
             <div role="cell" class="text-muted-foreground px-3">{{ entry.signedInAt | date: 'MMM d, y, h:mm a' }}</div>
@@ -60,6 +61,7 @@ import { UserForm, type UserFormContext } from './user-form';
       @if (!service.signIns().length) {
         <p class="text-muted-foreground py-6 text-center text-sm">No sign-ins yet</p>
       }
+      <app-pager [pager]="signInPager" />
     </section>
   `,
 })
@@ -68,6 +70,8 @@ export class UsersPage implements OnInit {
   protected readonly auth = inject(AuthService);
   private readonly dialogs = inject(HlmDialogService);
   private readonly banner = inject(BannerService);
+
+  protected readonly signInPager = new Pager(() => this.service.signIns(), () => null);
 
   ngOnInit(): void {
     void this.service.load();

@@ -26,14 +26,14 @@ const user = (id: string, name: string, over: Partial<UserRecord> = {}): UserRec
   ...over,
 });
 
-function fakeApi(initial: UserRecord[]) {
+function fakeApi(initial: UserRecord[], signIns = 1) {
   const rows = [...initial];
   const calls = { created: [] as UserInput[], updated: [] as [string, UserInput][], resets: [] as [string, string][] };
   const api = {
     auth: { status: () => Promise.resolve(null), choices: () => Promise.resolve([]) },
     users: {
       list: () => Promise.resolve([...rows]),
-      signInLog: () => Promise.resolve([{ id: 's1', userId: 'a', userName: 'Ana', signedInAt: 1_700_000_000_000, signedOutAt: null }]),
+      signInLog: () => Promise.resolve(Array.from({ length: signIns }, (_, i) => ({ id: `s${i}`, userId: 'a', userName: i === 0 ? 'Ana' : `Sign-in ${i}`, signedInAt: 1_700_000_000_000 - i * 1000, signedOutAt: null }))),
       create: (input: UserInput) => {
         calls.created.push(input);
         const created = user(`n${rows.length}`, input.name, { permissions: input.permissions, role: input.role, pinChangeRequired: true });
@@ -64,8 +64,8 @@ describe('UsersPage', () => {
       await fixture.whenStable();
     }
   };
-  async function open(rows: UserRecord[]): Promise<void> {
-    fake = fakeApi(rows);
+  async function open(rows: UserRecord[], signIns = 1): Promise<void> {
+    fake = fakeApi(rows, signIns);
     TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: fake.api }] });
     fixture = TestBed.createComponent(UsersPage);
     await settle();
@@ -94,6 +94,17 @@ describe('UsersPage', () => {
       ['Di', 'Cashier', 'New PIN due'],
     ]);
     expect(el.querySelector('[aria-label="Sign-ins"]')!.textContent).toContain('Ana');
+  });
+
+  it('pages the sign-ins, 50 at a time', async () => {
+    await open([user('a', 'Ana')], 120);
+    const table = el.querySelector('[aria-label="Sign-ins"]')!;
+    const rows = (): number => table.querySelectorAll('[role="row"]').length - 1;
+    expect(rows()).toBe(50);
+    expect(el.textContent).toContain('1–50 of 120');
+    (el.querySelector('button[aria-label="Next page"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(el.textContent).toContain('51–100 of 120');
   });
 
   it('adds a user starting from the cashier preset, which the switches can adjust', async () => {

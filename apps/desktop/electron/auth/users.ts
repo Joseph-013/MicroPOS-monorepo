@@ -143,6 +143,6 @@ export function signInLog(db: AppDatabase): SignInLogEntry[] {
     .from(loginSessions)
     .innerJoin(employees, eq(employees.id, loginSessions.employeeId))
     .orderBy(desc(loginSessions.loggedInAt))
-    .limit(200)
+    .limit(2000)
     .all();
 }
