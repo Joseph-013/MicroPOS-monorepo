@@ -24,7 +24,7 @@ Each app gets its own CLAUDE.md with app-specific notes once scaffolded.
 - Core is ESM with NodeNext: relative imports inside it need `.js` extensions.
 - Depend on core with `"@micropos/core": "workspace:*"`.
 - better-sqlite3 is used only in Electron's main process; the renderer reaches it over IPC. Mobile cannot use it.
-- Every update of the desktop app bumps `version` in `apps/desktop/package.json` in the same change (patch fix, minor feature, major breaking or data reset); the Windows installer only upgrades to a higher version. Details in `apps/desktop/CLAUDE.md`.
+- Every update of the desktop app bumps `version` in `apps/desktop/package.json` in the same change (patch fix, minor feature, major breaking or data reset); the Windows installer only upgrades to a higher version. Claude makes the bump (and names the version in its report) without being asked. Details in `apps/desktop/CLAUDE.md`.
 
 ## Docs
 - `docs/erd.mmd` is the source for the database ERD (Mermaid) and `docs/erd.png` is the rendered image. Whenever the database schema changes (Drizzle schema in `apps/desktop/electron/db/schema.ts` or its migrations), update `docs/erd.mmd` and regenerate `docs/erd.png` in the same change. Also check the dummy-data factories (`apps/desktop/electron/db/factories/`) and update them if the change affects them; see `apps/desktop/CLAUDE.md`.
