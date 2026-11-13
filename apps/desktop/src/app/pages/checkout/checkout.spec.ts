@@ -68,6 +68,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       saveRepackageDraft: () => Promise.resolve(),
       clearRepackageDraft: () => Promise.resolve(),
     },
+    data: { onChanged: () => () => undefined },
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: {
       listProducts: () => Promise.resolve(PRODUCTS),

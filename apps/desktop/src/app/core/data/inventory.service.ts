@@ -1,14 +1,17 @@
 import { inject, Service, signal } from '@angular/core';
 import type { AdjustStockInput, BatchRecord,  InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
-import { NavBadges } from '../nav-badges';
+import { refreshOnChange } from './refresh-on-change';
 import type { LoadStatus } from './catalog.service';
 
 /** Stock batches over IPC. Receiving and adjusting refresh the list so it always matches the ledger. */
 @Service()
 export class InventoryService {
   private readonly api = inject(DESKTOP_API);
-  private readonly badges = inject(NavBadges);
+
+  constructor() {
+    refreshOnChange(['stock'], () => this.status() !== 'idle', () => this.load());
+  }
 
   readonly batches = signal<BatchRecord[]>([]);
   readonly status = signal<LoadStatus>('idle');
@@ -31,7 +34,6 @@ export class InventoryService {
     try {
       this.batches.set(await this.api.inventory.listBatches({ includeEmpty: this.includeEmpty() }));
       this.status.set('ready');
-      void this.badges.refresh(); // stock changed: so may what needs attention
     } catch (error) {
       console.error('Failed to load stock', error);
       this.status.set('error');

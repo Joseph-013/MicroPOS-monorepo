@@ -87,6 +87,7 @@ function fakeApi(initial: ProductRecord[]) {
       saveRepackageDraft: () => Promise.resolve(),
       clearRepackageDraft: () => Promise.resolve(),
     },
+    data: { onChanged: () => () => undefined },
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: { listProducts: () => Promise.resolve([]), listCategories: () => Promise.resolve([DAIRY]) },
     products: {

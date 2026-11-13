@@ -1,14 +1,17 @@
 import { inject, Service, signal } from '@angular/core';
 import type { ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
-import { NavBadges } from '../nav-badges';
+import { refreshOnChange } from './refresh-on-change';
 import type { LoadStatus } from './catalog.service';
 
 /** Product management over IPC: every live product, active or not. Checkout reads `CatalogService` instead. */
 @Service()
 export class ProductsService {
   private readonly api = inject(DESKTOP_API);
-  private readonly badges = inject(NavBadges);
+
+  constructor() {
+    refreshOnChange(['stock'], () => this.status() !== 'idle', () => this.load());
+  }
 
   readonly products = signal<ProductRecord[]>([]);
   readonly status = signal<LoadStatus>('idle');
@@ -29,7 +32,6 @@ export class ProductsService {
     try {
       this.products.set(await this.api.products.list({ includeDeleted: this.includeDeleted() }));
       this.status.set('ready');
-      void this.badges.refresh(); // a product changed (active, critical level, deleted): so may what needs attention
     } catch (error) {
       console.error('Failed to load products', error);
       this.status.set('error');

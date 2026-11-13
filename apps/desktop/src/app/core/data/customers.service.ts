@@ -10,14 +10,17 @@ import type {
   SaveCustomerResult,
 } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
-import { NavBadges } from '../nav-badges';
+import { refreshOnChange } from './refresh-on-change';
 import type { LoadStatus } from './catalog.service';
 
 /** Customers and their accounts over IPC. Every change refreshes the list so balances are never stale. */
 @Service()
 export class CustomersService {
   private readonly api = inject(DESKTOP_API);
-  private readonly badges = inject(NavBadges);
+
+  constructor() {
+    refreshOnChange(['customers'], () => this.status() !== 'idle', () => this.load());
+  }
 
   readonly customers = signal<CustomerRecord[]>([]);
   readonly status = signal<LoadStatus>('idle');
@@ -40,7 +43,6 @@ export class CustomersService {
     try {
       this.customers.set(await this.api.customers.list({ includeDeleted: this.includeDeleted() }));
       this.status.set('ready');
-      void this.badges.refresh(); // balances changed: so may who needs attention
     } catch (error) {
       console.error('Failed to load customers', error);
       this.status.set('error');
@@ -148,7 +150,6 @@ export class CustomersService {
       console.error('Failed to save the credit alert limits', error);
       return false;
     }
-    void this.badges.refresh();
     return true;
   }
 }

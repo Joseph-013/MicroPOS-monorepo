@@ -1,13 +1,19 @@
 import type { Permission, PurchaseConcern, StockConcern } from '@micropos/core';
-import { DestroyRef, effect, inject, Service, signal } from '@angular/core';
+import { DestroyRef, effect, inject, Service, signal, untracked } from '@angular/core';
 import { DESKTOP_API } from './api/desktop-api';
 import { AuthService } from './auth/auth.service';
 
-/** How often the counts are asked for again (time passing can flag a customer without anything being changed). */
-const REFRESH_MS = 5 * 60 * 1000;
+/**
+ * A slow safety net only: the main process announces every change (`data.onChanged`), including the moments when
+ * time alone makes something a concern, so nothing depends on this timer.
+ */
+const SAFETY_REFRESH_MS = 30 * 60 * 1000;
+/** Announcements that arrive together (a sale touches customers and stock) become one refresh. */
+const COALESCE_MS = 100;
 
 /**
  * The small numbers on navigation links, by nav entry id (`NavItem.badge`). An entry with no count, or 0, shows none.
+ * They refresh when the main process says the data changed, and on sign-in.
  * To add one: read its count in `refresh` under the entry's id and set `badge` on that entry in the nav rail.
  */
 @Service()
@@ -24,13 +30,23 @@ export class NavBadges {
   readonly purchaseConcerns = signal<readonly PurchaseConcern[]>([]);
 
   constructor() {
-    // Asked for whenever someone signs in (or out), and then every few minutes.
+    // Asked for whenever someone signs in (or out). Untracked: refresh reads the lists it is about to replace, and
+    // tracking those would make every refresh start another.
     effect(() => {
       this.auth.user();
-      void this.refresh();
+      untracked(() => void this.refresh());
     });
-    const timer = setInterval(() => void this.refresh(), REFRESH_MS);
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const stopListening = this.api?.data?.onChanged(() => {
+      clearTimeout(pending);
+      pending = setTimeout(() => void this.refresh(), COALESCE_MS);
+    });
+    const timer = setInterval(() => void this.refresh(), SAFETY_REFRESH_MS);
+    inject(DestroyRef).onDestroy(() => {
+      clearInterval(timer);
+      clearTimeout(pending);
+      stopListening?.();
+    });
   }
 
   count(id: string): number {

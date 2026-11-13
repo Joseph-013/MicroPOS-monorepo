@@ -11,14 +11,17 @@ import type {
   SavePurchaseResult,
 } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
-import { NavBadges } from '../nav-badges';
+import { refreshOnChange } from './refresh-on-change';
 import type { LoadStatus } from './catalog.service';
 
 /** Purchase orders over IPC. Every change refreshes the list so what is owed is never stale. */
 @Service()
 export class PurchasesService {
   private readonly api = inject(DESKTOP_API);
-  private readonly badges = inject(NavBadges);
+
+  constructor() {
+    refreshOnChange(['purchases'], () => this.status() !== 'idle', () => this.load());
+  }
 
   readonly purchases = signal<PurchaseSummary[]>([]);
   readonly status = signal<LoadStatus>('idle');
@@ -32,7 +35,6 @@ export class PurchasesService {
     try {
       this.purchases.set(await this.api.purchases.list());
       this.status.set('ready');
-      void this.badges.refresh(); // an order arrived or was paid: so may what needs attention
     } catch (error) {
       console.error('Failed to load purchases', error);
       this.status.set('error');
