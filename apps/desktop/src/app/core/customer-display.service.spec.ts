@@ -1,15 +1,17 @@
 import { TestBed } from '@angular/core/testing';
-import { type CustomerDisplayState, type DesktopApi, IDLE_DISPLAY_STATE } from '@micropos/core';
+import { type CustomerDisplayMode, type CustomerDisplayState, type DesktopApi, IDLE_DISPLAY_STATE } from '@micropos/core';
+import { AppSettings } from './settings/app-settings.service';
 import { DESKTOP_API } from './api/desktop-api';
 import { CustomerDisplayService } from './customer-display.service';
 
 function setup(open = false) {
-  const calls = { show: 0, hide: 0, published: [] as CustomerDisplayState[] };
+  const calls = { show: 0, hide: 0, modes: [] as (CustomerDisplayMode | undefined)[], published: [] as CustomerDisplayState[] };
   const listeners: ((open: boolean) => void)[] = [];
   const api = {
     display: {
-      show: () => {
+      show: (options?: { mode?: CustomerDisplayMode }) => {
         calls.show++;
+        calls.modes.push(options?.mode);
         listeners.forEach((l) => l(true));
         return Promise.resolve();
       },
@@ -34,6 +36,8 @@ function setup(open = false) {
 }
 
 describe('CustomerDisplayService', () => {
+  beforeEach(() => localStorage.clear());
+
   it('knows whether the window is open at start and when it opens or closes', async () => {
     const { service, listeners } = setup(true);
     await Promise.resolve();
@@ -64,5 +68,30 @@ describe('CustomerDisplayService', () => {
     await service.toggle();
     service.publish(IDLE_DISPLAY_STATE);
     expect(service.open()).toBe(false);
+  });
+
+  it('opens the window in the mode chosen in Settings', async () => {
+    const { service, calls } = setup();
+    await service.show();
+    TestBed.inject(AppSettings).customerDisplayMode.set('fullscreen');
+    TestBed.flushEffects();
+    await service.hide();
+    await service.show();
+    expect(calls.modes).toEqual(['windowed', 'fullscreen', 'fullscreen']);
+  });
+
+  it('puts an open window into a new mode as soon as Settings changes it, and does nothing while it is closed', async () => {
+    const { service, calls } = setup();
+    const settings = TestBed.inject(AppSettings);
+    TestBed.flushEffects();
+    settings.customerDisplayMode.set('maximized'); // closed: nothing to change
+    TestBed.flushEffects();
+    expect(calls.show).toBe(0);
+
+    await service.show(); // open, maximized
+    settings.customerDisplayMode.set('windowed');
+    TestBed.flushEffects();
+    await Promise.resolve();
+    expect(calls.modes).toEqual(['maximized', 'windowed']);
   });
 });

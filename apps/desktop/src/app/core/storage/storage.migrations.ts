@@ -61,6 +61,13 @@ export const STORAGE_MIGRATIONS_LIST: readonly StorageMigration[] = [
       if (store.get('customerDisplayScale') === null) store.set('customerDisplayScale', '100');
     },
   },
+  {
+    // The customer display gained a "window mode": existing installs get an explicit default (windowed).
+    version: 6,
+    migrate(store) {
+      if (store.get('customerDisplayMode') === null) store.set('customerDisplayMode', '"windowed"');
+    },
+  },
 ];
 
 export const STORAGE_MIGRATIONS = new InjectionToken<readonly StorageMigration[]>(

@@ -40,7 +40,7 @@ const api: DesktopApi = {
     clearRepackageDraft: () => ipcRenderer.invoke(CHANNELS.inventory.clearRepackageDraft),
   },
   display: {
-    show: () => ipcRenderer.invoke(CHANNELS.display.show),
+    show: (options) => ipcRenderer.invoke(CHANNELS.display.show, options),
     hide: () => ipcRenderer.invoke(CHANNELS.display.hide),
     isOpen: () => ipcRenderer.invoke(CHANNELS.display.isOpen),
     onVisibility: (listener) => {

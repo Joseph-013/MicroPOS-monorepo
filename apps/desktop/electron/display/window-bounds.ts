@@ -85,6 +85,33 @@ export function placementOf(bounds: Rect, displays: DisplayInfo[]): Placement | 
   };
 }
 
+/**
+ * The placement to remember while the window is maximized or full screen, when its own bounds are just the monitor:
+ * only the monitor changes. The size and position it had as an ordinary window are kept (and moved onto the new
+ * monitor), so leaving maximized mode brings back the window as it was. With none remembered, the default centred
+ * window on that monitor.
+ */
+export function placementOnDisplay(saved: Placement | null, windowBounds: Rect, displays: DisplayInfo[]): Placement | null {
+  const display = displayOf(windowBounds, displays);
+  if (!display) return null;
+  const rect = saved ?? centred(display.workArea);
+  return {
+    displayId: display.id,
+    displayBounds: { ...display.bounds },
+    x: rect.x - (saved ? 0 : display.bounds.x),
+    y: rect.y - (saved ? 0 : display.bounds.y),
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+/** The default window: 1024 x 768 (smaller on a small monitor), centred in the usable area. */
+function centred(area: Rect): Rect {
+  const width = Math.min(DEFAULT_SIZE.width, area.width);
+  const height = Math.min(DEFAULT_SIZE.height, area.height);
+  return clampToArea({ x: area.x + (area.width - width) / 2, y: area.y + (area.height - height) / 2, width, height }, area);
+}
+
 /** Checks something read from disk; anything not a placement is dropped. */
 export function parsePlacement(value: unknown): Placement | null {
   const v = (value ?? {}) as Record<string, unknown>;
@@ -122,8 +149,5 @@ export function resolveBounds(saved: Placement | null, displays: DisplayInfo[], 
   }
 
   const target = displays.find((d) => d.id !== primary.id) ?? primary;
-  const area = target.workArea;
-  const width = Math.min(DEFAULT_SIZE.width, area.width);
-  const height = Math.min(DEFAULT_SIZE.height, area.height);
-  return clampToArea({ x: area.x + (area.width - width) / 2, y: area.y + (area.height - height) / 2, width, height }, area);
+  return centred(target.workArea);
 }

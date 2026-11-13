@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampToArea, type DisplayInfo, displayOf, parsePlacement, placementOf, resolveBounds } from './window-bounds';
+import { clampToArea, type DisplayInfo, displayOf, parsePlacement, placementOf, placementOnDisplay, resolveBounds } from './window-bounds';
 
 /** A 1920x1080 monitor with a 40px taskbar along the bottom. */
 const monitor = (id: number, x: number, y = 0, width = 1920, height = 1080): DisplayInfo => ({
@@ -128,5 +128,30 @@ describe('parsePlacement', () => {
     expect(parsePlacement({ ...p, width: 'wide' })).toBeNull();
     expect(parsePlacement({ ...p, displayBounds: { x: 0 } })).toBeNull();
     expect(parsePlacement({ ...p, x: NaN })).toBeNull();
+  });
+});
+
+describe('placementOnDisplay (maximized or full screen: only the monitor is remembered)', () => {
+  const windowed = placementOf({ x: 2020, y: 80, width: 900, height: 700 }, [main, customer])!;
+
+  it('keeps the size and position of the ordinary window while the window covers its monitor', () => {
+    // Maximized on the customer monitor: its bounds are the monitor's work area.
+    expect(placementOnDisplay(windowed, customer.workArea, [main, customer])).toEqual(windowed);
+  });
+
+  it('moves the remembered window onto the monitor it was dragged to', () => {
+    const placed = placementOnDisplay(windowed, main.workArea, [main, customer])!;
+    expect(placed).toMatchObject({ displayId: 1, displayBounds: main.bounds, x: 100, y: 80, width: 900, height: 700 });
+    expect(resolveBounds(placed, [main, customer], 1)).toEqual({ x: 100, y: 80, width: 900, height: 700 });
+  });
+
+  it('starts from the default centred window when nothing was remembered', () => {
+    const placed = placementOnDisplay(null, customer.workArea, [main, customer])!;
+    expect(placed.displayId).toBe(2);
+    expect(resolveBounds(placed, [main, customer], 1)).toEqual({ x: 2368, y: 136, width: 1024, height: 768 });
+  });
+
+  it('has nothing to remember without a monitor', () => {
+    expect(placementOnDisplay(windowed, customer.workArea, [])).toBeNull();
   });
 });

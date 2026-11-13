@@ -1,5 +1,9 @@
 import type { Money } from './index.js';
 
+/** How the customer-facing window is shown: an ordinary window, maximized on its monitor, or full screen. */
+export const CUSTOMER_DISPLAY_MODES = ['windowed', 'maximized', 'fullscreen'] as const;
+export type CustomerDisplayMode = (typeof CUSTOMER_DISPLAY_MODES)[number];
+
 /** One line of the order as the customer sees it. */
 export interface CustomerDisplayLine {
   name: string;

@@ -1,10 +1,10 @@
-import { type CustomerDisplayState, IDLE_DISPLAY_STATE } from '@micropos/core';
+import { CUSTOMER_DISPLAY_MODES, type CustomerDisplayMode, type CustomerDisplayState, IDLE_DISPLAY_STATE } from '@micropos/core';
 import { app, type BrowserWindow, ipcMain, screen } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CHANNELS } from '../ipc/channels';
 import { sanitizeDisplayState } from './state';
-import { type DisplayInfo, parsePlacement, type Placement, placementOf, type Rect, resolveBounds } from './window-bounds';
+import { type DisplayInfo, parsePlacement, type Placement, placementOf, placementOnDisplay, type Rect, resolveBounds } from './window-bounds';
 
 export interface CustomerDisplayDeps {
   /** Makes the (hidden) display window at these bounds. */
@@ -31,10 +31,15 @@ function loadPlacement(): Placement | null {
   }
 }
 
-/** Remembers the monitor the window is on and where on it (relative to that monitor). */
+/**
+ * Remembers the monitor the window is on and where on it (relative to that monitor). While it is maximized or full
+ * screen its bounds are just the monitor, so only the monitor is updated and the size and position it has as an
+ * ordinary window stay as they were.
+ */
 function savePlacement(target: BrowserWindow): void {
-  if (target.isDestroyed() || target.isMinimized() || target.isFullScreen()) return;
-  const placement = placementOf(target.getBounds(), displays());
+  if (target.isDestroyed() || target.isMinimized()) return;
+  const covering = target.isFullScreen() || target.isMaximized();
+  const placement = covering ? placementOnDisplay(loadPlacement(), target.getBounds(), displays()) : placementOf(target.getBounds(), displays());
   if (!placement) return;
   try {
     fs.writeFileSync(placementFile(), JSON.stringify(placement));
@@ -48,9 +53,32 @@ function notify(deps: CustomerDisplayDeps, open: boolean): void {
   if (main && !main.isDestroyed()) main.webContents.send(CHANNELS.display.visibility, open);
 }
 
-/** Opens the customer display on the monitor and at the position it had, kept inside that monitor. Does nothing if open. */
-function showDisplay(deps: CustomerDisplayDeps): void {
-  if (win && !win.isDestroyed()) return;
+/** Puts the window in the wanted mode: an ordinary window (at its remembered size and place), maximized, or full screen. */
+function applyMode(target: BrowserWindow, mode: CustomerDisplayMode): void {
+  if (mode === 'fullscreen') {
+    target.setFullScreen(true);
+    return;
+  }
+  if (target.isFullScreen()) target.setFullScreen(false);
+  if (mode === 'maximized') {
+    if (!target.isMaximized()) target.maximize();
+  } else if (target.isMaximized()) {
+    target.unmaximize();
+  }
+}
+
+const modeOf = (value: unknown): CustomerDisplayMode =>
+  (CUSTOMER_DISPLAY_MODES as readonly unknown[]).includes(value) ? (value as CustomerDisplayMode) : 'windowed';
+
+/**
+ * Opens the customer display on the monitor it was on, in the wanted mode: windowed at the position it had (kept
+ * inside that monitor), maximized or full screen on that monitor. An open window is just put into the mode.
+ */
+function showDisplay(deps: CustomerDisplayDeps, mode: CustomerDisplayMode): void {
+  if (win && !win.isDestroyed()) {
+    applyMode(win, mode);
+    return;
+  }
   const bounds = resolveBounds(loadPlacement(), displays(), screen.getPrimaryDisplay().id);
   if (!bounds) return;
   const created = deps.createWindow(bounds);
@@ -72,6 +100,7 @@ function showDisplay(deps: CustomerDisplayDeps): void {
   // Shown without taking the keyboard from the cashier's window.
   created.once('ready-to-show', () => {
     created.showInactive();
+    applyMode(created, mode);
     notify(deps, true);
   });
 }
@@ -83,7 +112,7 @@ function hideDisplay(): void {
 
 /** Registers the customer display's IPC calls. */
 export function registerCustomerDisplay(deps: CustomerDisplayDeps): void {
-  ipcMain.handle(CHANNELS.display.show, () => showDisplay(deps));
+  ipcMain.handle(CHANNELS.display.show, (_event, options: unknown) => showDisplay(deps, modeOf((options as { mode?: unknown } | undefined)?.mode)));
   ipcMain.handle(CHANNELS.display.hide, () => hideDisplay());
   ipcMain.handle(CHANNELS.display.isOpen, () => !!win && !win.isDestroyed() && win.isVisible());
   ipcMain.handle(CHANNELS.display.getState, () => state);

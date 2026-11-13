@@ -1,4 +1,5 @@
 import { DestroyRef, effect, inject, Service, signal } from '@angular/core';
+import { CUSTOMER_DISPLAY_MODES, type CustomerDisplayMode } from '@micropos/core';
 import { StorageService } from '../storage/storage.service';
 
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
@@ -8,6 +9,7 @@ export const CUSTOMER_DISPLAY_SCALES = [75, 100, 125, 150, 175, 200, 250, 300] a
 export const DEFAULT_CUSTOMER_DISPLAY_SCALE = 100;
 const isScale = (value: unknown): value is number => typeof value === 'number' && (CUSTOMER_DISPLAY_SCALES as readonly number[]).includes(value);
 const SCALE_KEY = 'customerDisplayScale';
+const isMode = (value: unknown): value is CustomerDisplayMode => (CUSTOMER_DISPLAY_MODES as readonly unknown[]).includes(value);
 
 /**
  * Per-device settings chosen on the Settings page, persisted with `StorageService`
@@ -26,6 +28,9 @@ export class AppSettings {
   /** Open the customer-facing display window when the app starts. */
   readonly customerDisplayOnStart = signal(this.storage.get('customerDisplayOnStart', false, isBoolean));
 
+  /** How the customer display window is shown when it opens: windowed, maximized or full screen. */
+  readonly customerDisplayMode = signal<CustomerDisplayMode>(this.storage.get('customerDisplayMode', 'windowed', isMode));
+
   /**
    * How large everything on the customer display is, in percent (it is read from a distance, so it is often wanted
    * bigger). The display window is a separate page that shares this storage: it follows a change made in the
@@ -35,6 +40,7 @@ export class AppSettings {
 
   constructor() {
     effect(() => this.storage.set(SCALE_KEY, this.customerDisplayScale()));
+    effect(() => this.storage.set('customerDisplayMode', this.customerDisplayMode()));
     const follow = (event: StorageEvent): void => {
       if (event.key === `micropos.${SCALE_KEY}`) this.customerDisplayScale.set(this.storage.get(SCALE_KEY, DEFAULT_CUSTOMER_DISPLAY_SCALE, isScale));
     };

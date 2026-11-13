@@ -85,7 +85,7 @@ describe('SettingsPage', () => {
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
     expect(el.textContent).toContain('UI scale');
-    const trigger = el.querySelector('hlm-select-trigger') as HTMLElement;
+    const trigger = el.querySelector('hlm-select-trigger[aria-labelledby="display-scale-label"]') as HTMLElement;
     expect(trigger.textContent).toContain('100%');
 
     (trigger.querySelector('button') ?? trigger).click();
@@ -111,5 +111,34 @@ describe('SettingsPage', () => {
     localStorage.setItem('micropos.customerDisplayScale', '200');
     window.dispatchEvent(new StorageEvent('storage', { key: 'micropos.customerDisplayScale', newValue: '200' }));
     expect(settings.customerDisplayScale()).toBe(200);
+  });
+
+  it('has a Window mode for the customer display: Windowed by default, with Maximized and Full screen, remembered', async () => {
+    const fixture = TestBed.createComponent(SettingsPage);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Window mode');
+    const trigger = el.querySelector('hlm-select-trigger[aria-labelledby="display-mode-label"]') as HTMLElement;
+    expect(trigger.textContent).toContain('Windowed');
+
+    (trigger.querySelector('button') ?? trigger).click();
+    await fixture.whenStable();
+    expect([...document.querySelectorAll('hlm-select-item')].map((i) => i.textContent!.trim())).toEqual(['Windowed', 'Maximized', 'Full screen']);
+    ([...document.querySelectorAll('hlm-select-item')].find((i) => i.textContent?.trim() === 'Full screen') as HTMLElement).click();
+    await fixture.whenStable();
+    expect(TestBed.inject(AppSettings).customerDisplayMode()).toBe('fullscreen');
+    expect(localStorage.getItem('micropos.customerDisplayMode')).toBe('"fullscreen"');
+    expect(trigger.textContent).toContain('Full screen');
+  });
+
+  it('ignores a saved window mode that is not one of the choices, and migrates old installs to Windowed', () => {
+    localStorage.setItem('micropos.customerDisplayMode', '"floating"');
+    localStorage.setItem('micropos.schemaVersion', '6');
+    expect(TestBed.inject(AppSettings).customerDisplayMode()).toBe('windowed');
+    TestBed.resetTestingModule();
+    localStorage.clear();
+    localStorage.setItem('micropos.schemaVersion', '5');
+    expect(TestBed.inject(AppSettings).customerDisplayMode()).toBe('windowed');
+    expect(localStorage.getItem('micropos.customerDisplayMode')).toBe('"windowed"');
   });
 });
