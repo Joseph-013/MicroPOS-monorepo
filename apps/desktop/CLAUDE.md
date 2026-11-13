@@ -77,6 +77,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 ## UI conventions (MicroPOS)
 
 - Copy: titles and labels are short, professional, sentence case ("Checkout", "Sales Orders"). No descriptions, subtitles or helper text unless critically necessary, e.g. confirmation dialogs.
+- Anything pressable (buttons, checkboxes, switches, radios, tabs, options, menu items, links, selects) shows the pointer cursor and anything disabled shows not-allowed: a base rule in `src/styles.css` (Tailwind 4 leaves buttons on the arrow), so components need no `cursor-pointer` of their own; a utility such as `cursor-default` still overrides it.
 - Shape: square and boxy everywhere. No `rounded-*` classes; the theme radius is 0. Only radio buttons stay circular (as in the design). Dialogs are square with the `blueprint` corner marks; only confirmation (alert) dialogs carry a description.
 - Scrollbars are styled globally in `styles.css` (slim, square, no arrows); don't restyle them per component.
 - Keep borders minimal: corner marks (`blueprint`) are for large panels only. Repeated items (grid cells, list rows) get a single hairline border with no marks and no outlined tags (`before:hidden`, `tagNeutral`).

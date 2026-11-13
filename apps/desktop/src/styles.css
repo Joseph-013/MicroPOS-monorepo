@@ -52,6 +52,34 @@
     outline-offset: 2px;
   }
 
+  /*
+   * Anything you can press shows the pointer (Tailwind 4 leaves buttons at the default arrow); anything disabled
+   * shows it is off. Utilities such as cursor-default or cursor-grab still win over these base rules.
+   */
+  button:not(:disabled),
+  summary,
+  select,
+  a[href],
+  label[for],
+  input:is([type='checkbox'], [type='radio'], [type='range'], [type='file']),
+  [role='button'],
+  [role='switch'],
+  [role='checkbox'],
+  [role='radio'],
+  [role='tab'],
+  [role='option'],
+  [role='menuitem'],
+  [role='menuitemcheckbox'],
+  [role='menuitemradio'],
+  [role='combobox'] {
+    cursor: pointer;
+  }
+  :disabled,
+  [aria-disabled='true'],
+  [data-disabled] {
+    cursor: not-allowed;
+  }
+
   /* Scrollbars: slim, square, theme-colored; no arrow buttons. */
   ::-webkit-scrollbar {
     width: 10px;
