@@ -80,6 +80,7 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   product: one(products, { fields: [stockMovements.productId], references: [products.id] }),
   batch: one(productBatches, { fields: [stockMovements.batchId], references: [productBatches.id] }),
   orderLine: one(orderLines, { fields: [stockMovements.orderLineId], references: [orderLines.id] }),
+  purchaseOrderLine: one(purchaseOrderLines, { fields: [stockMovements.purchaseOrderLineId], references: [purchaseOrderLines.id] }),
   employee: one(employees, { fields: [stockMovements.employeeId], references: [employees.id] }),
 }));
 

@@ -1,0 +1,2 @@
+ALTER TABLE `stock_movements` ADD `purchase_order_line_id` text REFERENCES purchase_order_lines(id);--> statement-breakpoint
+CREATE INDEX `stock_movements_purchase_order_line_id_idx` ON `stock_movements` (`purchase_order_line_id`);

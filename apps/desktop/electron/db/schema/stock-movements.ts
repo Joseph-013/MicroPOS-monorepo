@@ -5,6 +5,7 @@ import { id } from './_columns';
 import { orderLines } from './order-lines';
 import { productBatches } from './product-batches';
 import { products } from './products';
+import { purchaseOrderLines } from './purchase-order-lines';
 
 /**
  * Why stock moved. Receipts, refunds, voids and repackaged-in stock add it; sales, waste, expiry and repackaged-out
@@ -32,6 +33,8 @@ export const stockMovements = sqliteTable(
     quantityMilli: integer().notNull(),
     /** The sale line this movement belongs to (sales, refunds, voids). */
     orderLineId: text().references(() => orderLines.id, { onDelete: 'restrict' }),
+    /** The purchase order line a receipt was delivered against (what has arrived of an order is the sum of these). */
+    purchaseOrderLineId: text().references(() => purchaseOrderLines.id, { onDelete: 'restrict' }),
     /** Who did it; null for system actions or before sign-in exists. */
     employeeId: text().references(() => employees.id, { onDelete: 'restrict' }),
     at: integer()
@@ -45,6 +48,7 @@ export const stockMovements = sqliteTable(
     index('stock_movements_batch_id_idx').on(t.batchId),
     index('stock_movements_product_id_idx').on(t.productId),
     index('stock_movements_order_line_id_idx').on(t.orderLineId),
+    index('stock_movements_purchase_order_line_id_idx').on(t.purchaseOrderLineId),
     index('stock_movements_employee_id_idx').on(t.employeeId),
     index('stock_movements_at_idx').on(t.at),
     index('stock_movements_repackage_id_idx').on(t.repackageId),

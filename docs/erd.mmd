@@ -23,6 +23,7 @@ erDiagram
     products ||--o{ purchase_order_lines : "bought as"
     purchase_orders ||--o{ purchase_payments : "paid by"
     employees |o--o{ purchase_orders : "places"
+    purchase_order_lines |o--o{ stock_movements : "delivered as"
     employees |o--o{ purchase_payments : "records"
 
     employees {
@@ -97,6 +98,7 @@ erDiagram
         text type "receive, sale, refund, void, adjust, waste, expired, repack_out, repack_in"
         int quantity_milli "signed"
         text order_line_id FK
+        text purchase_order_line_id FK "receipts against a purchase order"
         text employee_id FK
         int at
         text repackage_id "groups the movements of one repackage"
