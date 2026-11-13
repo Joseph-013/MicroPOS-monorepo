@@ -8,6 +8,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import { customers } from './customers';
 import { employees } from './employees';
 import { createdAt, id, updatedAt } from './_columns';
 
@@ -24,6 +25,8 @@ export const orders = sqliteTable(
     employeeId: text()
       .notNull()
       .references(() => employees.id, { onDelete: 'restrict' }),
+    /** The customer a credit sale is on account for (the unpaid part is charged in `customer_ledger`); null for ordinary sales. */
+    customerId: text().references(() => customers.id, { onDelete: 'restrict' }),
     /** Set on a refund order: the order it reverses. */
     refundOfOrderId: text().references((): AnySQLiteColumn => orders.id, { onDelete: 'restrict' }),
     status: text({ enum: ORDER_STATUSES }).notNull().default('open'),
@@ -38,6 +41,7 @@ export const orders = sqliteTable(
   (t) => [
     uniqueIndex('orders_order_number_unique').on(t.orderNumber),
     index('orders_employee_id_idx').on(t.employeeId),
+    index('orders_customer_id_idx').on(t.customerId),
     index('orders_refund_of_order_id_idx').on(t.refundOfOrderId),
     index('orders_created_at_idx').on(t.createdAt),
     index('orders_status_idx').on(t.status),

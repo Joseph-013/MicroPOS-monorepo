@@ -1,5 +1,7 @@
 export * from './audit-log';
 export * from './categories';
+export * from './customer-ledger';
+export * from './customers';
 export * from './employees';
 export * from './login-sessions';
 export * from './order-lines';

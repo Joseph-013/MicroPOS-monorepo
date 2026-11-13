@@ -12,7 +12,11 @@ erDiagram
     categories ||--o{ product_categories : "groups"
     orders ||--|{ order_lines : "has"
     products |o--o{ order_lines : "sold as"
-    orders ||--|{ payments : "paid_by"
+    orders ||--o{ payments : "paid_by"
+    customers |o--o{ orders : "buys on credit"
+    customers ||--o{ customer_ledger : "account"
+    orders |o--o{ customer_ledger : "charged by"
+    employees |o--o{ customer_ledger : "records"
     orders |o--o{ orders : "refunds"
 
     employees {
@@ -96,6 +100,7 @@ erDiagram
         text id PK
         text order_number UK
         text employee_id FK
+        text customer_id FK
         text refund_of_order_id FK
         text status
         int subtotal
@@ -104,6 +109,28 @@ erDiagram
         int completed_at
         int created_at
         int updated_at
+    }
+    customers {
+        text id PK
+        text name
+        text phone
+        text note
+        int credit_limit "null = no limit"
+        int created_at
+        int updated_at
+        int deleted_at
+    }
+    customer_ledger {
+        text id PK
+        text customer_id FK
+        text type "charge, payment, refund, void, adjustment"
+        int amount "signed cents; positive = customer owes"
+        text order_id FK
+        text method "payments only"
+        text reference
+        text note
+        text employee_id FK
+        int at
     }
     order_lines {
         text id PK

@@ -1,6 +1,8 @@
 import { relations } from 'drizzle-orm';
 import { auditLog } from './audit-log';
 import { categories } from './categories';
+import { customerLedger } from './customer-ledger';
+import { customers } from './customers';
 import { employees } from './employees';
 import { loginSessions } from './login-sessions';
 import { orderLines } from './order-lines';
@@ -38,7 +40,16 @@ export const productsRelations = relations(products, ({ many }) => ({
   batches: many(productBatches),
 }));
 
+export const customersRelations = relations(customers, ({ many }) => ({ orders: many(orders), ledger: many(customerLedger) }));
+
+export const customerLedgerRelations = relations(customerLedger, ({ one }) => ({
+  customer: one(customers, { fields: [customerLedger.customerId], references: [customers.id] }),
+  order: one(orders, { fields: [customerLedger.orderId], references: [orders.id] }),
+  employee: one(employees, { fields: [customerLedger.employeeId], references: [employees.id] }),
+}));
+
 export const ordersRelations = relations(orders, ({ one, many }) => ({
+  customer: one(customers, { fields: [orders.customerId], references: [customers.id] }),
   employee: one(employees, { fields: [orders.employeeId], references: [employees.id] }),
   refundOf: one(orders, { fields: [orders.refundOfOrderId], references: [orders.id], relationName: 'refunds' }),
   refunds: many(orders, { relationName: 'refunds' }),
