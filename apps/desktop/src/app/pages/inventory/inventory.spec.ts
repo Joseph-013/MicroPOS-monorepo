@@ -135,12 +135,13 @@ describe('InventoryPage', () => {
   let calls: ReturnType<typeof fakeApi>['calls'];
   let drafts: ReturnType<typeof fakeApi>['drafts'];
 
-  async function open(rows: BatchRecord[], catalog: ProductRecord[] = [], orders: PurchaseDetail[] = []): Promise<void> {
+  async function open(rows: BatchRecord[], catalog: ProductRecord[] = [], orders: PurchaseDetail[] = [], url = ''): Promise<void> {
     const fake = fakeApi(rows, catalog, orders);
     calls = fake.calls;
     drafts = fake.drafts;
     TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }] });
     TestBed.inject(ScannerService);
+    if (url) await TestBed.inject(Router).navigateByUrl(url);
     fixture = TestBed.createComponent(InventoryPage);
     await fixture.whenStable();
     el = fixture.nativeElement as HTMLElement;
@@ -388,6 +389,19 @@ describe('InventoryPage', () => {
     await settle();
     expect(calls.receive[0]).toMatchObject({ productId: '1', quantityMilli: 6_000, unitCost: 4_000, purchaseLineId: 'l1' });
     expect(order.partlyReceived).toBe(true);
+  });
+
+  it('?receive-order=<id> opens Receive stock with that order chosen, then drops the parameter', async () => {
+    const order = {
+      id: 'o1', number: 'PO-1001', supplierId: 's', supplierName: 'Metro', status: 'ordered', orderedAt: 1, expectedAt: null, dueAt: null, receivedAt: null, reference: null, lineCount: 1,
+      partlyReceived: false, total: 0, paid: 0, owed: 0, note: null, employeeName: null, payments: [],
+      lines: [{ id: 'l1', productId: '1', productName: 'Milk', productCode: null, unit: 'each', tracking: 'quantity', quantityMilli: 5_000, receivedMilli: 0, unitCost: 4_000, total: 0 }],
+    } as PurchaseDetail;
+    await open([], [product('1', 'Milk', { tracking: 'quantity' })], [order], '/?receive-order=o1');
+    await settle();
+    expect(dialog().textContent).toContain('Receive stock');
+    expect((dialog().querySelector('input#r-order, #r-order input') as HTMLInputElement).value).toBe('PO-1001');
+    expect(TestBed.inject(Router).url).toBe('/');
   });
 
   it('takes an expiry given as a month only, as the last day of that month', async () => {

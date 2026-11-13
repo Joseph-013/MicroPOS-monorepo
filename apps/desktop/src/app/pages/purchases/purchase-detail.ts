@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { formatQuantity, ORDER_PAYMENT_METHODS, type OrderPaymentMethod, type PurchaseDetail, type PurchaseLineRecord } from '@micropos/core';
+import { Router } from '@angular/router';
 import { injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -10,6 +11,7 @@ import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { BannerService } from '../../core/banner';
+import { RECEIVE_ORDER_PARAM } from '../../core/receive-order-param';
 import { PurchasesService } from '../../core/data/purchases.service';
 import { SuppliersService } from '../../core/data/suppliers.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
@@ -17,7 +19,6 @@ import { formatCentsInput, parseCents } from '../../core/money-input';
 import { MoneyPipe } from '../../core/money.pipe';
 import { AppSettings } from '../../core/settings/app-settings.service';
 import { METHOD_LABELS } from '../orders/sales-order-form';
-import { ReceiveStockForm, type ReceiveStockContext } from '../inventory/receive-stock-form';
 import { PurchaseForm, type PurchaseFormContext } from './purchase-form';
 import { PurchaseReceiveForm, type PurchaseReceiveContext } from './purchase-receive-form';
 import { isOverdue, statusText, statusVariant } from './purchase-status';
@@ -192,6 +193,7 @@ export class PurchaseDetailForm {
   private readonly suppliers = inject(SuppliersService);
   private readonly dialogs = inject(HlmDialogService);
   private readonly banner = inject(BannerService);
+  private readonly router = inject(Router);
   private readonly money = new MoneyPipe();
 
   /** Replaced with a fresh copy after every change. */
@@ -263,20 +265,9 @@ export class PurchaseDetailForm {
       });
   }
 
-  /** The Receive stock dialog with this order chosen: scan or pick products as they come out of the box. */
+  /** To the Inventory page, where Receive stock opens with this order chosen: scan or pick products as they come out of the box. */
   protected receiveByItem(): void {
-    const id = this.purchase().id;
-    this.dialogs
-      .open<boolean, ReceiveStockContext>(ReceiveStockForm, {
-        id: 'receive-stock',
-        contentClass: 'w-[min(34rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
-        context: { orderId: id },
-      })
-      .closed$.subscribe(async () => {
-        const fresh = await this.purchases.get(id); // receipts changed what has arrived
-        if (fresh) this.purchase.set(fresh);
-        void this.suppliers.load();
-      });
+    void this.router.navigate(['/items/inventory'], { queryParams: { [RECEIVE_ORDER_PARAM]: this.purchase().id } });
   }
 
   protected receive(): void {

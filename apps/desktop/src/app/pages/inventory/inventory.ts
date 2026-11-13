@@ -1,6 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
+import { RECEIVE_ORDER_PARAM } from '../../core/receive-order-param';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2 } from '@ng-icons/lucide';
 import { type BatchRecord, expiryState, type ExpiryState, formatQuantity } from '@micropos/core';
@@ -83,6 +85,7 @@ export class InventoryPage {
   private readonly dialogs = inject(HlmDialogService);
   private readonly banner = inject(BannerService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   protected readonly columnsTemplate = COLUMNS_TEMPLATE;
   protected readonly columns: { key: SortKey; label: string; right?: boolean }[] = [
@@ -250,11 +253,11 @@ export class InventoryPage {
   /** The batch a dialog is open for: highlighted, not selected. */
   protected readonly target = rowTarget();
 
-  protected receive(): void {
+  protected receive(orderId?: string): void {
     this.dialogs.open<boolean, ReceiveStockContext>(ReceiveStockForm, {
       id: 'receive-stock',
       contentClass: 'w-[min(34rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
-      context: {},
+      context: { orderId },
     }).closed$.subscribe((saved) => {
       if (saved) this.banner.success('Stock received', { key: 'inventory-saved' });
     });
@@ -288,6 +291,14 @@ export class InventoryPage {
     if (wanted && wanted in STATUSES) this.status.set(wanted as Status);
     void this.service.load();
     void this.products.load(); // the receive form lists tracked products
+    // A purchase order's dialog sends you here (`?receive-order=<id>`) to receive its products one by one: the
+    // Receive stock dialog opens with that order chosen, and the parameter is removed so Back does not reopen it.
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      const order = params.get(RECEIVE_ORDER_PARAM);
+      if (!order) return;
+      void this.router.navigate([], { queryParams: { [RECEIVE_ORDER_PARAM]: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      this.receive(order);
+    });
     // Badges are measured against the moment the list was loaded.
     effect(() => {
       this.service.batches();

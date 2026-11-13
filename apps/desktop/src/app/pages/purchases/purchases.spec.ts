@@ -362,17 +362,15 @@ describe('PurchasesPage', () => {
     expect(button(dialog, 'Cancel order')).toBeUndefined();
   });
 
-  it('the order dialog offers Receive by item, opening Receive stock with that order chosen', async () => {
+  it('the order dialog offers Receive by item, which goes to Inventory with that order chosen', async () => {
     await open();
     expect(button(el, 'Receive stock')).toBeUndefined(); // not in the page header
     rowOf('PO-1003').click();
     await settle();
+    expect(button(document.querySelector('#purchase-detail')!, 'Receive stock')).toBeDefined(); // the delivery session is separate
     button(document.querySelector('#purchase-detail')!, 'Receive by item')!.click();
     await settle();
-    const form = document.querySelector('#receive-stock')!;
-    expect(form.textContent).toContain('Receive stock');
-    expect((form.querySelector('input#r-order, #r-order input') as HTMLInputElement).value).toBe('PO-1003');
-    expect(button(document.querySelector('#purchase-detail')!, 'Receive stock')).toBeDefined(); // the delivery session is separate
+    expect(TestBed.inject(Router).url).toBe('/items/inventory?receive-order=a');
   });
 
   it('places an order: pick a supplier and products, with quantity and cost', async () => {
