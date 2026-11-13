@@ -11,7 +11,11 @@ import { payments } from './payments';
 import { productBatches } from './product-batches';
 import { productCategories } from './product-categories';
 import { products } from './products';
+import { purchaseOrderLines } from './purchase-order-lines';
+import { purchaseOrders } from './purchase-orders';
+import { purchasePayments } from './purchase-payments';
 import { stockMovements } from './stock-movements';
+import { suppliers } from './suppliers';
 
 export const employeesRelations = relations(employees, ({ many }) => ({
   loginSessions: many(loginSessions),
@@ -38,6 +42,7 @@ export const productsRelations = relations(products, ({ many }) => ({
   categoryLinks: many(productCategories),
   orderLines: many(orderLines),
   batches: many(productBatches),
+  purchaseLines: many(purchaseOrderLines),
 }));
 
 export const customersRelations = relations(customers, ({ many }) => ({ orders: many(orders), ledger: many(customerLedger) }));
@@ -76,4 +81,23 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   batch: one(productBatches, { fields: [stockMovements.batchId], references: [productBatches.id] }),
   orderLine: one(orderLines, { fields: [stockMovements.orderLineId], references: [orderLines.id] }),
   employee: one(employees, { fields: [stockMovements.employeeId], references: [employees.id] }),
+}));
+
+export const suppliersRelations = relations(suppliers, ({ many }) => ({ purchaseOrders: many(purchaseOrders) }));
+
+export const purchaseOrdersRelations = relations(purchaseOrders, ({ one, many }) => ({
+  supplier: one(suppliers, { fields: [purchaseOrders.supplierId], references: [suppliers.id] }),
+  employee: one(employees, { fields: [purchaseOrders.employeeId], references: [employees.id] }),
+  lines: many(purchaseOrderLines),
+  payments: many(purchasePayments),
+}));
+
+export const purchaseOrderLinesRelations = relations(purchaseOrderLines, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders, { fields: [purchaseOrderLines.purchaseOrderId], references: [purchaseOrders.id] }),
+  product: one(products, { fields: [purchaseOrderLines.productId], references: [products.id] }),
+}));
+
+export const purchasePaymentsRelations = relations(purchasePayments, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders, { fields: [purchasePayments.purchaseOrderId], references: [purchaseOrders.id] }),
+  employee: one(employees, { fields: [purchasePayments.employeeId], references: [employees.id] }),
 }));

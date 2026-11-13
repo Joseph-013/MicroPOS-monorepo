@@ -18,6 +18,12 @@ erDiagram
     orders |o--o{ customer_ledger : "charged by"
     employees |o--o{ customer_ledger : "records"
     orders |o--o{ orders : "refunds"
+    suppliers ||--o{ purchase_orders : "supplies"
+    purchase_orders ||--|{ purchase_order_lines : "has"
+    products ||--o{ purchase_order_lines : "bought as"
+    purchase_orders ||--o{ purchase_payments : "paid by"
+    employees |o--o{ purchase_orders : "places"
+    employees |o--o{ purchase_payments : "records"
 
     employees {
         text id PK
@@ -156,4 +162,46 @@ erDiagram
         text key PK "store.name, receipt.footer, checkout.draft, product.draft.*"
         text value "JSON"
         int updated_at
+    }
+    suppliers {
+        text id PK
+        text name
+        text phone
+        text note
+        int created_at
+        int updated_at
+        int deleted_at
+    }
+    purchase_orders {
+        text id PK
+        text po_number UK
+        text supplier_id FK
+        text status "ordered, received, cancelled"
+        int ordered_at
+        int expected_at
+        int due_at
+        int received_at
+        text reference "supplier invoice no."
+        text note
+        int total "cents"
+        text employee_id FK
+        int created_at
+        int updated_at
+    }
+    purchase_order_lines {
+        text id PK
+        text purchase_order_id FK
+        text product_id FK
+        int quantity_milli
+        int unit_cost
+    }
+    purchase_payments {
+        text id PK
+        text purchase_order_id FK
+        int amount "cents, positive; append-only"
+        text method
+        text reference
+        text note
+        text employee_id FK
+        int at
     }
