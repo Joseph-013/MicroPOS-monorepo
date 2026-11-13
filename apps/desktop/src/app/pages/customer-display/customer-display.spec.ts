@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { type CustomerDisplayState, type DesktopApi, IDLE_DISPLAY_STATE } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
+import { AppSettings } from '../../core/settings/app-settings.service';
 import { CustomerDisplayPage, HIGHLIGHT_MS, PAID_SCREEN_MS } from './customer-display';
 
 const line = (name: string, quantityMilli: number, unitPrice: number, unit = 'each') => ({ name, unit, quantityMilli, unitPrice, total: Math.round((quantityMilli * unitPrice) / 1000) });
@@ -29,7 +30,10 @@ function setup(initial: CustomerDisplayState = IDLE_DISPLAY_STATE) {
 }
 
 describe('CustomerDisplayPage', () => {
-  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }));
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
   afterEach(() => vi.useRealTimers());
 
   it('welcomes the customer while nothing has been scanned', async () => {
@@ -102,5 +106,16 @@ describe('CustomerDisplayPage', () => {
     await send({ phase: 'paid', lines: [], total: 1_500, receipt: { orderNumber: 'SO-1', total: 1_500, change: 0, onAccount: 0 } });
     expect(el.textContent).not.toContain('Change');
     expect(el.textContent).not.toContain('account');
+  });
+
+  it('is drawn at the UI scale from Settings, and follows a change, by scaling the root size everything is sized from', async () => {
+    const { fixture } = setup();
+    await fixture.whenStable();
+    expect(document.documentElement.style.fontSize).toBe('100%');
+    TestBed.inject(AppSettings).customerDisplayScale.set(150);
+    await fixture.whenStable();
+    expect(document.documentElement.style.fontSize).toBe('150%');
+    fixture.destroy();
+    expect(document.documentElement.style.fontSize).toBe(''); // the page does not leave its scale behind
   });
 });

@@ -54,6 +54,13 @@ export const STORAGE_MIGRATIONS_LIST: readonly StorageMigration[] = [
       if (store.get('customerDisplayOnStart') === null) store.set('customerDisplayOnStart', 'false');
     },
   },
+  {
+    // The customer display gained a "UI scale": existing installs get an explicit default (100%).
+    version: 5,
+    migrate(store) {
+      if (store.get('customerDisplayScale') === null) store.set('customerDisplayScale', '100');
+    },
+  },
 ];
 
 export const STORAGE_MIGRATIONS = new InjectionToken<readonly StorageMigration[]>(

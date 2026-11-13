@@ -1,6 +1,7 @@
 import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { formatQuantity, IDLE_DISPLAY_STATE, type CustomerDisplayLine, type CustomerDisplayState } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
+import { AppSettings } from '../../core/settings/app-settings.service';
 import { Logo } from '../../core/logo';
 import { MoneyPipe } from '../../core/money.pipe';
 
@@ -62,6 +63,7 @@ export const HIGHLIGHT_MS = 2_500;
 })
 export class CustomerDisplayPage {
   private readonly api = inject(DESKTOP_API);
+  private readonly settings = inject(AppSettings);
 
   private readonly latest = signal<CustomerDisplayState>(IDLE_DISPLAY_STATE);
   /** The thank-you has been showing long enough; the welcome screen takes over until something new is published. */
@@ -87,6 +89,9 @@ export class CustomerDisplayPage {
       clearTimeout(this.highlightTimer);
       clearTimeout(this.paidTimer);
     });
+    // UI scale (Settings > Customer Display): everything here is sized in rem, so scaling the root size scales it all.
+    effect(() => (document.documentElement.style.fontSize = `${this.settings.customerDisplayScale()}%`));
+    destroy.onDestroy(() => (document.documentElement.style.fontSize = ''));
     // The newest line is at the bottom: keep it in view as lines are added.
     effect(() => {
       this.state();
