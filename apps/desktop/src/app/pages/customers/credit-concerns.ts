@@ -1,19 +1,35 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { CustomerViewer } from '../../core/customer-viewer';
 import { CustomersService } from '../../core/data/customers.service';
 import { MoneyPipe } from '../../core/money.pipe';
+import { FilterInput } from '../../core/ui/filter-input';
 import { alertText } from './alert-text';
 
 /** The customers whose credit needs attention (the same ones the Customers badge counts), worst first; a row opens the account. */
 @Component({
   host: { class: 'contents' },
-  imports: [MoneyPipe, HlmButtonImports, HlmDialogImports],
+  imports: [FilterInput, MoneyPipe, HlmButtonImports, HlmDialogImports, HlmSelectImports],
   template: `
     <hlm-dialog-header>
       <h3 hlmDialogTitle>Credit concerns</h3>
     </hlm-dialog-header>
+
+    <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+      <app-filter-input [(value)]="nameFilter" placeholder="Name" label="Filter name" />
+      <hlm-select [(value)]="reasonFilter" [itemToString]="reasonLabel" class="block">
+        <hlm-select-trigger class="w-44" aria-label="Filter reason">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          @for (r of reasons; track r) {
+            <hlm-select-item [value]="r">{{ reasonLabel(r) }}</hlm-select-item>
+          }
+        </hlm-select-content>
+      </hlm-select>
+    </div>
 
     <ul class="divide-border -mx-2 flex min-h-0 flex-col divide-y overflow-y-auto border-y px-2" aria-label="Credit concerns">
       @for (customer of concerns(); track customer.id) {
@@ -27,7 +43,7 @@ import { alertText } from './alert-text';
           </button>
         </li>
       } @empty {
-        <li class="text-muted-foreground py-6 text-center text-sm">Nothing needs attention</li>
+        <li class="text-muted-foreground py-6 text-center text-sm">{{ all().length ? 'No concerns match' : 'Nothing needs attention' }}</li>
       }
     </ul>
 
@@ -41,8 +57,20 @@ export class CreditConcerns {
   private readonly viewer = inject(CustomerViewer);
   protected readonly reason = alertText;
 
-  /** Largest balance first. */
-  protected readonly concerns = computed(() => this.customers.customers().filter((c) => c.alert).sort((a, b) => b.balance - a.balance));
+  protected readonly nameFilter = signal('');
+  protected readonly reasons = ['all', 'amount', 'unpaid'] as const;
+  protected readonly reasonFilter = signal<(typeof this.reasons)[number]>('all');
+  protected readonly reasonLabel = (r: (typeof this.reasons)[number]): string => ({ all: 'All reasons', amount: 'Over amount', unpaid: 'Unpaid too long' })[r];
+
+  private readonly all = computed(() => this.customers.customers().filter((c) => c.alert));
+  /** Largest balance first, narrowed by name and by why they are flagged. */
+  protected readonly concerns = computed(() => {
+    const name = this.nameFilter().trim().toLowerCase();
+    const reason = this.reasonFilter();
+    return this.all()
+      .filter((c) => c.name.toLowerCase().includes(name) && (reason === 'all' || (reason === 'amount' ? c.alert!.overAmount !== null : c.alert!.unpaidDays !== null)))
+      .sort((a, b) => b.balance - a.balance);
+  });
 
   protected open(id: string): void {
     void this.viewer.open(id);

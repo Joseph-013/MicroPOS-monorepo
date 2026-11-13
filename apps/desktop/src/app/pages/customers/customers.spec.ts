@@ -169,6 +169,30 @@ describe('CustomersPage', () => {
     expect(TestBed.inject(Router).url).toContain('view-customer=b');
   });
 
+  it('filters the concerns by name and by reason', async () => {
+    await open([
+      customer('a', 'Aling Nena', { balance: 600_000, alert: { overAmount: 500_000, unpaidDays: 45 } }),
+      customer('b', 'Bakery Boy', { balance: 900_000, alert: { overAmount: 500_000, unpaidDays: null } }),
+      customer('c', 'Cora', { balance: 100_000, alert: { overAmount: null, unpaidDays: 40 } }),
+    ]);
+    (el.querySelector('button[title="Credit concerns"]') as HTMLElement).click();
+    await settle();
+    const dialog = document.querySelector('hlm-dialog-content, [role="dialog"]')!;
+    const shown = (): string[] => Array.from(dialog.querySelectorAll('li button')).map((b) => b.querySelector('span span')!.textContent!.trim());
+    expect(shown()).toEqual(['Bakery Boy', 'Aling Nena', 'Cora']);
+    await type('input[aria-label="Filter name"]', 'nena', dialog);
+    expect(shown()).toEqual(['Aling Nena']);
+    await type('input[aria-label="Filter name"]', 'zzz', dialog);
+    expect(dialog.textContent).toContain('No concerns match');
+    await type('input[aria-label="Filter name"]', '', dialog);
+    const trigger = dialog.querySelector('hlm-select-trigger') as HTMLElement;
+    (trigger.querySelector('button') ?? trigger).click();
+    await settle();
+    (Array.from(document.querySelectorAll('hlm-select-item')).find((i) => i.textContent?.trim() === 'Unpaid too long') as HTMLElement).click();
+    await settle();
+    expect(shown()).toEqual(['Aling Nena', 'Cora']);
+  });
+
   it('has no concerns button when nothing needs attention', async () => {
     await open();
     expect(el.querySelector('button[title="Credit concerns"]')).toBeNull();
