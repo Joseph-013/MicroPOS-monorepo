@@ -4,6 +4,7 @@ import type { AppDatabase } from '../db';
 import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
 import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from '../db/queries/categories';
+import { returnToSupplier } from '../db/queries/supplier-returns';
 import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock, stockConcerns } from '../db/queries/inventory';
 import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, purchaseConcerns, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
 import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
@@ -72,6 +73,7 @@ export function registerIpcHandlers(db: AppDatabase): void {
   guarded(db, CHANNELS.inventory.receive, 'inventory.manage', (_event, input: unknown) => receiveStock(db, input));
   guarded(db, CHANNELS.inventory.adjust, 'inventory.manage', (_event, input: unknown) => adjustStock(db, input));
   guarded(db, CHANNELS.inventory.repackage, 'inventory.manage', (_event, input: unknown) => repackageStock(db, input));
+  guarded(db, CHANNELS.inventory.returnToSupplier, 'purchasing.manage', (_event, input: unknown) => returnToSupplier(db, input));
   guarded(db, CHANNELS.inventory.loadRepackageDraft, 'inventory.manage', () => loadRepackageDraft(db));
   guarded(db, CHANNELS.inventory.saveRepackageDraft, 'inventory.manage', (_event, draft: unknown) => saveRepackageDraft(db, draft));
   guarded(db, CHANNELS.inventory.clearRepackageDraft, 'inventory.manage', () => clearRepackageDraft(db));

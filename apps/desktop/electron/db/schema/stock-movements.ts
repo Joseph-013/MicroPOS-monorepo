@@ -8,10 +8,10 @@ import { products } from './products';
 import { purchaseOrderLines } from './purchase-order-lines';
 
 /**
- * Why stock moved. Receipts, refunds, voids and repackaged-in stock add it; sales, waste, expiry and repackaged-out
- * stock remove it; adjust goes either way.
+ * Why stock moved. Receipts, refunds, voids and repackaged-in stock add it; sales, waste, expiry, repackaged-out
+ * stock and stock returned to a supplier remove it; adjust goes either way.
  */
-export const STOCK_MOVEMENT_TYPES = ['receive', 'sale', 'refund', 'void', 'adjust', 'waste', 'expired', 'repack_out', 'repack_in'] as const;
+export const STOCK_MOVEMENT_TYPES = ['receive', 'sale', 'refund', 'void', 'adjust', 'waste', 'expired', 'repack_out', 'repack_in', 'supplier_return'] as const;
 export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number];
 
 /**
@@ -52,12 +52,12 @@ export const stockMovements = sqliteTable(
     index('stock_movements_employee_id_idx').on(t.employeeId),
     index('stock_movements_at_idx').on(t.at),
     index('stock_movements_repackage_id_idx').on(t.repackageId),
-    check('stock_movements_type_valid', sql`${t.type} IN ('receive', 'sale', 'refund', 'void', 'adjust', 'waste', 'expired', 'repack_out', 'repack_in')`),
+    check('stock_movements_type_valid', sql`${t.type} IN ('receive', 'sale', 'refund', 'void', 'adjust', 'waste', 'expired', 'repack_out', 'repack_in', 'supplier_return')`),
     check(
       'stock_movements_sign_matches_type',
       sql`${t.quantityMilli} <> 0 AND (
         (${t.type} IN ('receive', 'refund', 'void', 'repack_in') AND ${t.quantityMilli} > 0) OR
-        (${t.type} IN ('sale', 'waste', 'expired', 'repack_out') AND ${t.quantityMilli} < 0) OR
+        (${t.type} IN ('sale', 'waste', 'expired', 'repack_out', 'supplier_return') AND ${t.quantityMilli} < 0) OR
         ${t.type} = 'adjust'
       )`,
     ),

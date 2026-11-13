@@ -11,6 +11,8 @@ import type {
   ReceivePurchaseInput,
   ReceivePurchaseResult,
   RemoveSuppliersResult,
+  ReturnToSupplierInput,
+  ReturnToSupplierResult,
   SavePurchaseResult,
   SaveSupplierResult,
   SupplierInput,
@@ -28,7 +30,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 34;
+export const DESKTOP_API_VERSION = 35;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -94,6 +96,8 @@ export interface DesktopApi {
     receive(input: ReceiveStockInput): Promise<StockResult>;
     /** Removes stock as waste or expired, or corrects a count. */
     adjust(input: AdjustStockInput): Promise<StockResult>;
+    /** Sends stock from one batch back to its supplier, for a refund that first reduces what is owed on the order it came on. */
+    returnToSupplier(input: ReturnToSupplierInput): Promise<ReturnToSupplierResult>;
     /** Opens a pack: takes stock out of one product and puts it into others (a sack into loose kilos). */
     repackage(input: RepackageInput): Promise<RepackageResult>;
     /** The saved half-filled Repackage form, or null. */

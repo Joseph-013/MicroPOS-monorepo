@@ -16,6 +16,7 @@ export const WRITES: Readonly<Record<string, readonly DataDomain[]>> = {
   [CHANNELS.inventory.receive]: ['stock'],
   [CHANNELS.inventory.adjust]: ['stock'],
   [CHANNELS.inventory.repackage]: ['stock'],
+  [CHANNELS.inventory.returnToSupplier]: ['stock', 'purchases'],
   [CHANNELS.purchases.create]: ['purchases'],
   [CHANNELS.purchases.update]: ['purchases'],
   [CHANNELS.purchases.receive]: ['purchases', 'stock'],

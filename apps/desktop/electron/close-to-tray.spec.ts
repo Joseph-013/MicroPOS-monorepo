@@ -56,11 +56,11 @@ describe('the shop settings permission', () => {
     const old = path.join(dir, 'old.db');
     const folder = fs.mkdtempSync(path.join(dir, 'migrations-'));
     for (const f of fs.readdirSync(SOURCE_MIGRATIONS_FOLDER)) {
-      if (f.startsWith('0008') ) continue;
+      if (/^00(0[89]|[1-9]\d)/.test(f)) continue; // 0008 and later
       fs.cpSync(path.join(SOURCE_MIGRATIONS_FOLDER, f), path.join(folder, f), { recursive: true });
     }
     const journal = JSON.parse(fs.readFileSync(path.join(folder, 'meta', '_journal.json'), 'utf8')) as { entries: { tag: string }[] };
-    journal.entries = journal.entries.filter((e) => !e.tag.startsWith('0008'));
+    journal.entries = journal.entries.filter((e) => !/^00(0[89]|[1-9]\d)/.test(e.tag));
     fs.writeFileSync(path.join(folder, 'meta', '_journal.json'), JSON.stringify(journal));
     const before = createDatabase(old, { migrationsFolder: folder });
     const person = (name: string, permissions: string[] | null) =>

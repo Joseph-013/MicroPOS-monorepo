@@ -22,6 +22,10 @@ erDiagram
     purchase_orders ||--|{ purchase_order_lines : "has"
     products ||--o{ purchase_order_lines : "bought as"
     purchase_orders ||--o{ purchase_payments : "paid by"
+    suppliers ||--o{ supplier_returns : "refunds"
+    purchase_orders |o--o{ supplier_returns : "credited by"
+    product_batches ||--o{ supplier_returns : "sent back from"
+    stock_movements ||--o| supplier_returns : "took out"
     employees |o--o{ purchase_orders : "places"
     purchase_order_lines |o--o{ stock_movements : "delivered as"
     employees |o--o{ purchase_payments : "records"
@@ -98,7 +102,7 @@ erDiagram
         text id PK
         text product_id FK
         text batch_id FK
-        text type "receive, sale, refund, void, adjust, waste, expired, repack_out, repack_in"
+        text type "receive, sale, refund, void, adjust, waste, expired, repack_out, repack_in, supplier_return"
         int quantity_milli "signed"
         text order_line_id FK
         text purchase_order_line_id FK "receipts against a purchase order"
@@ -202,6 +206,20 @@ erDiagram
         text product_id FK
         int quantity_milli
         int unit_cost
+    }
+    supplier_returns {
+        text id PK
+        text supplier_id FK
+        text purchase_order_id FK "the order the batch came on, if any"
+        text product_id FK
+        text batch_id FK
+        text stock_movement_id FK
+        int quantity_milli
+        int refund_amount "cents"
+        int credited_amount "the part that reduced what is owed"
+        text note
+        text employee_id FK
+        int at
     }
     purchase_payments {
         text id PK

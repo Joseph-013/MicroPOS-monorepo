@@ -22,6 +22,7 @@ import {
   type SupplierRecord,
 } from '@micropos/core';
 import type { AppDatabase } from '../index';
+import { CREDITED, returnsOfPurchase } from './supplier-returns';
 import { products, purchaseOrderLines, purchaseOrders, purchasePayments, suppliers } from '../schema';
 import { receiveStock } from './inventory';
 import { sellingEmployee } from './orders';
@@ -67,7 +68,7 @@ function supplierRecords(db: AppDatabase, where: string, params: unknown[] = [])
   return db.$client
     .prepare(
       `SELECT s.id AS id, s.name AS name, s.phone AS phone, s.note AS note, s.created_at AS createdAt, s.deleted_at AS deletedAt,
-              COALESCE((SELECT SUM(p.total - ${PAID}) FROM purchase_orders p WHERE p.supplier_id = s.id AND p.status <> 'cancelled'), 0) AS owed,
+              COALESCE((SELECT SUM(p.total - ${PAID} - ${CREDITED}) FROM purchase_orders p WHERE p.supplier_id = s.id AND p.status <> 'cancelled'), 0) AS owed,
               (SELECT COUNT(*) FROM purchase_orders p WHERE p.supplier_id = s.id AND p.status = 'ordered') AS openOrders
          FROM suppliers s ${where} ORDER BY lower(s.name), s.id`,
     )
@@ -183,7 +184,7 @@ function summaries(db: AppDatabase, where = '', params: unknown[] = []): Purchas
     .prepare(
       `SELECT p.id AS id, p.po_number AS number, p.supplier_id AS supplierId, s.name AS supplierName, p.status AS status,
               p.ordered_at AS orderedAt, p.expected_at AS expectedAt, p.due_at AS dueAt, p.received_at AS receivedAt,
-              p.reference AS reference, p.total AS total, ${PAID} AS paid,
+              p.reference AS reference, p.total AS total, ${PAID} AS paid, ${CREDITED} AS credited,
               (SELECT COUNT(*) FROM purchase_order_lines l WHERE l.purchase_order_id = p.id) AS lineCount,
               EXISTS (SELECT 1 FROM stock_movements m JOIN purchase_order_lines l ON l.id = m.purchase_order_line_id WHERE l.purchase_order_id = p.id) AS anyReceived
          FROM purchase_orders p JOIN suppliers s ON s.id = p.supplier_id ${where}
@@ -193,7 +194,7 @@ function summaries(db: AppDatabase, where = '', params: unknown[] = []): Purchas
   return rows.map(({ anyReceived, ...r }) => ({
     ...r,
     partlyReceived: r.status === 'ordered' && anyReceived === 1,
-    owed: r.status === 'cancelled' ? 0 : r.total - r.paid,
+    owed: r.status === 'cancelled' ? 0 : r.total - r.paid - r.credited,
   }));
 }
 
@@ -222,7 +223,7 @@ export function getPurchase(db: AppDatabase, id: unknown): PurchaseDetail | null
         WHERE x.purchase_order_id = ? ORDER BY x.at DESC, x.rowid DESC`,
     )
     .all(id) as PurchaseDetail['payments'];
-  return { ...summary, ...extra, lines: lines.map((l) => ({ ...l, tracking: l.tracking as ProductTracking, total: lineTotal(l.unitCost, l.quantityMilli) })), payments };
+  return { ...summary, ...extra, lines: lines.map((l) => ({ ...l, tracking: l.tracking as ProductTracking, total: lineTotal(l.unitCost, l.quantityMilli) })), payments, returns: returnsOfPurchase(db, id) };
 }
 
 class Stop extends Error {

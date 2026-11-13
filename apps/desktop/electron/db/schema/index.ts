@@ -16,4 +16,5 @@ export * from './purchase-payments';
 export * from './relations';
 export * from './settings';
 export * from './stock-movements';
+export * from './supplier-returns';
 export * from './suppliers';

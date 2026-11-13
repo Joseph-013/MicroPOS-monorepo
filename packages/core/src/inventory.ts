@@ -49,6 +49,11 @@ export interface BatchRecord {
   /** Thousandths of the unit. */
   receivedMilli: number;
   onHandMilli: number;
+  /** The purchase order this stock was received on (and its supplier), when it came through one. */
+  purchaseId: string | null;
+  purchaseNumber: string | null;
+  supplierId: string | null;
+  supplierName: string | null;
 }
 
 /** Stock arriving. Lot number and expiry apply only when the product's tracking asks for them. */

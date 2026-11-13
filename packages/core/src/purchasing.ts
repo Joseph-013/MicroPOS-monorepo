@@ -100,7 +100,9 @@ export interface PurchaseSummary {
   partlyReceived: boolean;
   total: Money;
   paid: Money;
-  /** Total less paid; 0 for a cancelled order. */
+  /** Refunds from the supplier for stock sent back, which reduced what is owed. */
+  credited: Money;
+  /** Total less paid and credited; 0 for a cancelled order. */
   owed: Money;
 }
 
@@ -110,6 +112,8 @@ export interface PurchaseDetail extends PurchaseSummary {
   employeeName: string | null;
   lines: PurchaseLineRecord[];
   payments: PurchasePaymentRecord[];
+  /** Stock sent back to the supplier from this order, newest first. */
+  returns: SupplierReturnRecord[];
 }
 
 export type SavePurchaseResult = { ok: true; purchase: PurchaseDetail } | { ok: false; field: PurchaseField | null; error: string };
@@ -148,3 +152,40 @@ export type PayPurchaseResult =
   | { ok: false; field: 'amount' | 'method' | 'reference' | null; error: string };
 
 export type CancelPurchaseResult = { ok: true; purchase: PurchaseDetail } | { ok: false; error: string };
+
+/** Stock sent back to a supplier, usually for a partial refund. */
+export interface SupplierReturnRecord {
+  id: string;
+  at: number;
+  supplierName: string;
+  /** The order the batch was received on, when known. */
+  purchaseNumber: string | null;
+  productId: string;
+  productName: string;
+  unit: string;
+  batchNumber: string | null;
+  /** Thousandths of the unit that went back. */
+  quantityMilli: number;
+  /** What the supplier refunds, in cents. */
+  refundAmount: Money;
+  /** The part of it that reduced what was owed on the order. */
+  creditedAmount: Money;
+  note: string | null;
+  employeeName: string | null;
+}
+
+/** Stock going back to a supplier: which batch, how much, and what the supplier refunds (0 for nothing). */
+export interface ReturnToSupplierInput {
+  batchId: string;
+  quantityMilli: number;
+  /** Needed only when the batch did not come on a purchase order (the order names its supplier). */
+  supplierId: string | null;
+  refundAmount: Money;
+  note: string | null;
+}
+
+export type ReturnToSupplierField = 'quantity' | 'supplier' | 'refundAmount' | 'note';
+
+export type ReturnToSupplierResult =
+  | { ok: true; return: SupplierReturnRecord }
+  | { ok: false; field: ReturnToSupplierField | null; error: string };

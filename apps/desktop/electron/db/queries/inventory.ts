@@ -50,6 +50,10 @@ interface BatchRow {
   unitPrice: number;
   receivedMilli: number;
   onHandMilli: number;
+  purchaseId: string | null;
+  purchaseNumber: string | null;
+  supplierId: string | null;
+  supplierName: string | null;
 }
 
 /**
@@ -72,7 +76,11 @@ export function listBatches(
               p.tracking AS tracking, b.batch_number AS batchNumber, b.received_at AS receivedAt,
               b.expires_at AS expiresAt, b.unit_cost AS unitCost, p.price AS unitPrice,
               COALESCE(SUM(CASE WHEN m.type = 'receive' THEN m.quantity_milli END), 0) AS receivedMilli,
-              COALESCE(SUM(m.quantity_milli), 0) AS onHandMilli
+              COALESCE(SUM(m.quantity_milli), 0) AS onHandMilli,
+              (SELECT po.id FROM stock_movements rm JOIN purchase_order_lines pl ON pl.id = rm.purchase_order_line_id JOIN purchase_orders po ON po.id = pl.purchase_order_id WHERE rm.batch_id = b.id AND rm.type = 'receive' ORDER BY rm.at LIMIT 1) AS purchaseId,
+              (SELECT po.po_number FROM stock_movements rm JOIN purchase_order_lines pl ON pl.id = rm.purchase_order_line_id JOIN purchase_orders po ON po.id = pl.purchase_order_id WHERE rm.batch_id = b.id AND rm.type = 'receive' ORDER BY rm.at LIMIT 1) AS purchaseNumber,
+              (SELECT po.supplier_id FROM stock_movements rm JOIN purchase_order_lines pl ON pl.id = rm.purchase_order_line_id JOIN purchase_orders po ON po.id = pl.purchase_order_id WHERE rm.batch_id = b.id AND rm.type = 'receive' ORDER BY rm.at LIMIT 1) AS supplierId,
+              (SELECT su.name FROM stock_movements rm JOIN purchase_order_lines pl ON pl.id = rm.purchase_order_line_id JOIN purchase_orders po ON po.id = pl.purchase_order_id JOIN suppliers su ON su.id = po.supplier_id WHERE rm.batch_id = b.id AND rm.type = 'receive' ORDER BY rm.at LIMIT 1) AS supplierName
          FROM product_batches b
          JOIN products p ON p.id = b.product_id
          LEFT JOIN stock_movements m ON m.batch_id = b.id

@@ -127,6 +127,10 @@ export type {
   SupplierField,
   SupplierInput,
   SupplierRecord,
+  ReturnToSupplierField,
+  ReturnToSupplierInput,
+  ReturnToSupplierResult,
+  SupplierReturnRecord,
 } from './purchasing.js';
 export { PURCHASE_STATUSES } from './purchasing.js';
 export type { CustomerDisplayLine, CustomerDisplayMode, CustomerDisplayReceipt, CustomerDisplayState } from './customer-display.js';

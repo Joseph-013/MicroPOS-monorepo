@@ -47,6 +47,7 @@ const api: DesktopApi = {
     receive: (input) => ipcRenderer.invoke(CHANNELS.inventory.receive, input),
     adjust: (input) => ipcRenderer.invoke(CHANNELS.inventory.adjust, input),
     repackage: (input) => ipcRenderer.invoke(CHANNELS.inventory.repackage, input),
+    returnToSupplier: (input) => ipcRenderer.invoke(CHANNELS.inventory.returnToSupplier, input),
     loadRepackageDraft: () => ipcRenderer.invoke(CHANNELS.inventory.loadRepackageDraft),
     saveRepackageDraft: (draft) => ipcRenderer.invoke(CHANNELS.inventory.saveRepackageDraft, draft),
     clearRepackageDraft: () => ipcRenderer.invoke(CHANNELS.inventory.clearRepackageDraft),
