@@ -16,6 +16,7 @@ import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/que
 import { setScannerEnabled } from '../scanner';
 import { changePin, isAllowed, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
 import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/users';
+import { getCloseToTray, setCloseToTray } from '../close-to-tray';
 import { API_VERSION, CHANNELS } from './channels';
 import { emitDataChanged, WRITES, wroteNothing } from './changes';
 
@@ -123,6 +124,8 @@ export function registerIpcHandlers(db: AppDatabase): void {
   ipcMain.handle(CHANNELS.auth.signIn, (_event, input: unknown) => signIn(db, input));
   guarded(db, CHANNELS.auth.signOut, [], () => signOut(db));
   guarded(db, CHANNELS.auth.changePin, [], (_event, input: unknown) => changePin(db, input));
+  guarded(db, CHANNELS.shell.getCloseToTray, 'settings.manage', () => getCloseToTray(db));
+  guarded(db, CHANNELS.shell.setCloseToTray, 'settings.manage', (_event, value: unknown) => setCloseToTray(db, value));
   guarded(db, CHANNELS.users.list, ['users.manage'], () => listUsers(db));
   guarded(db, CHANNELS.users.create, ['users.manage'], (_event, input: unknown) => createUser(db, input));
   guarded(db, CHANNELS.users.update, ['users.manage'], (_event, id: unknown, input: unknown) => updateUser(db, id, input));

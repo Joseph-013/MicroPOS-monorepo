@@ -29,6 +29,10 @@ const api: DesktopApi = {
     remove: (ids) => ipcRenderer.invoke(CHANNELS.categories.remove, ids),
     restore: (ids) => ipcRenderer.invoke(CHANNELS.categories.restore, ids),
   },
+  shell: {
+    getCloseToTray: () => ipcRenderer.invoke(CHANNELS.shell.getCloseToTray),
+    setCloseToTray: (value) => ipcRenderer.invoke(CHANNELS.shell.setCloseToTray, value),
+  },
   data: {
     onChanged: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, domains: DataDomain[]): void => listener(domains);

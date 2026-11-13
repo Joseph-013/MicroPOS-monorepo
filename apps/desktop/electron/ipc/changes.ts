@@ -91,6 +91,8 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.checkout.saveDraft,
   CHANNELS.checkout.clearDraft,
   CHANNELS.checkout.nextOrderNumber,
+  CHANNELS.shell.getCloseToTray,
+  CHANNELS.shell.setCloseToTray,
   CHANNELS.data.changed,
 ];
 

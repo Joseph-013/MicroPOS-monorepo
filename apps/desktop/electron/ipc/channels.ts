@@ -3,7 +3,7 @@
  * Convention: `<area>:<action>`. Every channel is a request/response (`invoke`/`handle`).
  */
 /** Must equal `DESKTOP_API_VERSION` in @micropos/core (a test checks); bump both when the contract changes. */
-export const API_VERSION = 33;
+export const API_VERSION = 34;
 
 export const CHANNELS = {
   app: {
@@ -52,6 +52,10 @@ export const CHANNELS = {
     state: 'display:state',
     /** Main to the main window: the display window opened or closed. */
     visibility: 'display:visibility',
+  },
+  shell: {
+    getCloseToTray: 'shell:getCloseToTray',
+    setCloseToTray: 'shell:setCloseToTray',
   },
   data: {
     /** Main to renderer: these parts of the data changed (`DataDomain[]`). */
