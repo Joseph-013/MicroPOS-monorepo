@@ -60,7 +60,9 @@ export function buildSale(opts: SaleOptions): SaleDraft {
 
   const method = opts.method ?? faker.helpers.weightedArrayElement<PaymentMethod>([
     { weight: 5, value: 'cash' },
-    { weight: 4, value: 'card' },
+    { weight: 3, value: 'card' },
+    { weight: 2, value: 'ewallet' },
+    { weight: 1, value: 'bank_transfer' },
     { weight: 1, value: 'other' },
   ]);
 
@@ -74,7 +76,7 @@ export function buildSale(opts: SaleOptions): SaleDraft {
       amount: total,
       tendered,
       change: tendered === null ? null : tendered - total,
-      reference: method === 'card' ? faker.string.alphanumeric({ length: 8, casing: 'upper' }) : null,
+      reference: method === 'card' || method === 'ewallet' || method === 'bank_transfer' ? faker.string.alphanumeric({ length: 8, casing: 'upper' }) : null,
       createdAt: completedAt,
     });
   }

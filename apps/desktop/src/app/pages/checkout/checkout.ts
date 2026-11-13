@@ -31,7 +31,7 @@ const formatMoney = (cents: number): string => new MoneyPipe().transform(cents);
 
 export const ALL_CATEGORIES = 'All categories';
 
-const PAYMENT_METHODS = { cash: 'Cash', card: 'Card', other: 'Other' } as const;
+const PAYMENT_METHODS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', bank_transfer: 'Bank transfer', other: 'Other' } as const;
 type PaymentMethod = keyof typeof PAYMENT_METHODS;
 
 /** Checkout: order lines on the left, payment controls on the right, item browser in a dialog. */

@@ -23,7 +23,7 @@ export interface SalesOrderFormContext {
 }
 
 export const STATUS_LABELS = { open: 'Open', completed: 'Completed', voided: 'Voided', refunded: 'Refunded' } as const;
-export const METHOD_LABELS = { cash: 'Cash', card: 'Card', other: 'Other' } as const;
+export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', bank_transfer: 'Bank transfer', other: 'Other' } as const;
 
 /** A sales order in view mode: who, when, the lines, the totals and how it was paid. */
 @Component({

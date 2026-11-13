@@ -444,6 +444,23 @@ describe('CheckoutPage', () => {
       expect(store.orders[0].payment).toEqual({ method: 'card', tendered: undefined, reference: 'SLIP-9' });
     });
 
+    it.each([
+      ['ewallet', 'E-wallet'],
+      ['bank_transfer', 'Bank transfer'],
+    ])('takes %s as a payment with a reference number and no cash handed over', async (method, label) => {
+      scan(PRODUCTS[0].barcode!);
+      await fixture.whenStable();
+      (fixture.componentInstance as unknown as { paymentMethod: { set(v: string): void } }).paymentMethod.set(method);
+      await fixture.whenStable();
+      expect(el.querySelector('label[for="reference"]')?.textContent?.trim()).toBe('Reference number');
+      expect(el.textContent).toContain(label);
+      await type('#reference', 'GCASH-123');
+      expect(complete().disabled).toBe(false);
+      complete().click();
+      await fixture.whenStable();
+      expect(store.orders[0].payment).toEqual({ method, tendered: undefined, reference: 'GCASH-123' });
+    });
+
     it('keeps the order when it is refused, brings a changed price in and drops an unavailable item', async () => {
       scan(PRODUCTS[0].barcode!);
       scan(PRODUCTS[1].barcode!);

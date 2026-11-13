@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashPin, verifyPin } from '../auth/pin';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from './index';
 import { DUMMY_PIN, seedDatabase } from './factories';
-import { DESKTOP_API_VERSION, PRODUCT_TRACKING as CORE_TRACKING, PRODUCT_UNITS as CORE_UNITS } from '@micropos/core';
+import { DESKTOP_API_VERSION, ORDER_PAYMENT_METHODS, PRODUCT_TRACKING as CORE_TRACKING, PRODUCT_UNITS as CORE_UNITS } from '@micropos/core';
 import { API_VERSION } from '../ipc/channels';
 import { runMigrate } from './migrate';
 import {
@@ -19,6 +19,7 @@ import {
   orders,
   payments,
   productCategories,
+  PAYMENT_METHODS,
   PRODUCT_TRACKING,
   PRODUCT_UNITS,
   products,
@@ -823,6 +824,21 @@ describe('inventory: batches, expiry and the stock ledger', () => {
         voidOrder(db, { orderId: sale.orderId, reason: 'x' });
         expect(onHand(milk.id)).toBe(10_000);
       });
+    });
+
+    it('keeps the payment methods in step with core; e-wallet and bank transfer keep a reference and no cash fields, and refund with the same method', () => {
+      expect([...PAYMENT_METHODS]).toEqual([...ORDER_PAYMENT_METHODS]);
+      expect(ORDER_PAYMENT_METHODS).toEqual(expect.arrayContaining(['ewallet', 'bank_transfer']));
+      const item = product('none');
+      const line = { productId: item.id, quantityMilli: 1_000, unitPrice: 100 };
+      for (const method of ['ewallet', 'bank_transfer'] as const) {
+        const result = ok(completeOrder(db, { lines: [line], discount: 0, payment: { method, tendered: 5_000, reference: `REF-${method}` } }));
+        expect(result.change).toBe(0); // only cash gives change
+        expect(db.select().from(payments).where(eq(payments.orderId, result.orderId)).get()).toMatchObject({ method, amount: 100, tendered: null, change: null, reference: `REF-${method}` });
+        const refund = ok(refundOrder(db, { orderId: result.orderId, reason: 'x' }));
+        expect(db.select().from(payments).where(eq(payments.orderId, refund.refundOrderId!)).get()).toMatchObject({ method, amount: -100, reference: `REF-${method}` });
+      }
+      expect(completeOrder(db, { lines: [line], discount: 0, payment: { method: 'crypto' } })).toMatchObject({ ok: false });
     });
 
     it('prices a weighed line from its weight', () => {

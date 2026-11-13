@@ -19,7 +19,7 @@ export interface CheckoutDraft {
 }
 
 /** How an order is paid. */
-export const ORDER_PAYMENT_METHODS = ['cash', 'card', 'other'] as const;
+export const ORDER_PAYMENT_METHODS = ['cash', 'card', 'ewallet', 'bank_transfer', 'other'] as const;
 export type OrderPaymentMethod = (typeof ORDER_PAYMENT_METHODS)[number];
 
 /** What the cashier sends to complete an order. Prices are what the screen showed: a changed price is refused, not silently charged. */

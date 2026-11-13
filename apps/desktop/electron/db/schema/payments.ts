@@ -2,7 +2,8 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { orders } from './orders';
 import { id } from './_columns';
 
-export const PAYMENT_METHODS = ['cash', 'card', 'other'] as const;
+/** Keep in step with ORDER_PAYMENT_METHODS in @micropos/core (a test checks). Stored as text: adding a method needs no migration. */
+export const PAYMENT_METHODS = ['cash', 'card', 'ewallet', 'bank_transfer', 'other'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 /** An order can have several payments (split tender). */

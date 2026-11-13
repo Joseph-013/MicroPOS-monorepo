@@ -340,7 +340,7 @@ describe('OrdersPage paging and highlighting', () => {
 
 describe('OrdersPage refund rows', () => {
   it('reads Refund for a refund order (not Completed) and filters it separately', async () => {
-    const list = [order('s', 1), order('r', 2, { isRefund: true, total: -1000 }), order('v', 3, { status: 'voided' })];
+    const list = [order('s', 1, { methods: ['ewallet', 'bank_transfer'] }), order('r', 2, { isRefund: true, total: -1000 }), order('v', 3, { status: 'voided' })];
     const api = { orders: { list: () => Promise.resolve(list), get: () => Promise.resolve(null) } } as unknown as DesktopApi;
     TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
     const fixture = TestBed.createComponent(OrdersPage);
@@ -349,6 +349,7 @@ describe('OrdersPage refund rows', () => {
     const badge = (n: number): string => Array.from(el.querySelectorAll('[role="row"]')).find((r) => r.textContent?.includes(`SO-${n}`))!.querySelector('[hlmBadge]')!.textContent!.trim();
     expect([badge(1), badge(2), badge(3)]).toEqual(['Completed', 'Refund', 'Voided']);
     expect(el.textContent).toContain('-₱10.00');
+    expect(el.textContent).toContain('E-wallet, Bank transfer'); // the new payment methods read in full
 
     const page = fixture.componentInstance as unknown as { statusFilter: { set(v: string): void } };
     const names = (): string[] => Array.from(el.querySelectorAll('[role="row"] [role="cell"]:nth-child(2)')).map((c) => c.textContent!.trim());
