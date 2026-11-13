@@ -3,7 +3,7 @@ import type { PurchaseConcern } from '@micropos/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
-import { PurchasesService } from '../../core/data/purchases.service';
+import { NavBadges } from '../../core/nav-badges';
 import { MoneyPipe } from '../../core/money.pipe';
 import { PurchaseViewer } from '../../core/purchase-viewer';
 import { FilterInput } from '../../core/ui/filter-input';
@@ -62,10 +62,10 @@ const days = (since: number): string => {
   `,
 })
 export class PurchaseConcerns {
-  private readonly purchases = inject(PurchasesService);
   private readonly viewer = inject(PurchaseViewer);
 
-  protected readonly all = signal<PurchaseConcern[]>([]);
+  /** Live: follows every refresh of the badge's list. */
+  protected readonly all = inject(NavBadges).purchaseConcerns;
   protected readonly textFilter = signal('');
   protected readonly reasons = Object.keys(REASONS) as ReasonFilter[];
   protected readonly reasonFilter = signal<ReasonFilter>(ALL);
@@ -80,10 +80,6 @@ export class PurchaseConcerns {
         (reason === ALL || (reason === 'late' ? c.lateSince !== null : c.overdueOwed !== null)),
     );
   });
-
-  constructor() {
-    void this.purchases.concerns().then((list) => this.all.set(list));
-  }
 
   /** "Late 3 days · Payment overdue 10 days". */
   protected reason(c: PurchaseConcern): string {

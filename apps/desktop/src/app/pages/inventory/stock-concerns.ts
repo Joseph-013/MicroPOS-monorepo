@@ -4,7 +4,7 @@ import { formatQuantity, STOCK_CONCERN_KINDS, STOCK_CONCERN_LABELS, type StockCo
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
-import { InventoryService } from '../../core/data/inventory.service';
+import { NavBadges } from '../../core/nav-badges';
 import { ProductViewer } from '../../core/product-viewer';
 import { FilterInput } from '../../core/ui/filter-input';
 
@@ -56,10 +56,10 @@ type KindFilter = typeof ALL | StockConcernKind;
   `,
 })
 export class StockConcerns {
-  private readonly inventory = inject(InventoryService);
   private readonly viewer = inject(ProductViewer);
 
-  protected readonly all = signal<StockConcern[]>([]);
+  /** Live: follows every refresh of the badge's list. */
+  protected readonly all = inject(NavBadges).stockConcerns;
   protected readonly nameFilter = signal('');
   protected readonly kinds: KindFilter[] = [ALL, ...STOCK_CONCERN_KINDS];
   protected readonly kindFilter = signal<KindFilter>(ALL);
@@ -70,10 +70,6 @@ export class StockConcerns {
     const kind = this.kindFilter();
     return this.all().filter((c) => c.productName.toLowerCase().includes(name) && (kind === ALL || c.kind === kind));
   });
-
-  constructor() {
-    void this.inventory.concerns().then((list) => this.all.set(list));
-  }
 
   protected tone(kind: StockConcernKind): string {
     return kind === 'expired' || kind === 'out' ? 'text-destructive' : 'text-warning';

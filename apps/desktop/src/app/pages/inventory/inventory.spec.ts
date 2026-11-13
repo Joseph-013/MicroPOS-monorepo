@@ -150,7 +150,7 @@ describe('InventoryPage', () => {
     calls = fake.calls;
     drafts = fake.drafts;
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }, { provide: NavBadges, useValue: { count: () => concernRows.length, refresh: () => Promise.resolve() } }],
+      providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }, { provide: NavBadges, useValue: { count: () => concernRows.length, refresh: () => Promise.resolve(), stockConcerns: () => concernRows } }],
     });
     TestBed.inject(ScannerService);
     if (url) await TestBed.inject(Router).navigateByUrl(url);

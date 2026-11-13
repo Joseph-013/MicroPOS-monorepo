@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { purchaseConcern, type DesktopApi, type PayPurchaseInput, type PurchaseDetail, type PurchaseInput, type PurchaseSummary, type ReceivePurchaseInput } from '@micropos/core';
+import { purchaseConcern, type DesktopApi, type PurchaseConcern, type PayPurchaseInput, type PurchaseDetail, type PurchaseInput, type PurchaseSummary, type ReceivePurchaseInput } from '@micropos/core';
 import { NavBadges } from '../../core/nav-badges';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
@@ -121,14 +121,14 @@ describe('PurchasesPage', () => {
   let fixture: ComponentFixture<PurchasesPage>;
   let el: HTMLElement;
   let fake: ReturnType<typeof fakeApi>;
-  /** What the nav badge says (the page's concerns button shows the same number). */
-  let badgeCount = 0;
-  beforeEach(() => (badgeCount = 0));
+  /** The list behind the nav badge (the page's concerns button and dialog follow it). */
+  const badges = signal<PurchaseConcern[]>([]);
+  beforeEach(() => badges.set([]));
 
   async function open(rows = SAMPLE(), url = '/purchases'): Promise<void> {
     fake = fakeApi(rows);
     TestBed.configureTestingModule({
-      providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: fake.api }, { provide: NavBadges, useValue: { count: () => badgeCount, refresh: () => Promise.resolve() } }],
+      providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: fake.api }, { provide: NavBadges, useValue: { count: () => badges().length, refresh: () => Promise.resolve(), purchaseConcerns: badges } }],
     });
     TestBed.inject(ScannerService);
     TestBed.inject(PurchaseViewer); // started at launch by the app root, before the first navigation
@@ -438,11 +438,13 @@ describe('PurchasesPage', () => {
   });
 
   it('has a concerns button by the title that lists late and overdue orders, and a row opens the order', async () => {
-    badgeCount = 2;
     await open([
       ...SAMPLE(), // PO-1003 is overdue for payment
       purchase('d', 'PO-1004', 'Cold Chain', { expectedAt: Date.now() - 3 * DAY }),
     ]);
+    const rowsFor = (...ids: string[]): PurchaseConcern[] => fake.rows.filter((r) => ids.includes(r.id)).flatMap((r) => purchaseConcern(summary(r), Date.now()) ?? []);
+    badges.set(rowsFor('a', 'd'));
+    await settle();
     const button = el.querySelector('button[title="Purchase concerns"]') as HTMLButtonElement;
     expect(button.textContent?.trim()).toBe('2');
     button.click();
@@ -456,6 +458,12 @@ describe('PurchasesPage', () => {
     (dialog.querySelector('li button') as HTMLElement).click();
     await settle();
     expect(TestBed.inject(Router).url).toContain('view-purchase=d');
+    // Resolving one (here the list is refreshed without it) updates the open dialog, and the button's number.
+    await type('input[aria-label="Filter order or supplier"]', '', dialog);
+    badges.set(rowsFor('a'));
+    await settle();
+    expect(rows()).toEqual(['PO-1003 MetroPayment 1 day overdue₱1,000.00']);
+    expect(el.querySelector('button[title="Purchase concerns"]')!.textContent?.trim()).toBe('1');
   });
 
   it('has no concerns button when nothing needs attention', async () => {

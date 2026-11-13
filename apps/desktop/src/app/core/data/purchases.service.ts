@@ -3,7 +3,6 @@ import type {
   CancelPurchaseResult,
   PayPurchaseInput,
   PayPurchaseResult,
-  PurchaseConcern,
   PurchaseDetail,
   PurchaseInput,
   PurchaseSummary,
@@ -101,15 +100,5 @@ export class PurchasesService {
     }
     if (result.ok) await this.load();
     return result;
-  }
-
-  /** Orders that are late or overdue for payment (the Purchases badge): empty when it cannot be read. */
-  async concerns(): Promise<PurchaseConcern[]> {
-    try {
-      return (await this.api?.purchases.concerns()) ?? [];
-    } catch (error) {
-      console.error('Failed to load the purchase concerns', error);
-      return [];
-    }
   }
 }
