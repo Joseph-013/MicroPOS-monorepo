@@ -286,6 +286,34 @@ describe('InventoryPage', () => {
     expect(buttonByText(dialog(), 'Create product')).toBeUndefined();
   });
 
+  it('Receive another keeps the dialog open and clears the form after each receipt', async () => {
+    await open([], [product('1', 'Milk', { tracking: 'quantity', cost: 250 }), product('2', 'Eggs', { tracking: 'quantity', cost: 900 })]);
+    buttonByText(el, 'Receive stock').click();
+    await settle();
+    (dialog().querySelector('hlm-checkbox button, hlm-checkbox [role="checkbox"]') as HTMLElement).click();
+    await settle();
+    const scanner = TestBed.inject(ScannerService);
+
+    scanner.receive('5901');
+    await settle();
+    await type(dialog(), '#r-qty', '12');
+    buttonByText(dialog(), 'Receive').click();
+    await settle();
+    expect(dialog()).not.toBeNull(); // still open
+    expect(calls.receive).toHaveLength(1);
+    expect((dialog().querySelector('input#r-product, #r-product input') as HTMLInputElement).value).toBe('');
+    expect(dialog().querySelector('#r-qty')).toBeNull(); // the fields wait for the next product
+    expect(buttonByText(dialog(), 'Close')).toBeDefined();
+
+    scanner.receive('5902');
+    await settle();
+    expect((dialog().querySelector('#r-cost') as HTMLInputElement).value).toBe('9.00');
+    await type(dialog(), '#r-qty', '3');
+    buttonByText(dialog(), 'Receive').click();
+    await settle();
+    expect(calls.receive.map((r) => [r.productId, r.quantityMilli])).toEqual([['1', 12_000], ['2', 3_000]]);
+  });
+
   it('takes an expiry given as a month only, as the last day of that month', async () => {
     await open([], [product('1', 'Milk', { shelfLifeDays: null })]);
     buttonByText(el, 'Receive stock').click();

@@ -2,11 +2,13 @@ import { Component, computed, effect, inject, signal } from '@angular/core';
 import { formatQuantity, parseQuantityMilli, type ProductRecord, type StockField, tracksBatches, tracksExpiry } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmComboboxImports } from '@spartan-ng/helm/combobox';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { NewProductViewer } from '../../core/new-product-viewer';
+import { BannerService } from '../../core/banner';
 import { InventoryService } from '../../core/data/inventory.service';
 import { ProductsService } from '../../core/data/products.service';
 import { formatCentsInput, parseCents } from '../../core/money-input';
@@ -40,6 +42,7 @@ export const fromDateInput = (value: string): number | null => {
     OnScreenKeypadDirective,
     ScanInputDirective,
     HlmButtonImports,
+    HlmCheckboxImports,
     HlmComboboxImports,
     HlmDialogImports,
     HlmInputImports,
@@ -142,9 +145,16 @@ export const fromDateInput = (value: string): number | null => {
       <button type="submit" class="hidden" tabindex="-1" aria-hidden="true"></button>
     </form>
 
-    <hlm-dialog-footer>
-      <button hlmBtn hlmDialogClose variant="outline" type="button" class="px-5">Cancel</button>
-      <button hlmBtn type="button" class="px-6" [disabled]="saving() || !product()" (click)="submit()">Receive</button>
+    <hlm-dialog-footer class="sm:items-center sm:justify-between">
+      <!-- Keeps the dialog open and clears the form after each receipt, to scan and receive one product after another. -->
+      <label class="flex items-center gap-3 text-sm">
+        <hlm-checkbox [checked]="continuous()" (checkedChange)="continuous.set($event)" />
+        <span>Receive another</span>
+      </label>
+      <div class="flex gap-2">
+        <button hlmBtn hlmDialogClose variant="outline" type="button" class="px-5">{{ received() ? 'Close' : 'Cancel' }}</button>
+        <button hlmBtn type="button" class="px-6" [disabled]="saving() || !product()" (click)="submit()">Receive</button>
+      </div>
     </hlm-dialog-footer>
   `,
 })
@@ -153,8 +163,9 @@ export class ReceiveStockForm {
   private readonly products = inject(ProductsService);
   private readonly inventory = inject(InventoryService);
   private readonly newProduct = inject(NewProductViewer);
+  private readonly banner = inject(BannerService);
   private readonly ref = inject<BrnDialogRef<boolean>>(BrnDialogRef);
-  private readonly start = injectBrnDialogContext<ReceiveStockContext>().product;
+  private start = injectBrnDialogContext<ReceiveStockContext>().product;
 
   /** Products that track stock, alphabetically (the list comes sorted from the database). */
   protected readonly trackedProducts = computed(() => this.products.products().filter((p) => p.tracking !== 'none' && !p.deletedAt));
@@ -176,6 +187,11 @@ export class ReceiveStockForm {
   protected readonly saving = signal(false);
   private readonly problem = signal<{ field: StockField | null; error: string } | null>(null);
   protected readonly formError = computed(() => (this.problem()?.field === null ? this.problem()!.error : null));
+
+  /** Receive another: stay open and start a fresh form after each receipt. */
+  protected readonly continuous = signal(false);
+  /** Something was received while the dialog stayed open. */
+  protected readonly received = signal(false);
 
   /** A scanned code no product has: offers to create the product. */
   protected readonly unknownCode = signal<string | null>(null);
@@ -228,6 +244,20 @@ export class ReceiveStockForm {
     if (p) this.applyDefaults(p);
   }
 
+  /** An empty form for the next product (the scanner is still claimed, so the next scan picks it). */
+  private startOver(): void {
+    this.start = undefined;
+    this.productId.set(null);
+    this.batchNumber.set('');
+    this.expiry.set('');
+    this.monthOnly.set(false);
+    this.quantity.set('');
+    this.cost.set('');
+    this.note.set('');
+    this.unknownCode.set(null);
+    this.problem.set(null);
+  }
+
   /** Cost starts at the product's cost and the expiry at today plus its shelf life. */
   private applyDefaults(p: ProductRecord): void {
     this.cost.set(formatCentsInput(p.cost));
@@ -264,7 +294,11 @@ export class ReceiveStockForm {
     this.saving.set(false);
     if (result.ok) {
       void this.products.load(); // the Products table shows stock too
-      this.ref.close(true);
+      if (this.continuous()) {
+        this.banner.success(`${p.name} received`, { key: 'inventory-saved' });
+        this.received.set(true);
+        this.startOver();
+      } else this.ref.close(true);
     } else this.problem.set({ field: result.field, error: result.error });
   }
 
