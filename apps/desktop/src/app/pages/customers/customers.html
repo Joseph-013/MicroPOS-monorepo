@@ -2,19 +2,7 @@
   <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
     <div class="flex items-center gap-3">
       <h1 class="text-2xl">Customers</h1>
-      @if (concerns() > 0) {
-        <!-- Needs attention: opens the list of customers whose credit is over the limits set in Settings. -->
-        <button
-          hlmBtn
-          type="button"
-          class="bg-warning text-warning-foreground hover:bg-warning/90 min-w-(--control-height) px-3 font-semibold"
-          [attr.aria-label]="concerns() + (concerns() === 1 ? ' credit concern' : ' credit concerns')"
-          title="Credit concerns"
-          (click)="showConcerns()"
-        >
-          {{ concerns() }}
-        </button>
-      }
+      <app-concerns-button [count]="concerns()" noun="credit concern" (opened)="showConcerns()" />
     </div>
     <div class="flex items-center gap-3">
       @if (selected().length) {

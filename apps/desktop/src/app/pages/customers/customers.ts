@@ -25,6 +25,7 @@ import { FilterInput } from '../../core/ui/filter-input';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { RowSelection } from '../../core/ui/row-selection';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
+import { ConcernsButton } from '../../core/ui/concerns-button';
 import { CreditConcerns } from './credit-concerns';
 import { CustomerForm, type CustomerFormContext } from './customer-form';
 
@@ -56,6 +57,7 @@ export const COLUMNS_TEMPLATE = '3.5rem minmax(12rem,2fr) minmax(8rem,1fr) 9rem 
     DateRangeFilter,
     FilterInput,
     MoneyPipe,
+    ConcernsButton,
     NgIcon,
     SwipeActions,
     HlmAlertDialogImports,
