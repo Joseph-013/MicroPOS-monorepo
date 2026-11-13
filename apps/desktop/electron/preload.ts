@@ -1,4 +1,4 @@
-import type { DesktopApi } from '@micropos/core';
+import type { DataDomain, DesktopApi } from '@micropos/core';
 import { contextBridge, ipcRenderer } from 'electron';
 import { CHANNELS } from './ipc/channels';
 
@@ -28,6 +28,13 @@ const api: DesktopApi = {
     update: (id, input) => ipcRenderer.invoke(CHANNELS.categories.update, id, input),
     remove: (ids) => ipcRenderer.invoke(CHANNELS.categories.remove, ids),
     restore: (ids) => ipcRenderer.invoke(CHANNELS.categories.restore, ids),
+  },
+  data: {
+    onChanged: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, domains: DataDomain[]): void => listener(domains);
+      ipcRenderer.on(CHANNELS.data.changed, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.data.changed, handler);
+    },
   },
   inventory: {
     listBatches: (options) => ipcRenderer.invoke(CHANNELS.inventory.listBatches, options),

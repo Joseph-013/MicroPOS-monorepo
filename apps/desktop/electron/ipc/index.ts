@@ -17,6 +17,7 @@ import { setScannerEnabled } from '../scanner';
 import { changePin, isAllowed, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
 import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/users';
 import { API_VERSION, CHANNELS } from './channels';
+import { emitDataChanged, WRITES, wroteNothing } from './changes';
 
 /**
  * Registers a handler that runs only while someone is signed in who holds one of `needed` (an empty list: anyone
@@ -25,7 +26,11 @@ import { API_VERSION, CHANNELS } from './channels';
 function guarded(db: AppDatabase, channel: string, needed: Permission | readonly Permission[], listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown): void {
   ipcMain.handle(channel, (event, ...args) => {
     if (!isAllowed(db, typeof needed === 'string' ? [needed] : needed)) throw new Error('Not allowed');
-    return listener(event, ...args);
+    const result = listener(event, ...args);
+    const changes = WRITES[channel];
+    // A write that went through tells every window which parts of the data changed (see ipc/changes.ts).
+    if (changes) void Promise.resolve(result).then((r) => (wroteNothing(r) ? undefined : emitDataChanged(changes)), () => undefined);
+    return result;
   });
 }
 

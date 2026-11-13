@@ -17,7 +17,7 @@ import type {
   SupplierRecord,
 } from './purchasing.js';
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
-import type { PurchaseConcern, StockConcern } from './concerns.js';
+import type { DataDomain, PurchaseConcern, StockConcern } from './concerns.js';
 import type { CreditAlertSettings } from './credit-alerts.js';
 import type { InterestDefaults } from './credit-interest.js';
 import type { CustomerAccount, CustomerInput, CustomerRecord, ReceivePaymentInput, ReceivePaymentResult, RemoveCustomersResult, SaveCustomerResult } from './customers.js';
@@ -28,7 +28,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 32;
+export const DESKTOP_API_VERSION = 33;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -70,6 +70,13 @@ export interface DesktopApi {
     remove(ids: string[]): Promise<void>;
     /** Puts deleted categories back; one whose name is taken meanwhile is skipped and reported. */
     restore(ids: string[]): Promise<RestoreCategoriesResult>;
+  };
+  data: {
+    /**
+     * The main process announces which parts of the data changed (after a write, and when time alone makes
+     * something a concern, such as a payment falling overdue). Returns a function that stops listening.
+     */
+    onChanged(listener: (domains: readonly DataDomain[]) => void): () => void;
   };
   inventory: {
     /** Batches that still have stock (`includeEmpty` adds used-up ones), soonest expiry first. */

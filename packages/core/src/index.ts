@@ -66,7 +66,10 @@ export type {
 } from './customers.js';
 export { CUSTOMER_LEDGER_TYPES } from './customers.js';
 export {
+  DATA_DOMAINS,
   purchaseConcern,
+  purchaseConcernDueAt,
+  type DataDomain,
   STOCK_CONCERN_KINDS,
   STOCK_CONCERN_LABELS,
   type PurchaseConcern,
@@ -75,6 +78,7 @@ export {
 } from './concerns.js';
 export {
   creditAlert,
+  creditAlertDueAt,
   DEFAULT_CREDIT_ALERTS,
   isAlertAmount,
   isAlertDays,

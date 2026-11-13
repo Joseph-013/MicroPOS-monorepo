@@ -54,3 +54,20 @@ export function creditAlert(entries: readonly InterestEntry[], settings: CreditA
   }
   return overAmount === null && unpaidDays === null ? null : { overAmount, unpaidDays };
 }
+
+/**
+ * When (epoch ms, after `now`) this customer's oldest unpaid sale becomes older than the days limit, with nothing
+ * being written; null when the limit is off, nothing is unpaid, or it is already past.
+ */
+export function creditAlertDueAt(entries: readonly InterestEntry[], settings: CreditAlertSettings, now: number): number | null {
+  if (settings.days === null) return null;
+  const chargedAt = new Map<string, number>();
+  for (const e of entries) if (e.at <= now && e.type === 'charge' && e.orderId && !chargedAt.has(e.orderId)) chargedAt.set(e.orderId, e.at);
+  for (const [orderId, unpaid] of unpaidByOrder(entries, now, 0)) {
+    if (unpaid > 0) {
+      const due = chargedAt.get(orderId)! + settings.days * DAY_MS + 1;
+      return due > now ? due : null;
+    }
+  }
+  return null;
+}

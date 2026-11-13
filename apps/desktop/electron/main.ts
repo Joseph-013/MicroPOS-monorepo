@@ -1,8 +1,12 @@
-import { app, BrowserWindow, Menu, screen, session } from 'electron';
+import type { DataDomain } from '@micropos/core';
+import { app, BrowserWindow, Menu, powerMonitor, screen, session } from 'electron';
 import path from 'node:path';
 import { ensureOwner, signOut } from './auth/auth';
 import { accrueInterest } from './db/queries/credit-interest';
 import { createDatabase } from './db';
+import { startConcernsClock } from './concerns-clock';
+import { CHANNELS } from './ipc/channels';
+import { emitDataChanged, onDataChanged } from './ipc/changes';
 import { registerIpcHandlers } from './ipc';
 import { closeCustomerDisplay, registerCustomerDisplay } from './display';
 import { purgeLegacyData } from './legacy-data';
@@ -79,6 +83,7 @@ function createWindow(): void {
 
 let database: ReturnType<typeof createDatabase> | undefined;
 let interestTimer: ReturnType<typeof setInterval> | undefined;
+let concernsClock: ReturnType<typeof startConcernsClock> | undefined;
 
 /**
  * Packaged: the per-user data folder. Development: apps/desktop/local-data/micropos-dev.db, the same file
@@ -129,7 +134,7 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
     // Credit interest that has fallen due is written now, and again every hour for a till left running for days.
     const accrue = (): void => {
       try {
-        if (database) accrueInterest(database.db);
+        if (database && accrueInterest(database.db) > 0) emitDataChanged(['customers']); // interest was charged
       } catch (error) {
         console.error('Could not charge credit interest', error);
       }
@@ -137,6 +142,13 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
     accrue();
     interestTimer = setInterval(accrue, 60 * 60 * 1000);
     registerIpcHandlers(database.db);
+    // Every window hears when data changes; the clock adds the moments when time alone makes something a concern.
+    const broadcast = (domains: readonly DataDomain[]): void => {
+      for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(CHANNELS.data.changed, domains);
+    };
+    onDataChanged(broadcast);
+    concernsClock = startConcernsClock(database.db, broadcast);
+    powerMonitor.on('resume', () => concernsClock?.resume());
     registerCustomerDisplay({ createWindow: createDisplayWindow, mainWindow: () => mainWindow });
     createWindow();
     app.on('activate', () => {
@@ -147,6 +159,7 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
 
 app.on('will-quit', () => {
   if (interestTimer) clearInterval(interestTimer);
+  concernsClock?.stop();
   if (database) signOut(database.db); // records the sign-out of whoever was signed in
   database?.close();
 });
