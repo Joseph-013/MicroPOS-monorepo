@@ -60,7 +60,9 @@ module.exports = {
     ],
   },
   makers: [
-    { name: '@electron-forge/maker-squirrel', config: {} },
+    // Same Squirrel id and executable name as the first MicroPOS (`micropos`, micropos.exe), so Setup installs over it
+    // as an upgrade instead of beside it. `name` is set because the package name is scoped and not a valid id.
+    { name: '@electron-forge/maker-squirrel', config: { name: 'micropos' } },
     { name: '@electron-forge/maker-zip', platforms: ['darwin', 'linux'] },
     { name: '@electron-forge/maker-deb', config: {} },
     { name: '@electron-forge/maker-rpm', config: {} },

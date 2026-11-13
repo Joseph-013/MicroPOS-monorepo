@@ -1,8 +1,10 @@
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen, session } from 'electron';
 import path from 'node:path';
 import { createDatabase } from './db';
 import { registerIpcHandlers } from './ipc';
+import { purgeLegacyData } from './legacy-data';
 import { attachScanner } from './scanner';
+import { handleSquirrelEvent } from './squirrel';
 
 const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
 
@@ -56,14 +58,34 @@ function migrationsFolder(): string {
     : path.join(app.getAppPath(), 'electron', 'db', 'migrations');
 }
 
-void app.whenReady().then(() => {
-  database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
-  registerIpcHandlers(database.db);
-  createWindow();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+/**
+ * A packaged app starts on a folder an earlier MicroPOS may have used (same name, other schema): make it this app's
+ * own before anything opens it. Not in development, where the data lives in the project.
+ */
+function claimUserData(): boolean {
+  if (!app.isPackaged) return false;
+  const result = purgeLegacyData(app.getPath('userData'));
+  if (result.state === 'purged') {
+    console.log(`Removed data of an earlier install: ${result.removed.join(', ')}${result.failed.length ? ` (could not remove: ${result.failed.join(', ')})` : ''}`);
+  }
+  return result.state === 'purged';
+}
+
+if (handleSquirrelEvent(process.argv, process.execPath)) {
+  app.quit(); // installing, updating or uninstalling: shortcuts are made or removed and the app exits
+} else {
+  const purged = claimUserData();
+  void app.whenReady().then(async () => {
+    // Browser storage (the old page's local storage, caches) is held by Chromium: clear it through its own API too.
+    if (purged) await session.defaultSession.clearStorageData();
+    database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
+    registerIpcHandlers(database.db);
+    createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
+}
 
 app.on('will-quit', () => database?.close());
 
