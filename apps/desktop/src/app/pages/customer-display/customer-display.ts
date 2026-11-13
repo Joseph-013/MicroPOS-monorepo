@@ -5,16 +5,34 @@ import { AppSettings } from '../../core/settings/app-settings.service';
 import { Logo } from '../../core/logo';
 import { MoneyPipe } from '../../core/money.pipe';
 
-/** How long the thank-you stays before the welcome screen returns. */
+/** How long the thank-you stays before the waiting screen returns. */
 export const PAID_SCREEN_MS = 10_000;
 
 /**
  * What the customer sees at the till: the items as they are scanned with a running total, a thank-you once the sale is
- * paid, a welcome in between. It only renders what Checkout publishes (`CustomerDisplayState`); it has no controls.
+ * paid, a slow scanning animation in between. It only renders what Checkout publishes (`CustomerDisplayState`); it has no controls.
  */
 @Component({
   imports: [Logo, MoneyPipe],
   host: { class: 'block' },
+  styles: `
+    /* Three dots fading in turn, slowly; with reduced motion they rest at half strength. */
+    .wait-dot {
+      border-radius: 9999px;
+      opacity: 0.2;
+      animation: wait-fade 2.4s ease-in-out infinite;
+    }
+    .wait-dot:nth-child(2) { animation-delay: 0.4s; }
+    .wait-dot:nth-child(3) { animation-delay: 0.8s; }
+    @keyframes wait-fade {
+      0%, 100% { opacity: 0.2; }
+      40% { opacity: 0.8; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .wait-dot { animation: none; opacity: 0.5; }
+    }
+  `,
+
   template: `
     <div class="bg-background text-foreground flex h-svh flex-col px-10 py-8">
       <header class="flex items-center justify-between">
@@ -52,8 +70,14 @@ export const PAID_SCREEN_MS = 10_000;
           }
         </div>
       } @else {
-        <div class="flex flex-1 flex-col items-center justify-center gap-6 text-center">
-          <p class="font-heading text-7xl">Welcome</p>
+        <!-- Waiting for the next customer: three dots slowly fading in turn (decorative). -->
+        <div class="flex flex-1 items-center justify-center" data-idle role="status">
+          <span class="sr-only">Ready for the next customer</span>
+          <div class="flex gap-6" aria-hidden="true">
+            <span class="wait-dot bg-muted-foreground size-5"></span>
+            <span class="wait-dot bg-muted-foreground size-5"></span>
+            <span class="wait-dot bg-muted-foreground size-5"></span>
+          </div>
         </div>
       }
     </div>
@@ -64,7 +88,7 @@ export class CustomerDisplayPage {
   private readonly settings = inject(AppSettings);
 
   private readonly latest = signal<CustomerDisplayState>(IDLE_DISPLAY_STATE);
-  /** The thank-you has been showing long enough; the welcome screen takes over until something new is published. */
+  /** The thank-you has been showing long enough; the waiting screen takes over until something new is published. */
   private readonly paidExpired = signal(false);
   protected readonly state = computed(() => (this.latest().phase === 'paid' && this.paidExpired() ? IDLE_DISPLAY_STATE : this.latest()));
   protected readonly shopping = computed(() => this.state().phase === 'shopping');

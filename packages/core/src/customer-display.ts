@@ -23,7 +23,7 @@ export interface CustomerDisplayReceipt {
 }
 
 /**
- * What the customer-facing screen shows: nothing yet (a welcome), the order as it is rung up, or a thank-you once it
+ * What the customer-facing screen shows: nothing yet (a waiting animation), the order as it is rung up, or a thank-you once it
  * is paid. The checkout page publishes it; the display window only renders it.
  */
 export interface CustomerDisplayState {

@@ -36,10 +36,14 @@ describe('CustomerDisplayPage', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('welcomes the customer while nothing has been scanned', async () => {
+  it('shows a waiting animation, with no text on screen, while nothing has been scanned', async () => {
     const { fixture, el } = setup();
     await fixture.whenStable();
-    expect(el.textContent).toContain('Welcome');
+    const idle = el.querySelector('[data-idle]')!;
+    expect(idle).not.toBeNull();
+    expect(idle.querySelectorAll('.wait-dot')).toHaveLength(3); // three dots fading in turn
+    expect(idle.querySelector('.sr-only')!.textContent).toBe('Ready for the next customer');
+    expect(el.textContent).not.toContain('Welcome');
     expect(el.querySelector('ul')).toBeNull();
   });
 
@@ -107,7 +111,7 @@ describe('CustomerDisplayPage', () => {
     expect(el.querySelectorAll('li')).toHaveLength(3);
   });
 
-  it('thanks the customer after the sale, with change and what went on account, then welcomes the next', async () => {
+  it('thanks the customer after the sale, with change and what went on account, then waits for the next', async () => {
     const { fixture, el, send } = setup();
     await fixture.whenStable();
     await send({ phase: 'paid', lines: [line('Eggs', 1_000, 1_500)], total: 1_500, highlight: null, receipt: { orderNumber: 'SO-1001', total: 1_500, change: 500, onAccount: 300 } });
@@ -119,7 +123,7 @@ describe('CustomerDisplayPage', () => {
 
     vi.advanceTimersByTime(PAID_SCREEN_MS + 10);
     await fixture.whenStable();
-    expect(el.textContent).toContain('Welcome');
+    expect(el.querySelector('[data-idle]')).not.toBeNull();
     expect(el.textContent).not.toContain('Thank you!');
 
     await send(shopping([line('Milk', 1_000, 4_000)])); // the next customer's first item
