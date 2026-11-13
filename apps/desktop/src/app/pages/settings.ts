@@ -1,4 +1,9 @@
 import { Component, inject } from '@angular/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
+import { AuthService } from '../core/auth/auth.service';
+import { ChangePinDialog } from '../core/auth/change-pin-dialog';
+import { BannerService } from '../core/banner';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
@@ -8,9 +13,22 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
 
 /** Per-device settings. */
 @Component({
-  imports: [HlmCardImports, HlmSelectImports, HlmSwitchImports],
+  imports: [HlmButtonImports, HlmCardImports, HlmSelectImports, HlmSwitchImports],
   template: `
     <h1 class="mb-3 text-2xl">Settings</h1>
+    @if (auth.user(); as user) {
+      <section hlmCard class="mb-3 max-w-xl">
+        <div hlmCardHeader>
+          <h2 hlmCardTitle>Account</h2>
+        </div>
+        <div hlmCardContent>
+          <div class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+            <span>Signed in as {{ user.name }}</span>
+            <button hlmBtn variant="outline" type="button" class="px-4" (click)="changePin()">Change PIN</button>
+          </div>
+        </div>
+      </section>
+    }
     <section hlmCard class="max-w-xl">
       <div hlmCardHeader>
         <h2 hlmCardTitle>Input</h2>
@@ -79,6 +97,16 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
   `,
 })
 export class SettingsPage {
+  protected readonly auth = inject(AuthService);
+  private readonly dialogs = inject(HlmDialogService);
+  private readonly banner = inject(BannerService);
+  protected changePin(): void {
+    this.dialogs
+      .open<boolean>(ChangePinDialog, { id: 'change-pin', contentClass: 'w-[min(24rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)]' })
+      .closed$.subscribe((changed) => {
+        if (changed) this.banner.success('PIN changed', { key: 'pin-changed' });
+      });
+  }
   protected readonly settings = inject(AppSettings);
   protected readonly display = inject(CustomerDisplayService);
   protected readonly scales = CUSTOMER_DISPLAY_SCALES;

@@ -83,7 +83,7 @@ describe('SettingsPage', () => {
     const fixture = TestBed.createComponent(SettingsPage);
     await fixture.whenStable();
     const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('h2')].map((h) => h.textContent!.trim());
-    expect(titles).toEqual(['Input', 'Customer Display']);
+    expect(titles).toEqual(['Account', 'Input', 'Customer Display']);
   });
 
   it('has a UI scale for the customer display: 100% by default, chosen from a list and remembered', async () => {
