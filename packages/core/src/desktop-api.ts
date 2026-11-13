@@ -17,6 +17,7 @@ import type {
   SupplierRecord,
 } from './purchasing.js';
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
+import type { PurchaseConcern, StockConcern } from './concerns.js';
 import type { CreditAlertSettings } from './credit-alerts.js';
 import type { InterestDefaults } from './credit-interest.js';
 import type { CustomerAccount, CustomerInput, CustomerRecord, ReceivePaymentInput, ReceivePaymentResult, RemoveCustomersResult, SaveCustomerResult } from './customers.js';
@@ -27,7 +28,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 31;
+export const DESKTOP_API_VERSION = 32;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -75,6 +76,8 @@ export interface DesktopApi {
     listBatches(options?: { includeEmpty?: boolean }): Promise<BatchRecord[]>;
     /** The summary behind the Inventory overview page. */
     overview(): Promise<InventoryOverview>;
+    /** What needs attention: expired and expiring batches, products out of stock or at their critical level (the Inventory badge). */
+    concerns(): Promise<StockConcern[]>;
     /** Adds stock to a product (a new batch, or the single batch of a quantity-only product). */
     receive(input: ReceiveStockInput): Promise<StockResult>;
     /** Removes stock as waste or expired, or corrects a count. */
@@ -149,6 +152,8 @@ export interface DesktopApi {
   purchases: {
     /** Every purchase order, newest first. */
     list(): Promise<PurchaseSummary[]>;
+    /** Orders that are late to arrive or overdue for payment (the Purchases badge). */
+    concerns(): Promise<PurchaseConcern[]>;
     /** One purchase order with its lines and payments, or null when there is no such order. */
     get(id: string): Promise<PurchaseDetail | null>;
     /** Places an order with a supplier. Nothing is received or paid yet. */

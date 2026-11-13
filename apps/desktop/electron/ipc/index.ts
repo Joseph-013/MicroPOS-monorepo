@@ -4,8 +4,8 @@ import type { AppDatabase } from '../db';
 import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
 import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from '../db/queries/categories';
-import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock } from '../db/queries/inventory';
-import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
+import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock, stockConcerns } from '../db/queries/inventory';
+import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, purchaseConcerns, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
 import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
 import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-interest';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
@@ -62,6 +62,7 @@ export function registerIpcHandlers(db: AppDatabase): void {
     listBatches(db, { includeEmpty: (options as { includeEmpty?: unknown } | undefined)?.includeEmpty === true }),
   );
   guarded(db, CHANNELS.inventory.overview, 'catalog.view', () => inventoryOverview(db));
+  guarded(db, CHANNELS.inventory.concerns, 'inventory.manage', () => stockConcerns(db));
   guarded(db, CHANNELS.inventory.receive, 'inventory.manage', (_event, input: unknown) => receiveStock(db, input));
   guarded(db, CHANNELS.inventory.adjust, 'inventory.manage', (_event, input: unknown) => adjustStock(db, input));
   guarded(db, CHANNELS.inventory.repackage, 'inventory.manage', (_event, input: unknown) => repackageStock(db, input));
@@ -77,6 +78,7 @@ export function registerIpcHandlers(db: AppDatabase): void {
   guarded(db, CHANNELS.suppliers.update, 'purchasing.manage', (_event, id: unknown, input: unknown) => updateSupplier(db, id, input));
   guarded(db, CHANNELS.suppliers.remove, 'purchasing.manage', (_event, ids: unknown) => deleteSuppliers(db, ids));
   guarded(db, CHANNELS.suppliers.restore, 'purchasing.manage', (_event, ids: unknown) => restoreSuppliers(db, ids));
+  guarded(db, CHANNELS.purchases.concerns, 'purchasing.manage', () => purchaseConcerns(db));
   guarded(db, CHANNELS.purchases.list, ['purchasing.manage', 'inventory.manage'], () => listPurchases(db));
   guarded(db, CHANNELS.purchases.get, ['purchasing.manage', 'inventory.manage'], (_event, id: unknown) => getPurchase(db, id));
   guarded(db, CHANNELS.purchases.create, 'purchasing.manage', (_event, input: unknown) => createPurchase(db, input));

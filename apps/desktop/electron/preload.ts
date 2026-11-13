@@ -32,6 +32,7 @@ const api: DesktopApi = {
   inventory: {
     listBatches: (options) => ipcRenderer.invoke(CHANNELS.inventory.listBatches, options),
     overview: () => ipcRenderer.invoke(CHANNELS.inventory.overview),
+    concerns: () => ipcRenderer.invoke(CHANNELS.inventory.concerns),
     receive: (input) => ipcRenderer.invoke(CHANNELS.inventory.receive, input),
     adjust: (input) => ipcRenderer.invoke(CHANNELS.inventory.adjust, input),
     repackage: (input) => ipcRenderer.invoke(CHANNELS.inventory.repackage, input),
@@ -86,6 +87,7 @@ const api: DesktopApi = {
     restore: (ids) => ipcRenderer.invoke(CHANNELS.suppliers.restore, ids),
   },
   purchases: {
+    concerns: () => ipcRenderer.invoke(CHANNELS.purchases.concerns),
     list: () => ipcRenderer.invoke(CHANNELS.purchases.list),
     get: (id) => ipcRenderer.invoke(CHANNELS.purchases.get, id),
     create: (input) => ipcRenderer.invoke(CHANNELS.purchases.create, input),

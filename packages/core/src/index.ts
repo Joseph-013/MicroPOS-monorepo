@@ -66,6 +66,14 @@ export type {
 } from './customers.js';
 export { CUSTOMER_LEDGER_TYPES } from './customers.js';
 export {
+  purchaseConcern,
+  STOCK_CONCERN_KINDS,
+  STOCK_CONCERN_LABELS,
+  type PurchaseConcern,
+  type StockConcern,
+  type StockConcernKind,
+} from './concerns.js';
+export {
   creditAlert,
   DEFAULT_CREDIT_ALERTS,
   isAlertAmount,

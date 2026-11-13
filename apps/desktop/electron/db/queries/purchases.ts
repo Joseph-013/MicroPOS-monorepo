@@ -5,6 +5,8 @@ import {
   ORDER_PAYMENT_METHODS,
   type OrderPaymentMethod,
   type PayPurchaseResult,
+  type PurchaseConcern,
+  purchaseConcern,
   type ProductTracking,
   type PurchaseDetail,
   type PurchaseField,
@@ -389,4 +391,11 @@ export function receivePurchase(db: AppDatabase, raw: unknown, now = Date.now())
     if (error instanceof ReceiveStop) return error.result;
     throw error;
   }
+}
+
+/** Orders that are late to arrive or overdue for payment, the most overdue first. */
+export function purchaseConcerns(db: AppDatabase, now = Date.now()): PurchaseConcern[] {
+  const concerns = summaries(db).flatMap((p) => purchaseConcern(p, now) ?? []);
+  const since = (c: PurchaseConcern): number => Math.min(c.lateSince ?? Infinity, c.purchase.dueAt !== null && c.overdueOwed !== null ? c.purchase.dueAt : Infinity);
+  return concerns.sort((a, b) => since(a) - since(b));
 }

@@ -10,6 +10,8 @@ import {
   type RepackageField,
   type RepackageInput,
   type RepackageResult,
+  STOCK_CONCERN_KINDS,
+  type StockConcern,
   type StockField,
   type StockResult,
   tracksBatches,
@@ -673,4 +675,36 @@ export function inventoryOverview(db: AppDatabase, now = Date.now()): InventoryO
     attention: [...expired, ...soon].slice(0, MAX_ATTENTION),
     recentMovements: recent,
   };
+}
+
+/**
+ * What needs attention in stock: batches past their expiry date or expiring soon (that still hold stock), products
+ * that are out of stock, and products at or below their critical level. Only live, active products whose stock is
+ * tracked. Worst first (expired, out, low, expiring), then by name.
+ */
+export function stockConcerns(db: AppDatabase, now = Date.now()): StockConcern[] {
+  const concerns: StockConcern[] = [];
+  const active = new Set(
+    (db.$client.prepare("SELECT id FROM products WHERE deleted_at IS NULL AND active = 1 AND tracking <> 'none'").all() as { id: string }[]).map((r) => r.id),
+  );
+  for (const b of listBatches(db)) {
+    const state = expiryState(b.expiresAt, now);
+    if ((state === 'expired' || state === 'soon') && active.has(b.productId)) {
+      concerns.push({ kind: state === 'expired' ? 'expired' : 'expiring', productId: b.productId, productName: b.productName, unit: b.unit, batchNumber: b.batchNumber, expiresAt: b.expiresAt, onHandMilli: b.onHandMilli, criticalLevelMilli: null });
+    }
+  }
+  const products = db.$client
+    .prepare(
+      `SELECT p.id AS id, p.name AS name, p.unit AS unit, p.critical_level_milli AS level, COALESCE(SUM(m.quantity_milli), 0) AS onHand
+         FROM products p LEFT JOIN stock_movements m ON m.product_id = p.id
+        WHERE p.deleted_at IS NULL AND p.active = 1 AND p.tracking <> 'none'
+        GROUP BY p.id`,
+    )
+    .all() as { id: string; name: string; unit: string; level: number | null; onHand: number }[];
+  for (const p of products) {
+    const kind = p.onHand <= 0 ? 'out' : p.level !== null && p.onHand <= p.level ? 'low' : null;
+    if (kind) concerns.push({ kind, productId: p.id, productName: p.name, unit: p.unit, batchNumber: null, expiresAt: null, onHandMilli: Math.max(0, p.onHand), criticalLevelMilli: p.level });
+  }
+  const rank = (c: StockConcern): number => STOCK_CONCERN_KINDS.indexOf(c.kind);
+  return concerns.sort((a, b) => rank(a) - rank(b) || a.productName.localeCompare(b.productName) || (a.expiresAt ?? 0) - (b.expiresAt ?? 0));
 }
