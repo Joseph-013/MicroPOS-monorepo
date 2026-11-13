@@ -50,6 +50,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/suppliers/suppliers').then((m) => m.SuppliersPage),
   },
   {
+    // Shown in the customer-facing window (see `electron/display/`), not reached from the navigation.
+    path: 'customer-display',
+    title: 'MicroPOS',
+    loadComponent: () => import('./pages/customer-display/customer-display').then((m) => m.CustomerDisplayPage),
+  },
+  {
     path: 'settings',
     title: 'Settings',
     loadComponent: () => import('./pages/settings').then((m) => m.SettingsPage),

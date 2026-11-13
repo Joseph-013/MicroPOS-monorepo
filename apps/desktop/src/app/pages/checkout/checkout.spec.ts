@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { type CatalogProduct, type CustomerRecord, type CheckoutDraft, type CompleteOrderInput, type CompleteOrderResult, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
+import { type CatalogProduct, type CustomerDisplayState, IDLE_DISPLAY_STATE, type CustomerRecord, type CheckoutDraft, type CompleteOrderInput, type CompleteOrderResult, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
 import { Router } from '@angular/router';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
@@ -41,7 +41,11 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     result: null as CompleteOrderResult | null,
     /** Customers the register can put a sale on account for. */
     customers: [] as CustomerRecord[],
+    /** Whether the customer display window is open, and every state published to it. */
+    displayOpen: false,
+    published: [] as CustomerDisplayState[],
   };
+  const listeners: ((open: boolean) => void)[] = [];
   const api: DesktopApi = {
     platform: 'linux',
     version: () => Promise.resolve(DESKTOP_API_VERSION),
@@ -79,7 +83,29 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       clearDraft: () => Promise.resolve(),
     },
     customers: { list: () => Promise.resolve(store.customers), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve(), account: () => Promise.resolve(null), receivePayment: () => Promise.reject(new Error('unused')) },
-    display: { show: () => Promise.resolve(), hide: () => Promise.resolve(), isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined, publish: () => Promise.resolve(), getState: () => Promise.resolve({ phase: 'idle', lines: [], total: 0, receipt: null }), onState: () => () => undefined },
+    display: {
+      show: () => {
+        store.displayOpen = true;
+        listeners.forEach((l) => l(true));
+        return Promise.resolve();
+      },
+      hide: () => {
+        store.displayOpen = false;
+        listeners.forEach((l) => l(false));
+        return Promise.resolve();
+      },
+      isOpen: () => Promise.resolve(store.displayOpen),
+      onVisibility: (listener) => {
+        listeners.push(listener);
+        return () => undefined;
+      },
+      publish: (state) => {
+        store.published.push(state);
+        return Promise.resolve();
+      },
+      getState: () => Promise.resolve(IDLE_DISPLAY_STATE),
+      onState: () => () => undefined,
+    },
     suppliers: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve() },
     purchases: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), pay: () => Promise.reject(new Error('unused')), cancel: () => Promise.reject(new Error('unused')) },
     orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), void: () => Promise.reject(new Error('unused')), refund: () => Promise.reject(new Error('unused')) },
@@ -582,6 +608,80 @@ describe('CheckoutPage', () => {
       await fixture.whenStable();
       expect(el.querySelectorAll('li')).toHaveLength(1);
       expect(TestBed.inject(BannerService).current()?.text).toContain('Only 0 of Whole Milk (1 gal) in stock');
+    });
+  });
+
+  describe('customer display', () => {
+    beforeEach(() => open());
+    const last = (): CustomerDisplayState => store.published.at(-1)!;
+
+    it('has a button that shows and hides the window, and reflects whether it is open', async () => {
+      const button = (): HTMLButtonElement => buttonByText(el, 'Customer display');
+      expect(button().getAttribute('aria-pressed')).toBe('false');
+      button().click();
+      await fixture.whenStable();
+      expect(store.displayOpen).toBe(true);
+      expect(button().getAttribute('aria-pressed')).toBe('true');
+      button().click();
+      await fixture.whenStable();
+      expect(store.displayOpen).toBe(false);
+      expect(button().getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('follows the window when it is closed from the window itself', async () => {
+      await (TestBed.inject(DESKTOP_API) as DesktopApi).display.show();
+      await fixture.whenStable();
+      expect(buttonByText(el, 'Customer display').getAttribute('aria-pressed')).toBe('true');
+      await (TestBed.inject(DESKTOP_API) as DesktopApi).display.hide();
+      await fixture.whenStable();
+      expect(buttonByText(el, 'Customer display').getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('publishes the order as it is rung up: lines with quantities and prices, and the total', async () => {
+      await fixture.whenStable();
+      expect(last()).toEqual(IDLE_DISPLAY_STATE);
+      scan(PRODUCTS[1].barcode!);
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      expect(last()).toEqual({
+        phase: 'shopping',
+        lines: [{ name: 'Whole Milk (1 gal)', unit: 'each', quantityMilli: 2000, unitPrice: 429, total: 858 }],
+        total: 858,
+        receipt: null,
+      });
+    });
+
+    it('goes back to idle when the order is cleared', async () => {
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      expect(last().phase).toBe('shopping');
+      buttonByText(el, 'Clear').click();
+      await fixture.whenStable();
+      ([...document.querySelectorAll('[hlmAlertDialogAction]')].pop() as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(last()).toEqual(IDLE_DISPLAY_STATE);
+    });
+
+    it('shows a thank-you with the change after the sale, until the next item is scanned', async () => {
+      scan(PRODUCTS[1].barcode!);
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      (el.querySelector('#tendered') as HTMLInputElement).value = '10';
+      (el.querySelector('#tendered') as HTMLInputElement).dispatchEvent(new Event('input', { bubbles: true }));
+      await fixture.whenStable();
+      store.result = { ok: true, orderId: 'o1', orderNumber: 'SO-1001', total: 858, change: 142, onAccount: 0 };
+      buttonByText(el, 'Complete Order').click();
+      await fixture.whenStable();
+      expect(last()).toMatchObject({
+        phase: 'paid',
+        total: 858,
+        lines: [{ name: 'Whole Milk (1 gal)', quantityMilli: 2000 }],
+        receipt: { orderNumber: 'SO-1001', total: 858, change: 142, onAccount: 0 },
+      });
+
+      scan(PRODUCTS[1].barcode!); // the next customer
+      await fixture.whenStable();
+      expect(last()).toMatchObject({ phase: 'shopping', receipt: null, total: 429 });
     });
   });
 

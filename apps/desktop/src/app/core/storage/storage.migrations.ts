@@ -47,6 +47,13 @@ export const STORAGE_MIGRATIONS_LIST: readonly StorageMigration[] = [
       if (store.get('showNumpad') === null) store.set('showNumpad', 'false');
     },
   },
+  {
+    // The "customer display on start" setting was introduced: existing installs get an explicit default (off).
+    version: 4,
+    migrate(store) {
+      if (store.get('customerDisplayOnStart') === null) store.set('customerDisplayOnStart', 'false');
+    },
+  },
 ];
 
 export const STORAGE_MIGRATIONS = new InjectionToken<readonly StorageMigration[]>(

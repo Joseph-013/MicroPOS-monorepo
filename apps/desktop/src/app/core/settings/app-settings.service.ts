@@ -17,7 +17,11 @@ export class AppSettings {
   /** Show a numpad to the right of the on-screen keyboard (only matters when the keyboard is on). */
   readonly showNumpad = signal(this.storage.get('showNumpad', false, isBoolean));
 
+  /** Open the customer-facing display window when the app starts. */
+  readonly customerDisplayOnStart = signal(this.storage.get('customerDisplayOnStart', false, isBoolean));
+
   constructor() {
+    effect(() => this.storage.set('customerDisplayOnStart', this.customerDisplayOnStart()));
     effect(() => this.storage.set('onScreenKeyboard', this.onScreenKeyboard()));
     effect(() => this.storage.set('showNumpad', this.showNumpad()));
   }

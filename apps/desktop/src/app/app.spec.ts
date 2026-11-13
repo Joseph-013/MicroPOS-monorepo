@@ -30,6 +30,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await TestBed.inject(Router).navigateByUrl('/items/products');
     const el = fixture.nativeElement as HTMLElement;
+    await fixture.whenStable();
     el.querySelector('nav')!.dispatchEvent(new MouseEvent('mouseenter'));
     await fixture.whenStable();
 
@@ -42,6 +43,7 @@ describe('App', () => {
   it('toggles a nav group', async () => {
     const fixture = TestBed.createComponent(App);
     const el = fixture.nativeElement as HTMLElement;
+    await fixture.whenStable(); // the shell renders on the first change detection
     el.querySelector('nav')!.dispatchEvent(new MouseEvent('mouseenter'));
     await fixture.whenStable();
 
@@ -50,5 +52,20 @@ describe('App', () => {
     group.click();
     await fixture.whenStable();
     expect(group.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('shows only the page in the customer display window: no navigation, no banner, no start-up work', async () => {
+    const before = location.href;
+    history.replaceState(null, '', '#/customer-display');
+    try {
+      const fixture = TestBed.createComponent(App);
+      await fixture.whenStable();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('nav')).toBeNull();
+      expect(el.querySelector('app-banner-host')).toBeNull();
+      expect(el.querySelector('router-outlet')).not.toBeNull();
+    } finally {
+      history.replaceState(null, '', before);
+    }
   });
 });

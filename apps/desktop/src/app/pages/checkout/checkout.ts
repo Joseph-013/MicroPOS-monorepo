@@ -1,7 +1,7 @@
-import { Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideFilterX, lucideX, lucideMinus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
-import { type CatalogProduct, type DraftLine, gramsToQuantityMilli, parseScaleBarcode, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
+import { lucideFilterX, lucideScreenShare, lucideX, lucideMinus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
+import { type CatalogProduct, type CustomerDisplayLine, type CustomerDisplayReceipt, type CustomerDisplayState, type DraftLine, IDLE_DISPLAY_STATE, gramsToQuantityMilli, parseScaleBarcode, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -16,6 +16,7 @@ import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { BannerService } from '../../core/banner';
 import { CatalogService } from '../../core/data/catalog.service';
+import { CustomerDisplayService } from '../../core/customer-display.service';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
 import { CustomersService } from '../../core/data/customers.service';
@@ -57,7 +58,7 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
     HlmLabelImports,
     HlmSelectImports,
   ],
-  providers: [provideIcons({ lucideFilterX, lucideX, lucideMinus, lucidePlus, lucideTrash2 })],
+  providers: [provideIcons({ lucideFilterX, lucideScreenShare, lucideX, lucideMinus, lucidePlus, lucideTrash2 })],
   templateUrl: './checkout.html',
 })
 export class CheckoutPage {
@@ -66,6 +67,8 @@ export class CheckoutPage {
   private readonly banner = inject(BannerService);
   private readonly viewer = inject(SalesOrderViewer);
   protected readonly customers = inject(CustomersService);
+  /** The customer-facing window: opened and closed from the header, and kept up to date with the order. */
+  protected readonly display = inject(CustomerDisplayService);
 
   // The order in progress. It is saved automatically as a draft and restored when the page opens.
   protected readonly lines = signal<DraftLine[]>([]);
@@ -149,6 +152,16 @@ export class CheckoutPage {
       );
   });
 
+  /** The sale just completed, shown on the customer display (thank-you and change) until the next item is scanned. */
+  private readonly paidSale = signal<{ receipt: CustomerDisplayReceipt; lines: CustomerDisplayLine[] } | null>(null);
+  /** What the customer sees: the order as it is rung up, the thank-you right after paying, or the welcome screen. */
+  private readonly displayState = computed<CustomerDisplayState>(() => {
+    const lines = this.lineTotals().map((l) => ({ name: l.name, unit: l.unit, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice, total: l.total }));
+    if (lines.length) return { phase: 'shopping', lines, total: this.total(), receipt: null };
+    const sale = this.paidSale();
+    return sale ? { phase: 'paid', lines: sale.lines, total: sale.receipt.total, receipt: sale.receipt } : IDLE_DISPLAY_STATE;
+  });
+
   /** True once the saved draft has been read; saving waits for this so an empty start never overwrites it. */
   private readonly draftRestored = signal(false);
 
@@ -165,6 +178,11 @@ export class CheckoutPage {
     effect(() => {
       const lines = this.lines();
       if (this.draftRestored()) this.draft.save(lines);
+    });
+    effect(() => this.display.publish(this.displayState()));
+    // The thank-you gives way to the next customer's items as soon as one is added.
+    effect(() => {
+      if (this.lines().length) untracked(() => this.paidSale.set(null));
     });
     inject(DestroyRef).onDestroy(() => this.draft.flush());
 
@@ -294,6 +312,7 @@ export class CheckoutPage {
   }
 
   private resetOrder(): void {
+    this.paidSale.set(null);
     this.lines.set([]);
     this.discount.set(0);
     this.tenderedText.set('');
@@ -332,7 +351,9 @@ export class CheckoutPage {
         this.banner.error(result.lines.length ? result.lines.map((p) => p.error).join('. ') : result.error, { duration: 'long', key: 'complete-order' });
         return;
       }
+      const soldLines = this.displayState().lines; // before the order is emptied
       this.resetOrder();
+      this.paidSale.set({ receipt: { orderNumber: result.orderNumber, total: result.total, change: result.change, onAccount: result.onAccount }, lines: soldLines });
       const change = result.change > 0 ? `, change ${formatMoney(result.change)}` : '';
       const credit = result.onAccount > 0 ? `, ${formatMoney(result.onAccount)} on account` : '';
       void this.customers.load(); // the balance changed

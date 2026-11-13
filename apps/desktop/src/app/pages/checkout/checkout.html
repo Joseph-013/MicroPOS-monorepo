@@ -9,6 +9,19 @@
         <span class="text-muted-foreground text-sm">{{ orderNumber() }}</span>
       </div>
 
+      <div class="flex items-center gap-2">
+      <!-- Shows or hides the customer-facing window (it remembers its monitor and position). -->
+      <button
+        hlmBtn
+        type="button"
+        class="gap-2 px-4"
+        [variant]="display.open() ? 'default' : 'outline'"
+        [attr.aria-pressed]="display.open()"
+        (click)="display.toggle()"
+      >
+        <ng-icon name="lucideScreenShare" size="18" />
+        Customer display
+      </button>
       <hlm-dialog>
         <button hlmDialogTrigger hlmBtn type="button" class="px-4">Add items</button>
         <hlm-dialog-content
@@ -116,6 +129,7 @@
           </hlm-dialog-footer>
         </hlm-dialog-content>
       </hlm-dialog>
+      </div>
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-4">

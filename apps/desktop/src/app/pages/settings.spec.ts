@@ -45,4 +45,23 @@ describe('SettingsPage', () => {
     expect(TestBed.inject(AppSettings).showNumpad()).toBe(true);
     expect(localStorage.getItem('micropos.showNumpad')).toBe('true');
   });
+
+  it('has a Customer display option to open it on start, off by default and remembered', async () => {
+    const fixture = TestBed.createComponent(SettingsPage);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Customer display');
+    const toggle = [...el.querySelectorAll('hlm-switch button')].pop() as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    toggle.click();
+    await fixture.whenStable();
+    expect(TestBed.inject(AppSettings).customerDisplayOnStart()).toBe(true);
+    expect(localStorage.getItem('micropos.customerDisplayOnStart')).toBe('true');
+  });
+
+  it('gives existing installs an explicit default through a storage migration', () => {
+    localStorage.setItem('micropos.schemaVersion', '3');
+    expect(TestBed.inject(AppSettings).customerDisplayOnStart()).toBe(false);
+    expect(localStorage.getItem('micropos.customerDisplayOnStart')).toBe('false');
+  });
 });

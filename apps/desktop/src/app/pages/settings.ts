@@ -27,6 +27,17 @@ import { AppSettings } from '../core/settings/app-settings.service';
         </label>
       </div>
     </section>
+    <section hlmCard class="mt-3 max-w-xl">
+      <div hlmCardHeader>
+        <h2 hlmCardTitle>Customer display</h2>
+      </div>
+      <div hlmCardContent>
+        <label class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+          <span>Open on start</span>
+          <hlm-switch [checked]="settings.customerDisplayOnStart()" (checkedChange)="settings.customerDisplayOnStart.set($event)" />
+        </label>
+      </div>
+    </section>
   `,
 })
 export class SettingsPage {
