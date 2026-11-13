@@ -29,14 +29,17 @@ export interface CustomerAccountContext {
   host: { class: 'contents' },
   imports: [DatePipe, DialogPageLink, MoneyPipe, OnScreenKeypadDirective, HlmBadgeImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
   template: `
-    <app-dialog-page-link path="/customers" label="Customers" [highlight]="account().customer.id" />
-    <hlm-dialog-header class="pe-24">
-      <h3 hlmDialogTitle class="flex items-center gap-3">
+    <hlm-dialog-header class="pe-10">
+      <div class="flex items-center gap-2">
+        <h3 hlmDialogTitle>Customer</h3>
+        <app-dialog-page-link path="/customers" label="Customers" [highlight]="account().customer.id" />
+      </div>
+      <p class="flex items-center gap-3 text-base">
         <span class="min-w-0 truncate select-text">{{ account().customer.name }}</span>
         @if (account().customer.deletedAt) {
           <span hlmBadge variant="outline">Deleted</span>
         }
-      </h3>
+      </p>
     </hlm-dialog-header>
 
     <div class="-mx-2 flex min-h-0 flex-col gap-4 overflow-y-auto px-2 py-1">

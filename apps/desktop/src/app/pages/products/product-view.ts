@@ -20,12 +20,15 @@ export interface ProductViewContext {
   host: { class: 'contents' },
   imports: [DatePipe, MoneyPipe, DialogPageLink, HlmBadgeImports, HlmButtonImports, HlmDialogImports],
   template: `
-    <app-dialog-page-link path="/items/products" label="Products" [highlight]="product.id" />
-    <hlm-dialog-header class="pe-24">
-      <h3 hlmDialogTitle class="flex items-center gap-3">
+    <hlm-dialog-header class="pe-10">
+      <div class="flex items-center gap-2">
+        <h3 hlmDialogTitle>Product</h3>
+        <app-dialog-page-link path="/items/products" label="Products" [highlight]="product.id" />
+      </div>
+      <p class="flex items-center gap-3 text-base">
         <span class="min-w-0 truncate select-text">{{ product.name }}</span>
         <span hlmBadge [variant]="statusVariant()">{{ statusLabel() }}</span>
-      </h3>
+      </p>
     </hlm-dialog-header>
 
     <dl class="-mx-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)] content-start gap-x-6 gap-y-2 overflow-y-auto px-2 py-1 text-sm">

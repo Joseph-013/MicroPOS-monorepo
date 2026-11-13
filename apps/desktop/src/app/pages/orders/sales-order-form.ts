@@ -33,12 +33,15 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', 
   imports: [DatePipe, MoneyPipe, DialogPageLink, NgIcon, RouterLink, HlmBadgeImports, HlmButtonImports, HlmDialogImports],
   viewProviders: [provideIcons({ lucideExternalLink })],
   template: `
-    <app-dialog-page-link path="/orders" label="Sales Orders" [highlight]="order().id" />
-    <hlm-dialog-header class="pe-24">
-      <h3 hlmDialogTitle class="flex items-center gap-3">
+    <hlm-dialog-header class="pe-10">
+      <div class="flex items-center gap-2">
+        <h3 hlmDialogTitle>Sales Order</h3>
+        <app-dialog-page-link path="/orders" label="Sales Orders" [highlight]="order().id" />
+      </div>
+      <p class="flex items-center gap-3 text-base">
         <span class="select-text">{{ order().orderNumber }}</span>
         <span hlmBadge [variant]="statusVariant()">{{ statusLabel() }}</span>
-      </h3>
+      </p>
     </hlm-dialog-header>
 
     <div class="-mx-2 flex min-h-0 flex-col gap-4 overflow-y-auto px-2 py-1">

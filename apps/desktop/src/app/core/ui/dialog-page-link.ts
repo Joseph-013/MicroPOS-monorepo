@@ -6,11 +6,11 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HIGHLIGHT_PARAM } from '../row-target';
 
 /**
- * The link in the top corner of a record dialog (beside its X) that opens the record's own page: a customer's
- * account has "Open Customers", a sales order "Open Sales Orders". It is only there when the dialog is over some
- * other page. Going there drops the dialog's query parameters, which closes it (and any dialog under it), and the
- * page shows the page of its table that holds the record, highlighted. Put it anywhere in the dialog's template
- * (it positions itself against the dialog) and give the header `pe-24` so a long title stays clear of the two buttons.
+ * The link right after the title of a record dialog that opens the record's own page: a customer's account has
+ * "Open Customers", a sales order "Open Sales Orders". It is only there when the dialog is over some other page.
+ * Going there drops the dialog's query parameters, which closes it (and any dialog under it), and the page shows the
+ * page of its table that holds the record, highlighted. Put it in the title row. The title itself always names the
+ * kind of dialog ("Customer"), with the record (name or number, status) on a line under it.
  */
 @Component({
   selector: 'app-dialog-page-link',
@@ -23,7 +23,6 @@ import { HIGHLIGHT_PARAM } from '../row-target';
         hlmBtn
         variant="ghost"
         size="icon-sm"
-        class="absolute end-16 top-2"
         [routerLink]="path()"
         [queryParams]="query()"
         [attr.aria-label]="'Open ' + label()"
