@@ -21,6 +21,7 @@ import {
   lucideTruck,
 } from '@ng-icons/lucide';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { devNav } from '../../environments/dev-tools';
 import { Logo } from './logo';
 import { StorageService } from './storage/storage.service';
 import { ThemeMode, ThemeService } from './theme.service';
@@ -95,7 +96,8 @@ export class NavRail {
         { id: 'purchasing-suppliers', path: '/suppliers', label: 'Suppliers' },
       ],
     },
-    { id: 'components', path: '/components', label: 'Components', icon: 'lucideLayoutGrid' },
+    // Developer-only entries (the component gallery): none in production builds.
+    ...devNav,
   ];
 
   private readonly router = inject(Router);

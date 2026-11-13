@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { devRoutes } from '../environments/dev-tools';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'checkout' },
@@ -53,9 +54,6 @@ export const routes: Routes = [
     title: 'Settings',
     loadComponent: () => import('./pages/settings').then((m) => m.SettingsPage),
   },
-  {
-    path: 'components',
-    title: 'Components',
-    loadComponent: () => import('./pages/components').then((m) => m.ComponentsPage),
-  },
+  // Developer-only routes (the component gallery): empty in production builds.
+  ...devRoutes,
 ];

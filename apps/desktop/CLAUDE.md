@@ -111,6 +111,11 @@ The Products table (`pages/products/`) is the reference; build every data table 
 
 **Motion**: rows fade in and out (`animate.enter` / `animate.leave` with `row-enter` / `row-leave`, 0.1 s), and a row whose data changed flashes the accent color briefly (`row-flash`); all in `styles.css`. Rows do not animate on the first load.
 
+## Environments and development-only code
+
+- `src/environments/`: `environment.ts` (`production = true`: the default build, `pnpm start` and tests) and `environment.development.ts` (`production = false`), swapped by `fileReplacements` in the `development` configuration of `angular.json` (`ng serve` / `pnpm dev`). Plain exported constants, so the bundler can fold them. Use `devLog()` (`core/dev-log.ts`) instead of `console.log` for debug output: it writes only in development (the `[scanner]` messages use it).
+- Anything that must not be built into production at all lives in `dev-tools.ts` (empty: `devRoutes`, `devNav`, `devProviders`) and its replacement `dev-tools.development.ts`, which `app.routes.ts`, the nav rail and `app.config.ts` spread in. Today: the **Components** gallery page and its nav entry, and the **route logger** (`core/route-logger.ts`: every route change, query parameter changes included, is logged as `[route] <url>`). A constant check such as `if (production)` is not enough for a lazy route (the chunk is still emitted), so use the file replacement for pages. Add new developer-only pieces to both files.
+
 ## Local storage
 
 - Use `StorageService` (`src/app/core/storage/`), never `localStorage` directly. Keys are namespaced `micropos.*`, values are JSON, reads fall back safely.

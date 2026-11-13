@@ -1,5 +1,6 @@
 import { DestroyRef, effect, inject, Service, signal } from '@angular/core';
 import { DESKTOP_API } from '../api/desktop-api';
+import { devLog } from '../dev-log';
 
 export interface Scan {
   code: string;
@@ -69,16 +70,16 @@ export class ScannerService {
     const input = this.inputFor(document.activeElement);
     if (input) {
       input(scan);
-      console.log(`[scanner] "${code}" (${code.length} chars) delivered to the focused scan input field`);
+      devLog(`[scanner] "${code}" (${code.length} chars) delivered to the focused scan input field`);
       return;
     }
     for (let i = this.claims.length - 1; i >= 0; i--) {
       if (this.claims[i].handler(scan) !== false) {
-        console.log(`[scanner] "${code}" (${code.length} chars) handled by claim ${i + 1} of ${this.claims.length}`);
+        devLog(`[scanner] "${code}" (${code.length} chars) handled by claim ${i + 1} of ${this.claims.length}`);
         return;
       }
     }
-    console.log(`[scanner] "${code}" (${code.length} chars) detected, no claim handled it`);
+    devLog(`[scanner] "${code}" (${code.length} chars) detected, no claim handled it`);
   }
 
   private inputFor(target: Element | null): ScanInputHandler | undefined {
