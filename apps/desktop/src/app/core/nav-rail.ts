@@ -14,6 +14,7 @@ import {
   lucidePin,
   lucidePinOff,
   lucideReceipt,
+  lucideUsers,
   lucideSettings,
   lucideShoppingCart,
   lucideSun,
@@ -46,6 +47,7 @@ export interface NavItem {
       lucideShoppingCart,
       lucidePackage,
       lucideReceipt,
+      lucideUsers,
       lucideSettings,
       lucideLogOut,
       lucideLayoutGrid,
@@ -81,6 +83,7 @@ export class NavRail {
       ],
     },
     { id: 'orders', path: '/orders', label: 'Sales Orders', icon: 'lucideReceipt' },
+    { id: 'customers', path: '/customers', label: 'Customers', icon: 'lucideUsers' },
     { id: 'components', path: '/components', label: 'Components', icon: 'lucideLayoutGrid' },
   ];
 

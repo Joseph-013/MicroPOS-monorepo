@@ -1,0 +1,158 @@
+<section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
+  <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
+    <h1 class="text-2xl">Customers</h1>
+    <div class="flex items-center gap-3">
+      @if (selected().length) {
+        <span class="text-muted-foreground text-sm">{{ selected().length }} selected</span>
+        @if (selectedDeletable().length) {
+          <button hlmBtn variant="destructive" type="button" class="px-4" (click)="ask('delete', selectedLive())">Delete {{ selectedDeletable().length }}</button>
+        }
+        @if (selectedDeleted().length) {
+          <button hlmBtn variant="outline" type="button" class="px-4" (click)="ask('restore', selectedDeleted())">Restore {{ selectedDeleted().length }}</button>
+        }
+        <button hlmBtn variant="ghost" type="button" class="px-3" (click)="clearSelection()">Clear</button>
+      }
+      <label class="flex shrink-0 items-center gap-3 text-sm">
+        <hlm-switch [checked]="deletedOnly()" (checkedChange)="toggleDeleted($event)" />
+        <span>Deleted only</span>
+      </label>
+      <button hlmBtn type="button" class="px-4" (click)="add()">Add customer</button>
+    </div>
+  </header>
+
+  <div class="min-h-0 flex-1 overflow-auto">
+    <div role="table" aria-label="Customers" class="min-w-[56rem] text-sm" [style.--cols]="columnsTemplate">
+      <div role="rowgroup" class="bg-background sticky top-0 z-10">
+        <!-- Row 1: column titles, click to sort -->
+        <div role="row" class="grid grid-cols-(--cols) border-b">
+          <div role="columnheader" class="flex h-(--control-height) items-center px-3">
+            <hlm-checkbox aria-label="Select all" [checked]="allSelected()" [indeterminate]="someSelected()" (checkedChange)="toggleAll($event)" />
+          </div>
+          @for (column of columns; track column.key) {
+            <div role="columnheader" [attr.aria-sort]="ariaSort(column.key)">
+              <button
+                type="button"
+                class="hover:bg-muted flex h-(--control-height) w-full items-center gap-1.5 px-3 font-medium {{ column.right ? 'justify-end' : '' }}"
+                (click)="sortBy(column.key)"
+              >
+                {{ column.label }}
+                <ng-icon
+                  size="14"
+                  [name]="sortKey() !== column.key ? 'lucideChevronsUpDown' : sortDirection() === 'asc' ? 'lucideArrowUp' : 'lucideArrowDown'"
+                  [class.opacity-40]="sortKey() !== column.key"
+                />
+              </button>
+            </div>
+          }
+        </div>
+        <!-- Row 2: the filter for each column -->
+        <div role="row" class="grid grid-cols-(--cols) items-center border-b [--control-height:var(--control-height-sm)]">
+          <div role="columnheader" class="flex items-center px-3">
+            <button hlmBtn variant="outline" size="icon" type="button" aria-label="Reset filters" title="Reset filters" [disabled]="!filtered()" (click)="resetFilters()">
+              <ng-icon name="lucideFilterX" size="18" />
+            </button>
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="nameFilter" placeholder="Name" label="Filter name" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="phoneFilter" placeholder="Phone" label="Filter phone" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <hlm-select [(value)]="balanceFilter" [itemToString]="balanceFilterLabel" class="block">
+              <hlm-select-trigger size="sm" class="w-full" aria-label="Filter balance">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (f of balanceFilters; track f) {
+                  <hlm-select-item [value]="f">{{ balanceFilterLabel(f) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+          <div role="columnheader"></div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-date-range-filter label="Last activity" [(from)]="activityFrom" [(to)]="activityTo" />
+          </div>
+        </div>
+      </div>
+
+      <div role="rowgroup">
+        @for (customer of pager.rows(); track customer.id) {
+          <div
+            class="border-b"
+            [attr.data-row-id]="customer.id"
+            [animate.enter]="animateRows() ? 'row-enter' : ''"
+            animate.leave="row-leave"
+            [hlmContextMenuTrigger]="rowMenu"
+            [hlmContextMenuTriggerData]="{ $implicit: customer.id }"
+          >
+            <app-swipe-actions [swipeLeft]="swipeFor(customer)" [distance]="56" [step]="56" (action)="onSwipe($event, customer)">
+              <div
+                role="row"
+                [class.row-target]="target() === customer.id"
+                class="hover:bg-muted/40 grid min-h-(--control-height) cursor-pointer grid-cols-(--cols) items-center {{ customer.deletedAt ? 'opacity-60' : '' }}"
+                [class.bg-muted]="isSelected(customer)"
+                [attr.aria-selected]="isSelected(customer)"
+                tabindex="0"
+                (click)="onRowClick($event, customer)"
+                (keydown.enter)="onRowEnter($event, customer)"
+              >
+                <div role="cell" class="flex items-center px-3" (pointerdown)="selection.noteModifiers($event)" (click)="$event.stopPropagation()">
+                  <hlm-checkbox [aria-label]="'Select ' + customer.name" [checked]="isSelected(customer)" (checkedChange)="toggleRow(customer, $event)" />
+                </div>
+                <div role="cell" class="truncate px-3 text-base">{{ customer.name }}</div>
+                <div role="cell" class="text-muted-foreground truncate px-3">{{ customer.phone ?? '-' }}</div>
+                <div role="cell" class="px-3 text-right {{ customer.balance > 0 ? 'text-destructive' : 'text-muted-foreground' }}">
+                  {{ customer.balance < 0 ? 'Credit ' : '' }}{{ customer.balance === 0 ? '-' : (customer.balance < 0 ? -customer.balance : customer.balance) | money }}
+                </div>
+                <div role="cell" class="text-muted-foreground px-3 text-right">{{ moneyText(customer.creditLimit) }}</div>
+                <div role="cell" class="text-muted-foreground px-3 text-sm whitespace-nowrap">
+                  {{ customer.lastActivityAt === null ? '-' : (customer.lastActivityAt | date: 'MMM d, y, h:mm a') }}
+                </div>
+              </div>
+            </app-swipe-actions>
+          </div>
+        }
+      </div>
+    </div>
+    @if (!visible().length) {
+      <p class="text-muted-foreground py-8 text-center text-sm">
+        {{ service.status() === 'error' ? 'Customers could not be loaded' : service.status() === 'loading' ? 'Loading customers' : 'No customers found' }}
+      </p>
+    }
+  </div>
+  <app-pager [pager]="pager" />
+</section>
+
+<!-- Right-click (or long-press) menu of a customer row. -->
+<ng-template #rowMenu let-id>
+  @if (customerById(id); as customer) {
+    <div hlmDropdownMenu>
+      <button hlmDropdownMenuItem type="button" (click)="view(customer)">View account</button>
+      @if (customer.deletedAt) {
+        <button hlmDropdownMenuItem type="button" (click)="ask('restore', targetsFor(customer))">Restore</button>
+      } @else {
+        <button hlmDropdownMenuItem type="button" (click)="edit(customer)">Edit</button>
+        @if (customer.balance === 0) {
+          <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(customer))">Delete</button>
+        }
+      }
+    </div>
+  }
+</ng-template>
+
+<!-- The one confirmation every delete and restore goes through (button, context menu, swipe). -->
+<hlm-alert-dialog [state]="pending() ? 'open' : 'closed'" (closed)="pending.set(null)">
+  <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+    <hlm-alert-dialog-header>
+      <h3 hlmAlertDialogTitle>{{ confirmTitle() }}</h3>
+      <p hlmAlertDialogDescription>{{ confirmText() }}</p>
+    </hlm-alert-dialog-header>
+    <app-confirm-items [items]="confirmItems()" />
+    <hlm-alert-dialog-footer>
+      <button hlmAlertDialogCancel type="button">Cancel</button>
+      <button hlmAlertDialogAction [variant]="confirmLabel() === 'Delete' ? 'destructive' : 'default'" type="button" (click)="confirm()">{{ confirmLabel() }}</button>
+    </hlm-alert-dialog-footer>
+  </hlm-alert-dialog-content>
+</hlm-alert-dialog>
