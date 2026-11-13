@@ -168,7 +168,7 @@
                         max="99999"
                         step="any"
                         [attr.inputmode]="settings.onScreenKeyboard() ? 'none' : 'decimal'"
-                        class="w-28 text-center text-lg"
+                        class="[field-sizing:content] max-w-40 min-w-14 text-center text-lg"
                         aria-label="Quantity"
                         [value]="quantityLabel(line.quantityMilli)"
                         (keydown.enter)="finishInline(line, qty.value, true)"
@@ -180,7 +180,7 @@
                         hlmBtn
                         variant="ghost"
                         type="button"
-                        class="w-28 px-2 text-lg"
+                        class="min-w-14 px-3 text-lg"
                         aria-label="Edit quantity"
                         (click)="editQuantity(line)"
                       >
