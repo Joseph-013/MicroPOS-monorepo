@@ -24,7 +24,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 27;
+export const DESKTOP_API_VERSION = 28;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -96,8 +96,10 @@ export interface DesktopApi {
     /**
      * Opens the customer-facing window on the monitor it was on last time, windowed (at the position it had),
      * maximized or full screen (`mode`, windowed when left out). If it is already open it is put into that mode.
+     * With `remember: false` it does not use the monitor and position from last time (it opens on a monitor other than
+     * the primary, centred) and does not save where it is moved to; left out, it remembers.
      */
-    show(options?: { mode?: CustomerDisplayMode }): Promise<void>;
+    show(options?: { mode?: CustomerDisplayMode; remember?: boolean }): Promise<void>;
     /** Closes it (its monitor and position are remembered). */
     hide(): Promise<void>;
     isOpen(): Promise<boolean>;

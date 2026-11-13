@@ -68,6 +68,13 @@ export const STORAGE_MIGRATIONS_LIST: readonly StorageMigration[] = [
       if (store.get('customerDisplayMode') === null) store.set('customerDisplayMode', '"windowed"');
     },
   },
+  {
+    // The customer display gained "remember monitor and position": existing installs keep what they had (on).
+    version: 7,
+    migrate(store) {
+      if (store.get('customerDisplayRemember') === null) store.set('customerDisplayRemember', 'true');
+    },
+  },
 ];
 
 export const STORAGE_MIGRATIONS = new InjectionToken<readonly StorageMigration[]>(

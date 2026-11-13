@@ -18,6 +18,8 @@ const SAVE_DELAY_MS = 400;
 let win: BrowserWindow | null = null;
 let state: CustomerDisplayState = IDLE_DISPLAY_STATE;
 let saveTimer: NodeJS.Timeout | undefined;
+/** Whether the monitor and position are used and saved (the Settings switch); set by every `show`. */
+let remember = true;
 
 const placementFile = (): string => path.join(app.getPath('userData'), 'customer-display.json');
 
@@ -37,7 +39,7 @@ function loadPlacement(): Placement | null {
  * ordinary window stay as they were.
  */
 function savePlacement(target: BrowserWindow): void {
-  if (target.isDestroyed() || target.isMinimized()) return;
+  if (!remember || target.isDestroyed() || target.isMinimized()) return;
   const covering = target.isFullScreen() || target.isMaximized();
   const placement = covering ? placementOnDisplay(loadPlacement(), target.getBounds(), displays()) : placementOf(target.getBounds(), displays());
   if (!placement) return;
@@ -74,12 +76,16 @@ const modeOf = (value: unknown): CustomerDisplayMode =>
  * Opens the customer display on the monitor it was on, in the wanted mode: windowed at the position it had (kept
  * inside that monitor), maximized or full screen on that monitor. An open window is just put into the mode.
  */
-function showDisplay(deps: CustomerDisplayDeps, mode: CustomerDisplayMode): void {
+function showDisplay(deps: CustomerDisplayDeps, mode: CustomerDisplayMode, remembering: boolean): void {
+  const wasRemembering = remember;
+  remember = remembering;
   if (win && !win.isDestroyed()) {
     applyMode(win, mode);
+    if (remember && !wasRemembering) savePlacement(win); // switched on while open: this is where it stays from now on
     return;
   }
-  const bounds = resolveBounds(loadPlacement(), displays(), screen.getPrimaryDisplay().id);
+  // Not remembering: opens where a first start would, and where it is moved to is not kept.
+  const bounds = resolveBounds(remembering ? loadPlacement() : null, displays(), screen.getPrimaryDisplay().id);
   if (!bounds) return;
   const created = deps.createWindow(bounds);
   win = created;
@@ -112,7 +118,10 @@ function hideDisplay(): void {
 
 /** Registers the customer display's IPC calls. */
 export function registerCustomerDisplay(deps: CustomerDisplayDeps): void {
-  ipcMain.handle(CHANNELS.display.show, (_event, options: unknown) => showDisplay(deps, modeOf((options as { mode?: unknown } | undefined)?.mode)));
+  ipcMain.handle(CHANNELS.display.show, (_event, options: unknown) => {
+    const o = (options ?? {}) as { mode?: unknown; remember?: unknown };
+    showDisplay(deps, modeOf(o.mode), o.remember !== false);
+  });
   ipcMain.handle(CHANNELS.display.hide, () => hideDisplay());
   ipcMain.handle(CHANNELS.display.isOpen, () => !!win && !win.isDestroyed() && win.isVisible());
   ipcMain.handle(CHANNELS.display.getState, () => state);

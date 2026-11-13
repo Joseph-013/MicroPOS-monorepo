@@ -12,6 +12,10 @@ globalThis.ResizeObserver ??= class {
 };
 Element.prototype.scrollIntoView ??= () => undefined;
 
+/** The switch inside the labelled row. */
+const switchFor = (root: HTMLElement, label: string): HTMLButtonElement =>
+  [...root.querySelectorAll('label')].find((l) => l.textContent?.includes(label))!.querySelector('hlm-switch button') as HTMLButtonElement;
+
 describe('SettingsPage', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -61,7 +65,7 @@ describe('SettingsPage', () => {
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
     expect(el.textContent).toContain('Customer Display');
-    const toggle = [...el.querySelectorAll('hlm-switch button')].pop() as HTMLButtonElement;
+    const toggle = switchFor(el, 'Open on start');
     expect(toggle.getAttribute('aria-checked')).toBe('false');
     toggle.click();
     await fixture.whenStable();
@@ -190,5 +194,22 @@ describe('SettingsPage', () => {
     listeners.forEach((l) => l(false)); // closed from the window's own title bar
     await fixture.whenStable();
     expect(button.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('has a switch to remember the display\'s monitor and position: on by default, remembered, migrated on', async () => {
+    const fixture = TestBed.createComponent(SettingsPage);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const toggle = switchFor(el, 'Remember monitor and position');
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    toggle.click();
+    await fixture.whenStable();
+    expect(TestBed.inject(AppSettings).customerDisplayRemember()).toBe(false);
+    expect(localStorage.getItem('micropos.customerDisplayRemember')).toBe('false');
+
+    TestBed.resetTestingModule();
+    localStorage.clear();
+    localStorage.setItem('micropos.schemaVersion', '6'); // an install from before the setting
+    expect(TestBed.inject(AppSettings).customerDisplayRemember()).toBe(true);
   });
 });

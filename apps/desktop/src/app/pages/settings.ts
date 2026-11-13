@@ -44,6 +44,10 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
           <span>Open on start</span>
           <hlm-switch [checked]="settings.customerDisplayOnStart()" (checkedChange)="settings.customerDisplayOnStart.set($event)" />
         </label>
+        <label class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+          <span>Remember monitor and position</span>
+          <hlm-switch [checked]="settings.customerDisplayRemember()" (checkedChange)="settings.customerDisplayRemember.set($event)" />
+        </label>
         <div class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
           <span id="display-mode-label">Window mode</span>
           <hlm-select [value]="settings.customerDisplayMode()" (valueChange)="setMode($event)" [itemToString]="modeLabel">

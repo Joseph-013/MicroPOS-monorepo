@@ -28,6 +28,9 @@ export class AppSettings {
   /** Open the customer-facing display window when the app starts. */
   readonly customerDisplayOnStart = signal(this.storage.get('customerDisplayOnStart', false, isBoolean));
 
+  /** Open the customer display on the monitor, and at the position, it was moved to last time (otherwise it always opens centred on a secondary monitor). */
+  readonly customerDisplayRemember = signal(this.storage.get('customerDisplayRemember', true, isBoolean));
+
   /** How the customer display window is shown when it opens: windowed, maximized or full screen. */
   readonly customerDisplayMode = signal<CustomerDisplayMode>(this.storage.get('customerDisplayMode', 'windowed', isMode));
 
@@ -41,6 +44,7 @@ export class AppSettings {
   constructor() {
     effect(() => this.storage.set(SCALE_KEY, this.customerDisplayScale()));
     effect(() => this.storage.set('customerDisplayMode', this.customerDisplayMode()));
+    effect(() => this.storage.set('customerDisplayRemember', this.customerDisplayRemember()));
     const follow = (event: StorageEvent): void => {
       if (event.key === `micropos.${SCALE_KEY}`) this.customerDisplayScale.set(this.storage.get(SCALE_KEY, DEFAULT_CUSTOMER_DISPLAY_SCALE, isScale));
     };

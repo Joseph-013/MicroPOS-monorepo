@@ -26,16 +26,17 @@ export class CustomerDisplayService {
       this.open.set(open);
     });
     inject(DestroyRef).onDestroy(stop);
-    // Changing the window mode in Settings applies to a window that is already open (opening again puts it in the mode).
+    // Changing the window mode or remembering in Settings applies to a window that is already open (opening again does).
     effect(() => {
       this.settings.customerDisplayMode();
+      this.settings.customerDisplayRemember();
       if (untracked(() => this.open())) void this.show();
     });
   }
 
   async show(): Promise<void> {
     try {
-      await this.api?.display.show({ mode: this.settings.customerDisplayMode() });
+      await this.api?.display.show({ mode: this.settings.customerDisplayMode(), remember: this.settings.customerDisplayRemember() });
     } catch (error) {
       console.error('Could not open the customer display', error);
     }

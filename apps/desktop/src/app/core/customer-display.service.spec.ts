@@ -5,13 +5,14 @@ import { DESKTOP_API } from './api/desktop-api';
 import { CustomerDisplayService } from './customer-display.service';
 
 function setup(open = false) {
-  const calls = { show: 0, hide: 0, modes: [] as (CustomerDisplayMode | undefined)[], published: [] as CustomerDisplayState[] };
+  const calls = { show: 0, hide: 0, modes: [] as (CustomerDisplayMode | undefined)[], remember: [] as (boolean | undefined)[], published: [] as CustomerDisplayState[] };
   const listeners: ((open: boolean) => void)[] = [];
   const api = {
     display: {
-      show: (options?: { mode?: CustomerDisplayMode }) => {
+      show: (options?: { mode?: CustomerDisplayMode; remember?: boolean }) => {
         calls.show++;
         calls.modes.push(options?.mode);
+        calls.remember.push(options?.remember);
         listeners.forEach((l) => l(true));
         return Promise.resolve();
       },
@@ -93,5 +94,15 @@ describe('CustomerDisplayService', () => {
     TestBed.flushEffects();
     await Promise.resolve();
     expect(calls.modes).toEqual(['maximized', 'windowed']);
+  });
+
+  it('tells the window whether to remember its monitor and position, also while it is open', async () => {
+    const { service, calls } = setup();
+    const settings = TestBed.inject(AppSettings);
+    await service.show();
+    settings.customerDisplayRemember.set(false);
+    TestBed.flushEffects();
+    await Promise.resolve();
+    expect(calls.remember).toEqual([true, false]);
   });
 });
