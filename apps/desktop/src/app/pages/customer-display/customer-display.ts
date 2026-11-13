@@ -28,7 +28,7 @@ export const HIGHLIGHT_MS = 2_500;
       @if (shopping()) {
         <ul #list class="mt-6 min-h-0 flex-1 overflow-y-auto" aria-label="Your items">
           @for (line of state().lines; track $index) {
-            <li class="flex items-baseline justify-between gap-8 border-b py-4" [class.row-target]="highlighted() === $index">
+            <li class="flex items-baseline justify-between gap-8 border-b px-5 py-4" [class.row-target]="highlighted() === $index">
               <div class="min-w-0">
                 <p class="truncate text-4xl">{{ line.name }}</p>
                 <p class="text-muted-foreground text-2xl">{{ quantity(line) }} × {{ line.unitPrice | money }}</p>
@@ -37,7 +37,7 @@ export const HIGHLIGHT_MS = 2_500;
             </li>
           }
         </ul>
-        <footer class="mt-4 flex items-baseline justify-between border-t-2 pt-4">
+        <footer class="mt-4 flex items-baseline justify-between border-t-2 px-5 pt-4">
           <span class="text-4xl">Total</span>
           <span class="font-heading text-7xl">{{ state().total | money }}</span>
         </footer>
