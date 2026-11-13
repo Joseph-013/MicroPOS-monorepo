@@ -6,6 +6,7 @@ import { OnScreenKeyboardService } from './core/keyboard';
 import { CustomerViewer } from './core/customer-viewer';
 import { KioskFocusService } from './core/kiosk/kiosk-focus.service';
 import { NavRail } from './core/nav-rail';
+import { NewProductViewer } from './core/new-product-viewer';
 import { ProductViewer } from './core/product-viewer';
 import { PurchaseViewer } from './core/purchase-viewer';
 import { SalesOrderViewer } from './core/sales-order-viewer';
@@ -27,6 +28,8 @@ export class App {
   private readonly salesOrderViewer = inject(SalesOrderViewer);
   /** Opens `?view-product=<id>` in a read-only product dialog over any page. */
   private readonly productViewer = inject(ProductViewer);
+  /** Opens `?new-product=<barcode>` in the add-product form over any page. */
+  private readonly newProductViewer = inject(NewProductViewer);
   /** Opens `?view-customer=<id>` in a customer account dialog over any page. */
   private readonly customerViewer = inject(CustomerViewer);
   /** Opens `?view-purchase=<id>` in a purchase order dialog over any page. */

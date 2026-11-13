@@ -35,6 +35,11 @@ export interface ProductFormContext {
   product?: ProductRecord;
   /** A half-filled form saved earlier for this product (or for a new one); it is put back instead of the stored values. */
   draft?: ProductDraft | null;
+  /**
+   * Values to start a new product with (a scanned barcode). A prefilled form is a quick add from another page
+   * (`?new-product=<code>`): it neither restores nor saves the draft of the Products page's own add form.
+   */
+  prefill?: Partial<ProductDraft>;
 }
 
 /** Add / edit dialog of the Products page. Closes with `true` once the change is saved. */
@@ -247,7 +252,9 @@ export class ProductForm {
   /** Values to show now: the saved draft when there is one (minus categories deleted since), else the base. */
   private readonly start: ProductDraft = this.context.draft
     ? { ...this.context.draft, categoryIds: this.context.draft.categoryIds.filter((id) => this.catalog.categories().some((c) => c.id === id)) }
-    : this.base;
+    : { ...this.base, ...this.context.prefill };
+  /** A quick add (prefilled) keeps no draft. */
+  private readonly useDrafts = !this.context.prefill;
 
   protected readonly units = PRODUCT_UNITS;
   protected readonly unit = signal<ProductUnit>(this.start.unit);
@@ -301,12 +308,12 @@ export class ProductForm {
     // going to another page to make a category, or restarting the app loses nothing.
     effect(() => {
       const draft = this.current();
-      if (this.finished) return;
+      if (this.finished || !this.useDrafts) return;
       if (this.dirty()) this.drafts.save(this.formKey, draft);
       else this.drafts.clear(this.formKey);
     });
     inject(DestroyRef).onDestroy(() => {
-      if (!this.finished) this.drafts.flush();
+      if (!this.finished && this.useDrafts) this.drafts.flush();
     });
 
     // While this form is open a scan fills the barcode / PLU field (and never reaches the table behind the dialog):
@@ -372,7 +379,7 @@ export class ProductForm {
 
   private finish(): void {
     this.finished = true;
-    this.drafts.clear(this.formKey);
+    if (this.useDrafts) this.drafts.clear(this.formKey);
   }
 
   /** Puts every field back to its starting values and drops the draft. */
