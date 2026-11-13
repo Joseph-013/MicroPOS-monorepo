@@ -27,6 +27,22 @@ describe('BannerHost', () => {
     strip.click();
   });
 
+  it('hovering the strip holds a timed banner until the pointer leaves', async () => {
+    const fixture = TestBed.createComponent(BannerHost);
+    const banner = TestBed.inject(BannerService);
+    const el = fixture.nativeElement as HTMLElement;
+    const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+    banner.info('Hello', { duration: 100 });
+    await fixture.whenStable();
+    const strip = el.querySelector('div[class*="animate-in"]') as HTMLElement;
+    strip.dispatchEvent(new MouseEvent('mouseenter'));
+    await wait(300);
+    expect(banner.current()?.text).toBe('Hello'); // well past its 100 ms
+    strip.dispatchEvent(new MouseEvent('mouseleave'));
+    await wait(900);
+    expect(banner.current()).toBeNull();
+  });
+
   it('a non-dismissible persistent banner ignores clicks until removed', async () => {
     const fixture = TestBed.createComponent(BannerHost);
     const banner = TestBed.inject(BannerService);

@@ -5,7 +5,7 @@ import { BannerService } from './banner.service';
 /**
  * Renders the current banner as a thin strip across the top of the window. Place once at the root.
  * It is a manual popover (top layer) so it appears above open dialogs; priority 1, below the
- * "window too small" overlay. Click the strip to dismiss it (a banner with an action shows its button right beside the message).
+ * "window too small" overlay. Hovering the strip pauses a timed banner's countdown. Click the strip to dismiss it (a banner with an action shows its button right beside the message).
  */
 @Component({
   selector: 'app-banner-host',
@@ -19,6 +19,8 @@ import { BannerService } from './banner.service';
       @if (banner.current(); as message) {
         <div
           class="animate-in fade-in-0 slide-in-from-top-2 pointer-events-auto flex h-9 w-full items-center justify-center duration-150 {{ severityClass(message.severity) }}"
+          (mouseenter)="banner.pause()"
+          (mouseleave)="banner.resume()"
           (click)="message.dismissible && banner.dismiss()"
         >
           <button

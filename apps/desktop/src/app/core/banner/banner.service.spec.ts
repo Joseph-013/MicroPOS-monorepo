@@ -94,6 +94,50 @@ describe('BannerService', () => {
     expect(text()).toBeNull(); // nothing left in the queue
   });
 
+  it('stops counting down while the pointer is over it, and carries on with what was left', () => {
+    banner.show('Hello', { duration: 2000 });
+    vi.advanceTimersByTime(1000);
+    banner.pause();
+    vi.advanceTimersByTime(60_000);
+    expect(text()).toBe('Hello');
+    banner.resume();
+    vi.advanceTimersByTime(999);
+    expect(text()).toBe('Hello');
+    vi.advanceTimersByTime(1);
+    expect(text()).toBeNull();
+  });
+
+  it('stays a little while after the pointer leaves even if its time was nearly up', () => {
+    banner.show('Hello', { duration: 800 });
+    vi.advanceTimersByTime(790);
+    banner.pause();
+    banner.resume();
+    vi.advanceTimersByTime(590);
+    expect(text()).toBe('Hello');
+    vi.advanceTimersByTime(10);
+    expect(text()).toBeNull();
+  });
+
+  it('a repeat of a keyed message under the pointer waits too, and the next banner is not held after a dismissal', () => {
+    banner.show('Added', { key: 'k' });
+    banner.pause();
+    banner.show('Added again', { key: 'k' });
+    vi.advanceTimersByTime(10_000);
+    expect(text()).toBe('Added again');
+    banner.dismiss();
+    banner.show('Next');
+    vi.advanceTimersByTime(1500);
+    expect(text()).toBeNull();
+  });
+
+  it('pause and resume do nothing without a timed banner', () => {
+    banner.pause();
+    banner.resume();
+    banner.show('Hello');
+    vi.advanceTimersByTime(1500);
+    expect(text()).toBeNull();
+  });
+
   it('repeating a keyed message updates the one on screen and restarts its timer instead of queueing', () => {
     banner.show('Added', { key: 'k' });
     vi.advanceTimersByTime(1000);

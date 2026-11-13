@@ -43,6 +43,8 @@ export interface BannerMessage {
 const MAX_QUEUED = 5;
 /** Blank moment between two banners so a sequence reads as separate messages. */
 const GAP_MS = 120;
+/** After the pointer leaves a paused banner it stays at least this long, so it does not vanish the instant the pointer moves off. */
+const MIN_RESUME_MS = 600;
 
 /**
  * Thin, temporary messages at the top of the window (rendered by `BannerHost`).
@@ -60,6 +62,10 @@ export class BannerService {
   private readonly queue: BannerMessage[] = [];
   private nextId = 1;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** When the timed banner is due to go, and whether the pointer is holding it (see `pause`). */
+  private deadline = 0;
+  private held = false;
+  private remainingMs = 0;
 
   /** The timed banner on screen, if any. It temporarily covers the persistent ones. */
   private readonly timed = signal<BannerMessage | null>(null);
@@ -133,6 +139,7 @@ export class BannerService {
       return;
     }
     clearTimeout(this.timer);
+    this.held = false; // the strip under the pointer is gone
     this.timed.set(null);
     this.timer = this.queue.length ? setTimeout(() => this.showNext(), GAP_MS) : undefined;
   }
@@ -150,6 +157,22 @@ export class BannerService {
     this.pinned.set([]);
   }
 
+  /** The pointer is over the timed banner: its countdown stops, so a message can be read (or clicked) at leisure. */
+  pause(): void {
+    if (!this.timed() || this.held) return;
+    this.held = true;
+    this.remainingMs = Math.max(0, this.deadline - Date.now());
+    clearTimeout(this.timer);
+    this.timer = undefined;
+  }
+
+  /** The pointer left: the countdown carries on with what was left of it. */
+  resume(): void {
+    if (!this.held) return;
+    this.held = false;
+    if (this.timed()) this.timer = setTimeout(() => this.dismiss(), Math.max(this.remainingMs, MIN_RESUME_MS));
+  }
+
   private showNext(): void {
     const next = this.queue.shift();
     if (next) this.display(next);
@@ -158,6 +181,8 @@ export class BannerService {
   private display(message: BannerMessage): void {
     clearTimeout(this.timer);
     this.timed.set(message);
-    this.timer = setTimeout(() => this.dismiss(), message.durationMs);
+    this.deadline = Date.now() + message.durationMs;
+    if (this.held) this.remainingMs = message.durationMs; // still under the pointer: the new message waits too
+    else this.timer = setTimeout(() => this.dismiss(), message.durationMs);
   }
 }
