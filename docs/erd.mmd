@@ -126,6 +126,9 @@ erDiagram
         text phone
         text note
         int credit_limit "null = no limit"
+        text interest_mode "null = none; order or total"
+        int interest_rate_bp "monthly, 300 = 3%"
+        int interest_started_at "interest counts from here"
         int created_at
         int updated_at
         int deleted_at
@@ -133,7 +136,7 @@ erDiagram
     customer_ledger {
         text id PK
         text customer_id FK
-        text type "charge, payment, refund, void, adjustment"
+        text type "charge, payment, refund, void, adjustment, interest"
         int amount "signed cents; positive = customer owes"
         text order_id FK
         text method "payments only"

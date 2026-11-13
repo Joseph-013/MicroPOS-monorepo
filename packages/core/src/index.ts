@@ -65,6 +65,25 @@ export type {
   SaveCustomerResult,
 } from './customers.js';
 export { CUSTOMER_LEDGER_TYPES } from './customers.js';
+export {
+  addMonths,
+  balanceAt,
+  DEFAULT_INTEREST_DEFAULTS,
+  FIRST_PERIOD_DAYS,
+  formatRate,
+  INTEREST_MODE_LABELS,
+  INTEREST_MODES,
+  interestOn,
+  isRateBp,
+  MAX_INTEREST_RATE_BP,
+  orderInterestDueAt,
+  parseRate,
+  totalInterestDueAt,
+  unpaidByOrder,
+  type InterestDefaults,
+  type InterestEntry,
+  type InterestMode,
+} from './credit-interest.js';
 export type {
   CancelPurchaseResult,
   PayPurchaseInput,

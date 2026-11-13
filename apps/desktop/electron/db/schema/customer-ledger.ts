@@ -8,9 +8,9 @@ import { PAYMENT_METHODS } from './payments';
 
 /**
  * Why a customer's balance moved. A charge (part of a sale left on account) adds to what they owe; a payment, and the
- * refund or void of a credit sale, take it away; an adjustment corrects it either way (with a note).
+ * refund or void of a credit sale, take it away; interest adds to it (see credit-interest in core); an adjustment corrects it either way (with a note).
  */
-export const CUSTOMER_LEDGER_TYPES = ['charge', 'payment', 'refund', 'void', 'adjustment'] as const;
+export const CUSTOMER_LEDGER_TYPES = ['charge', 'payment', 'refund', 'void', 'adjustment', 'interest'] as const;
 export type CustomerLedgerType = (typeof CUSTOMER_LEDGER_TYPES)[number];
 
 /**
@@ -45,11 +45,11 @@ export const customerLedger = sqliteTable(
     index('customer_ledger_customer_id_idx').on(t.customerId),
     index('customer_ledger_order_id_idx').on(t.orderId),
     index('customer_ledger_at_idx').on(t.at),
-    check('customer_ledger_type_valid', sql`${t.type} IN ('charge', 'payment', 'refund', 'void', 'adjustment')`),
+    check('customer_ledger_type_valid', sql`${t.type} IN ('charge', 'payment', 'refund', 'void', 'adjustment', 'interest')`),
     check(
       'customer_ledger_sign_matches_type',
       sql`${t.amount} <> 0 AND (
-        (${t.type} = 'charge' AND ${t.amount} > 0) OR
+        (${t.type} IN ('charge', 'interest') AND ${t.amount} > 0) OR
         (${t.type} IN ('payment', 'refund', 'void') AND ${t.amount} < 0) OR
         ${t.type} = 'adjustment'
       )`,
