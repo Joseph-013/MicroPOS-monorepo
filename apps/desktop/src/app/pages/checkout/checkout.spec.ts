@@ -615,26 +615,26 @@ describe('CheckoutPage', () => {
     beforeEach(() => open());
     const last = (): CustomerDisplayState => store.published.at(-1)!;
 
-    it('has a button that shows and hides the window, and reflects whether it is open', async () => {
-      const button = (): HTMLButtonElement => buttonByText(el, 'Customer display');
-      expect(button().getAttribute('aria-pressed')).toBe('false');
-      button().click();
+    it('has a switch that shows and hides the window, and reflects whether it is open', async () => {
+      const toggle = (): HTMLButtonElement => el.querySelector('hlm-switch[aria-label="Customer display"] button, hlm-switch button') as HTMLButtonElement;
+      expect(toggle().getAttribute('aria-checked')).toBe('false');
+      toggle().click();
       await fixture.whenStable();
       expect(store.displayOpen).toBe(true);
-      expect(button().getAttribute('aria-pressed')).toBe('true');
-      button().click();
+      expect(toggle().getAttribute('aria-checked')).toBe('true');
+      toggle().click();
       await fixture.whenStable();
       expect(store.displayOpen).toBe(false);
-      expect(button().getAttribute('aria-pressed')).toBe('false');
+      expect(toggle().getAttribute('aria-checked')).toBe('false');
     });
 
     it('follows the window when it is closed from the window itself', async () => {
       await (TestBed.inject(DESKTOP_API) as DesktopApi).display.show();
       await fixture.whenStable();
-      expect(buttonByText(el, 'Customer display').getAttribute('aria-pressed')).toBe('true');
+      expect((el.querySelector('hlm-switch button') as HTMLElement).getAttribute('aria-checked')).toBe('true');
       await (TestBed.inject(DESKTOP_API) as DesktopApi).display.hide();
       await fixture.whenStable();
-      expect(buttonByText(el, 'Customer display').getAttribute('aria-pressed')).toBe('false');
+      expect((el.querySelector('hlm-switch button') as HTMLElement).getAttribute('aria-checked')).toBe('false');
     });
 
     it('publishes the order as it is rung up: lines with quantities and prices, and the total', async () => {

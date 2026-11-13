@@ -42,6 +42,11 @@ export class CustomerDisplayService {
     }
   }
 
+  /** Shows the window when `on`, hides it otherwise (what a switch does). */
+  set(on: boolean): Promise<void> {
+    return on ? this.show() : this.hide();
+  }
+
   toggle(): Promise<void> {
     return this.open() ? this.hide() : this.show();
   }

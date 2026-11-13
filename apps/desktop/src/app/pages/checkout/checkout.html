@@ -11,17 +11,10 @@
 
       <div class="flex items-center gap-2">
       <!-- Shows or hides the customer-facing window (it remembers its monitor and position). -->
-      <button
-        hlmBtn
-        type="button"
-        class="gap-2 px-4"
-        [variant]="display.open() ? 'default' : 'outline'"
-        [attr.aria-pressed]="display.open()"
-        (click)="display.toggle()"
-      >
-        <ng-icon name="lucideScreenShare" size="18" />
-        Customer display
-      </button>
+      <label class="flex items-center gap-3 text-sm">
+        <hlm-switch aria-label="Customer display" [checked]="display.open()" (checkedChange)="display.set($event)" />
+        <span>Customer display</span>
+      </label>
       <hlm-dialog>
         <button hlmDialogTrigger hlmBtn type="button" class="px-4">Add items</button>
         <hlm-dialog-content
