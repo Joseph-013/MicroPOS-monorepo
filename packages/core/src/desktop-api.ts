@@ -23,7 +23,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 23;
+export const DESKTOP_API_VERSION = 24;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.

@@ -62,6 +62,8 @@ export interface PurchaseLineRecord {
   id: string;
   productId: string;
   productName: string;
+  /** The product's barcode or PLU, so a scan can find its line. */
+  productCode: string | null;
   unit: string;
   tracking: ProductTracking;
   quantityMilli: number;
@@ -115,6 +117,11 @@ export type SavePurchaseResult = { ok: true; purchase: PurchaseDetail } | { ok: 
 /** The batch details of one line being received; lot and expiry only count for products that track them. */
 export interface ReceiveLineInput {
   lineId: string;
+  /**
+   * How much of the line arrives now (thousandths; 0 skips it, never more than is left). Left out, everything still
+   * to come of the line arrives.
+   */
+  quantityMilli?: number;
   batchNumber: string | null;
   expiresAt: number | null;
 }
@@ -127,7 +134,7 @@ export interface ReceivePurchaseInput {
 /** Receiving writes nothing unless every line is accepted; `lineId` names the line that was not. */
 export type ReceivePurchaseResult =
   | { ok: true; purchase: PurchaseDetail }
-  | { ok: false; lineId: string | null; field: 'batchNumber' | 'expiresAt' | null; error: string };
+  | { ok: false; lineId: string | null; field: 'batchNumber' | 'expiresAt' | 'quantity' | null; error: string };
 
 export interface PayPurchaseInput {
   purchaseId: string;

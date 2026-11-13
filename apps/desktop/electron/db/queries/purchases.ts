@@ -206,7 +206,7 @@ export function getPurchase(db: AppDatabase, id: unknown): PurchaseDetail | null
     .get(id) as { note: string | null; employeeName: string | null };
   const lines = db.$client
     .prepare(
-      `SELECT l.id AS id, l.product_id AS productId, pr.name AS productName, pr.unit AS unit, pr.tracking AS tracking,
+      `SELECT l.id AS id, l.product_id AS productId, pr.name AS productName, pr.barcode AS productCode, pr.unit AS unit, pr.tracking AS tracking,
               l.quantity_milli AS quantityMilli, l.unit_cost AS unitCost,
               COALESCE((SELECT SUM(m.quantity_milli) FROM stock_movements m WHERE m.purchase_order_line_id = l.id AND m.type = 'receive'), 0) AS receivedMilli
          FROM purchase_order_lines l JOIN products pr ON pr.id = l.product_id
@@ -328,19 +328,20 @@ class ReceiveStop extends Error {
 }
 
 /**
- * What has not arrived yet of the order arrived: every product that tracks stock goes into inventory as a new delivery at the ordered cost
+ * A delivery against the order: each line's `quantityMilli` arrives (all that is left of it when not given); every product that tracks stock goes into inventory as a new delivery at the ordered cost
  * (products that do not track stock are just recorded as bought). A product that tracks lots or expiry needs them in
  * `lines`. All or nothing: if any line is refused nothing is received and the order stays ordered.
  */
 export function receivePurchase(db: AppDatabase, raw: unknown, now = Date.now()): ReceivePurchaseResult {
   const v = (raw ?? {}) as Record<string, unknown>;
-  const given = new Map<string, { batchNumber: string | null; expiresAt: number | null }>();
+  const given = new Map<string, { batchNumber: string | null; expiresAt: number | null; quantityMilli: number | null }>();
   for (const item of Array.isArray(v['lines']) ? (v['lines'] as unknown[]) : []) {
     const l = (item ?? {}) as Record<string, unknown>;
     if (typeof l['lineId'] !== 'string') continue;
     given.set(l['lineId'], {
       batchNumber: typeof l['batchNumber'] === 'string' ? l['batchNumber'] : null,
       expiresAt: typeof l['expiresAt'] === 'number' ? l['expiresAt'] : null,
+      quantityMilli: typeof l['quantityMilli'] === 'number' ? l['quantityMilli'] : null,
     });
   }
   try {
@@ -349,17 +350,21 @@ export function receivePurchase(db: AppDatabase, raw: unknown, now = Date.now())
       if (!order) throw new ReceiveStop({ ok: false, lineId: null, field: null, error: 'Purchase order not found' });
       if (order.status !== 'ordered') throw new ReceiveStop({ ok: false, lineId: null, field: null, error: 'This order has already been received or cancelled' });
       const employeeId = sellingEmployee(tx);
+      let received = !order.lines.some((l) => l.tracking !== 'none'); // nothing to count for untracked-only orders
       for (const line of order.lines) {
         const left = line.quantityMilli - line.receivedMilli;
         if (line.tracking === 'none' || left <= 0) continue;
         const details = given.get(line.id);
+        const arriving = details?.quantityMilli ?? left;
+        if (!Number.isInteger(arriving) || arriving < 0) throw new ReceiveStop({ ok: false, lineId: line.id, field: 'quantity', error: `${line.productName}: Enter a valid quantity` });
+        if (arriving === 0) continue;
         const result = receiveStock(
           db,
           {
             productId: line.productId,
             batchNumber: details?.batchNumber ?? null,
             expiresAt: details?.expiresAt ?? null,
-            quantityMilli: left,
+            quantityMilli: arriving,
             unitCost: line.unitCost,
             purchaseLineId: line.id,
           },
@@ -368,12 +373,16 @@ export function receivePurchase(db: AppDatabase, raw: unknown, now = Date.now())
           tx,
         );
         if (!result.ok) {
-          const field = result.field === 'batchNumber' || result.field === 'expiresAt' ? result.field : null;
+          const field = result.field === 'batchNumber' || result.field === 'expiresAt' || result.field === 'quantity' ? result.field : null;
           throw new ReceiveStop({ ok: false, lineId: line.id, field, error: `${line.productName}: ${result.error}` });
         }
+        received = true;
       }
-      // Receiving the rest completes the order (also when it holds only products that track no stock).
-      tx.update(purchaseOrders).set({ status: 'received', receivedAt: now, updatedAt: now }).where(eq(purchaseOrders.id, order.id)).run();
+      if (!received) throw new ReceiveStop({ ok: false, lineId: null, field: null, error: 'Enter what has arrived' });
+      // An order that holds only products that track no stock has no receipts to complete it, so receiving it does.
+      if (!order.lines.some((l) => l.tracking !== 'none')) {
+        tx.update(purchaseOrders).set({ status: 'received', receivedAt: now, updatedAt: now }).where(eq(purchaseOrders.id, order.id)).run();
+      }
       return { ok: true as const, purchase: getPurchase(db, order.id)! };
     });
   } catch (error) {

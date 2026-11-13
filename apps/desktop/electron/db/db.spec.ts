@@ -1497,6 +1497,30 @@ describe('purchases from suppliers', () => {
     expect(onHand(b.id)).toBe(4_000);
   });
 
+  it('a delivery session receives what actually arrived per line: short, in parts, and never more than is left', () => {
+    const s = supplier();
+    const a = product();
+    const b = product();
+    const po = ok(createPurchase(db, { supplierId: s.id, expectedAt: null, dueAt: null, reference: null, note: null, lines: [{ productId: a.id, quantityMilli: 10_000, unitCost: 1_000 }, { productId: b.id, quantityMilli: 4_000, unitCost: 500 }] })).purchase;
+    const [la, lb] = po.lines;
+    expect(po.lines[0]).toMatchObject({ productCode: a.barcode, receivedMilli: 0 });
+    // Nothing arrived, or too much: refused, and nothing is written.
+    expect(receivePurchase(db, { purchaseId: po.id, lines: [{ lineId: la!.id, quantityMilli: 0 }, { lineId: lb!.id, quantityMilli: 0 }] })).toMatchObject({ ok: false, error: 'Enter what has arrived' });
+    expect(receivePurchase(db, { purchaseId: po.id, lines: [{ lineId: la!.id, quantityMilli: 3_000 }, { lineId: lb!.id, quantityMilli: 4_001 }] })).toMatchObject({ ok: false, lineId: lb!.id, field: 'quantity' });
+    expect(onHand(a.id)).toBe(0);
+    expect(receivePurchase(db, { purchaseId: po.id, lines: [{ lineId: la!.id, quantityMilli: -1 }] })).toMatchObject({ ok: false, field: 'quantity' });
+
+    // The first delivery: 3 of the first product, none of the second.
+    const first = ok(receivePurchase(db, { purchaseId: po.id, lines: [{ lineId: la!.id, quantityMilli: 3_000 }, { lineId: lb!.id, quantityMilli: 0 }] })).purchase;
+    expect(first).toMatchObject({ status: 'ordered', partlyReceived: true });
+    expect(first.lines.map((l) => l.receivedMilli)).toEqual([3_000, 0]);
+    // The rest: left out means all that is left.
+    const done = ok(receivePurchase(db, { purchaseId: po.id, lines: [] })).purchase;
+    expect(done).toMatchObject({ status: 'received', partlyReceived: false });
+    expect(done.lines.map((l) => l.receivedMilli)).toEqual([10_000, 4_000]);
+    expect(onHand(a.id)).toBe(10_000);
+  });
+
   it('a product that tracks lots and expiry needs them, and one refused line receives nothing', () => {
     const s = supplier();
     const plain = product();
