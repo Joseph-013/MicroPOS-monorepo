@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, screen, session } from 'electron';
 import path from 'node:path';
 import { createDatabase } from './db';
 import { registerIpcHandlers } from './ipc';
+import { closeCustomerDisplay, registerCustomerDisplay } from './display';
 import { purgeLegacyData } from './legacy-data';
 import { attachScanner } from './scanner';
 import { handleSquirrelEvent } from './squirrel';
@@ -16,6 +17,31 @@ function iconFile(): string {
   return app.isPackaged ? path.join(process.resourcesPath, 'icon.png') : path.join(app.getAppPath(), 'assets', 'icon.png');
 }
 
+const webPreferences = {
+  preload: path.join(__dirname, 'preload.js'),
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: true,
+};
+
+let mainWindow: BrowserWindow | undefined;
+
+/** The customer-facing window: the same app, at the `customer-display` route, shown without taking focus (see `display/`). */
+function createDisplayWindow(bounds: { x: number; y: number; width: number; height: number }): BrowserWindow {
+  const win = new BrowserWindow({
+    ...bounds,
+    show: false,
+    title: 'MicroPOS customer display',
+    icon: iconFile(),
+    backgroundColor: '#041d29',
+    autoHideMenuBar: true,
+    webPreferences,
+  });
+  if (devServerUrl) void win.loadURL(`${devServerUrl}#/customer-display`);
+  else void win.loadFile(path.join(__dirname, '../renderer/index.html'), { hash: '/customer-display' });
+  return win;
+}
+
 function createWindow(): void {
   const { workAreaSize } = screen.getPrimaryDisplay();
   const win = new BrowserWindow({
@@ -23,12 +49,12 @@ function createWindow(): void {
     height: Math.min(DEFAULT_SIZE.height, workAreaSize.height),
     icon: iconFile(),
     title: 'MicroPOS',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
+    webPreferences,
+  });
+  mainWindow = win;
+  win.on('closed', () => {
+    mainWindow = undefined;
+    closeCustomerDisplay(); // the customer display never outlives the till
   });
 
   // Scanner keystrokes are caught here, before the page: stray scans cannot type into fields or press buttons.
@@ -89,6 +115,7 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
     if (purged) await session.defaultSession.clearStorageData();
     database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
     registerIpcHandlers(database.db);
+    registerCustomerDisplay({ createWindow: createDisplayWindow, mainWindow: () => mainWindow });
     createWindow();
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -39,6 +39,23 @@ const api: DesktopApi = {
     saveRepackageDraft: (draft) => ipcRenderer.invoke(CHANNELS.inventory.saveRepackageDraft, draft),
     clearRepackageDraft: () => ipcRenderer.invoke(CHANNELS.inventory.clearRepackageDraft),
   },
+  display: {
+    show: () => ipcRenderer.invoke(CHANNELS.display.show),
+    hide: () => ipcRenderer.invoke(CHANNELS.display.hide),
+    isOpen: () => ipcRenderer.invoke(CHANNELS.display.isOpen),
+    onVisibility: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, open: boolean): void => listener(open);
+      ipcRenderer.on(CHANNELS.display.visibility, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.display.visibility, handler);
+    },
+    publish: (state) => ipcRenderer.invoke(CHANNELS.display.publish, state),
+    getState: () => ipcRenderer.invoke(CHANNELS.display.getState),
+    onState: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: Parameters<typeof listener>[0]): void => listener(state);
+      ipcRenderer.on(CHANNELS.display.state, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.display.state, handler);
+    },
+  },
   scanner: {
     onScan: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, scan: { code: string }): void => listener(scan);

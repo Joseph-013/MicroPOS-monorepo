@@ -15,6 +15,7 @@ import type {
   SupplierInput,
   SupplierRecord,
 } from './purchasing.js';
+import type { CustomerDisplayState } from './customer-display.js';
 import type { CustomerAccount, CustomerInput, CustomerRecord, ReceivePaymentInput, ReceivePaymentResult, RemoveCustomersResult, SaveCustomerResult } from './customers.js';
 import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
 
@@ -23,7 +24,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 24;
+export const DESKTOP_API_VERSION = 25;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -90,6 +91,21 @@ export interface DesktopApi {
     onScan(listener: (scan: { code: string }) => void): () => void;
     /** Turn scan detection on or off; off lets scanner keys through as ordinary typing. */
     setEnabled(enabled: boolean): Promise<void>;
+  };
+  display: {
+    /** Opens the customer-facing window (on the monitor and at the position it had last time); does nothing if it is open. */
+    show(): Promise<void>;
+    /** Closes it (its monitor and position are remembered). */
+    hide(): Promise<void>;
+    isOpen(): Promise<boolean>;
+    /** Called with `true` when the window opens and `false` when it closes, however that happened. Returns a function that stops listening. */
+    onVisibility(listener: (open: boolean) => void): () => void;
+    /** Checkout sends what the customer should see; the main process keeps the latest and passes it to the window. */
+    publish(state: CustomerDisplayState): Promise<void>;
+    /** The latest published state (an idle one before anything was published). */
+    getState(): Promise<CustomerDisplayState>;
+    /** The display window listens for new states. Returns a function that stops listening. */
+    onState(listener: (state: CustomerDisplayState) => void): () => void;
   };
   customers: {
     /** Live customers with what each owes, sorted by name; `includeDeleted` adds deleted ones. */
