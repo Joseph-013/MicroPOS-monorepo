@@ -17,6 +17,7 @@ import type {
   SupplierRecord,
 } from './purchasing.js';
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
+import type { CreditAlertSettings } from './credit-alerts.js';
 import type { InterestDefaults } from './credit-interest.js';
 import type { CustomerAccount, CustomerInput, CustomerRecord, ReceivePaymentInput, ReceivePaymentResult, RemoveCustomersResult, SaveCustomerResult } from './customers.js';
 import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
@@ -26,7 +27,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 30;
+export const DESKTOP_API_VERSION = 31;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -130,6 +131,11 @@ export interface DesktopApi {
     interestDefaults(): Promise<InterestDefaults>;
     /** Saves the defaults (new ones only; customers keep their own rate). False when a rate is not valid. */
     saveInterestDefaults(input: InterestDefaults): Promise<boolean>;
+    /** How many customers need attention (owe more than the alert amount, or have a sale unpaid for longer than the alert days): the badge on Customers. */
+    alertCount(): Promise<number>;
+    alertSettings(): Promise<CreditAlertSettings>;
+    /** Saves the alert limits (null turns one off). False when a value is not valid. */
+    saveAlertSettings(input: CreditAlertSettings): Promise<boolean>;
   };
   suppliers: {
     /** Live suppliers with what is owed to each, sorted by name; `includeDeleted` adds deleted ones. */

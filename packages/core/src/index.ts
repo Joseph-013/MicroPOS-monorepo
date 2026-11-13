@@ -66,6 +66,15 @@ export type {
 } from './customers.js';
 export { CUSTOMER_LEDGER_TYPES } from './customers.js';
 export {
+  creditAlert,
+  DEFAULT_CREDIT_ALERTS,
+  isAlertAmount,
+  isAlertDays,
+  MAX_ALERT_AMOUNT,
+  MAX_ALERT_DAYS,
+  type CreditAlertSettings,
+} from './credit-alerts.js';
+export {
   addMonths,
   balanceAt,
   DEFAULT_INTEREST_DEFAULTS,

@@ -6,6 +6,7 @@ import { createProduct, deleteProducts, listProductRecords, restoreProducts, set
 import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from '../db/queries/categories';
 import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock } from '../db/queries/inventory';
 import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
+import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
 import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-interest';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
 import { completeOrder, getOrder, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
@@ -94,6 +95,9 @@ export function registerIpcHandlers(db: AppDatabase): void {
   guarded(db, CHANNELS.customers.receivePayment, 'customers.payments', (_event, input: unknown) => receivePayment(db, input));
   guarded(db, CHANNELS.customers.interestDefaults, 'customers.manage', () => getInterestDefaults(db));
   guarded(db, CHANNELS.customers.saveInterestDefaults, 'customers.manage', (_event, input: unknown) => saveInterestDefaults(db, input));
+  guarded(db, CHANNELS.customers.alertCount, 'customers.view', () => countCreditAlerts(db));
+  guarded(db, CHANNELS.customers.alertSettings, 'customers.manage', () => getCreditAlertSettings(db));
+  guarded(db, CHANNELS.customers.saveAlertSettings, 'customers.manage', (_event, input: unknown) => saveCreditAlertSettings(db, input));
   guarded(db, CHANNELS.orders.list, ['orders.view', 'customers.view'], () => listOrders(db));
   guarded(db, CHANNELS.orders.get, ['orders.view', 'customers.view'], (_event, id: unknown) => getOrder(db, id));
   // The renderer sends an order id and a reason; voidOrder / refundOrder validate both and decide whether the order may be reversed.

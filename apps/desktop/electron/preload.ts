@@ -104,6 +104,9 @@ const api: DesktopApi = {
     receivePayment: (input) => ipcRenderer.invoke(CHANNELS.customers.receivePayment, input),
     interestDefaults: () => ipcRenderer.invoke(CHANNELS.customers.interestDefaults),
     saveInterestDefaults: (input) => ipcRenderer.invoke(CHANNELS.customers.saveInterestDefaults, input),
+    alertCount: () => ipcRenderer.invoke(CHANNELS.customers.alertCount),
+    alertSettings: () => ipcRenderer.invoke(CHANNELS.customers.alertSettings),
+    saveAlertSettings: (input) => ipcRenderer.invoke(CHANNELS.customers.saveAlertSettings, input),
   },
   orders: {
     list: () => ipcRenderer.invoke(CHANNELS.orders.list),
