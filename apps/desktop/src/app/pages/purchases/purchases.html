@@ -92,7 +92,7 @@
               <div role="cell" class="px-3 text-sm whitespace-nowrap {{ isOverdue(purchase) ? 'text-destructive' : 'text-muted-foreground' }}">
                 {{ purchase.dueAt === null ? '-' : (purchase.dueAt | date: 'MMM d, y') }}
               </div>
-              <div role="cell" class="px-3"><span hlmBadge [variant]="statusVariant(purchase.status)">{{ statusLabels[purchase.status] }}</span></div>
+              <div role="cell" class="px-3"><span hlmBadge [variant]="statusVariant(purchase.status)">{{ statusText(purchase) }}</span></div>
               <div role="cell" class="px-3 text-right">{{ purchase.total | money }}</div>
               <div role="cell" class="px-3 text-right {{ purchase.owed > 0 ? 'text-destructive' : 'text-muted-foreground' }}">
                 {{ purchase.owed === 0 ? '-' : (purchase.owed | money) }}

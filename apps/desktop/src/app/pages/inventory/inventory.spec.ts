@@ -5,6 +5,7 @@ import {
   DESKTOP_API_VERSION,
   type DesktopApi,
   type ProductInput,
+  type PurchaseDetail,
   type ProductRecord,
   type ReceiveStockInput,
   type RepackageDraft,
@@ -63,7 +64,7 @@ const product = (id: string, name: string, over: Partial<ProductRecord> = {}): P
   ...over,
 });
 
-function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = []) {
+function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = [], orders: PurchaseDetail[] = []) {
   const rows = [...initial];
   const drafts = { saved: null as RepackageDraft | null };
   const calls = { adjust: [] as AdjustStockInput[], receive: [] as ReceiveStockInput[], repackage: [] as RepackageInput[] };
@@ -71,6 +72,10 @@ function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = []) {
     platform: 'linux',
     version: () => Promise.resolve(DESKTOP_API_VERSION),
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
+    purchases: {
+      list: () => Promise.resolve(orders.map(({ lines: _l, payments: _p, note: _n, employeeName: _e, ...summary }) => summary)),
+      get: (id: string) => Promise.resolve(orders.find((o) => o.id === id) ?? null),
+    },
     products: {
       list: () => Promise.resolve([...catalog]),
       loadDraft: () => Promise.resolve(null),
@@ -86,6 +91,13 @@ function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = []) {
       listBatches: (options?: { includeEmpty?: boolean }) => Promise.resolve(rows.filter((b) => options?.includeEmpty || b.onHandMilli > 0)),
       receive: (input: ReceiveStockInput) => {
         calls.receive.push(input);
+        for (const order of orders) {
+          const line = order.lines.find((l) => l.id === input.purchaseLineId);
+          if (!line) continue;
+          line.receivedMilli += input.quantityMilli;
+          order.partlyReceived = true;
+          if (order.lines.every((l) => l.receivedMilli >= l.quantityMilli)) Object.assign(order, { status: 'received', partlyReceived: false });
+        }
         const created = batch(`new-${rows.length}`, 'Milk', { batchNumber: input.batchNumber, expiresAt: input.expiresAt, onHandMilli: input.quantityMilli, receivedMilli: input.quantityMilli });
         rows.push(created);
         return Promise.resolve({ ok: true as const, batch: created });
@@ -123,8 +135,8 @@ describe('InventoryPage', () => {
   let calls: ReturnType<typeof fakeApi>['calls'];
   let drafts: ReturnType<typeof fakeApi>['drafts'];
 
-  async function open(rows: BatchRecord[], catalog: ProductRecord[] = []): Promise<void> {
-    const fake = fakeApi(rows, catalog);
+  async function open(rows: BatchRecord[], catalog: ProductRecord[] = [], orders: PurchaseDetail[] = []): Promise<void> {
+    const fake = fakeApi(rows, catalog, orders);
     calls = fake.calls;
     drafts = fake.drafts;
     TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }] });
@@ -339,6 +351,43 @@ describe('InventoryPage', () => {
     expect(dialog().querySelector('#r-qty')).toBeNull();
     expect(buttonByText(dialog(), 'Receive').disabled).toBe(true);
     expect(buttonByText(dialog(), 'Edit product')).toBeDefined();
+  });
+
+  it('receives against a purchase order: its products only, quantity and cost from the order, until it is complete', async () => {
+    const line = (id: string, productId: string, productName: string, quantityMilli: number, unitCost: number): PurchaseDetail['lines'][number] => ({ id, productId, productName, unit: 'each', tracking: 'quantity', quantityMilli, receivedMilli: 0, unitCost, total: 0 });
+    const order = {
+      id: 'o1', number: 'PO-1001', supplierId: 's', supplierName: 'Metro', status: 'ordered', orderedAt: 1, expectedAt: null, dueAt: null, receivedAt: null, reference: null, lineCount: 2,
+      partlyReceived: false, total: 0, paid: 0, owed: 0, note: null, employeeName: null, payments: [],
+      lines: [line('l1', '1', 'Milk', 10_000, 4_000), line('l2', '2', 'Eggs', 3_000, 900)],
+    } as PurchaseDetail;
+    await open([], [product('1', 'Milk', { tracking: 'quantity' }), product('2', 'Eggs', { tracking: 'quantity' }), product('3', 'Tea', { tracking: 'quantity' })], [order]);
+    buttonByText(el, 'Receive stock').click();
+    await settle();
+    const choose = async (inputId: string, label: string): Promise<void> => {
+      const input = dialog().querySelector(inputId) as HTMLInputElement;
+      input.focus();
+      (input.closest('hlm-combobox')!.querySelector('button[data-slot="input-group-button"]') as HTMLElement).click();
+      await settle();
+      [...document.querySelectorAll<HTMLElement>('hlm-combobox-item')].find((i) => i.textContent?.trim().startsWith(label))!.click();
+      await settle();
+    };
+    await choose('#r-order', 'PO-1001');
+    const scanner = TestBed.inject(ScannerService);
+
+    scanner.receive('5903'); // Tea is not on the order
+    await settle();
+    expect(dialog().textContent).toContain('Tea is not waiting on PO-1001');
+
+    scanner.receive('5901');
+    await settle();
+    expect(dialog().textContent).toContain('Ordered 10 · received 0 · 10 left');
+    expect((dialog().querySelector('#r-qty') as HTMLInputElement).value).toBe('10');
+    expect((dialog().querySelector('#r-cost') as HTMLInputElement).value).toBe('40.00');
+    await type(dialog(), '#r-qty', '6');
+    buttonByText(dialog(), 'Receive').click();
+    await settle();
+    expect(calls.receive[0]).toMatchObject({ productId: '1', quantityMilli: 6_000, unitCost: 4_000, purchaseLineId: 'l1' });
+    expect(order.partlyReceived).toBe(true);
   });
 
   it('takes an expiry given as a month only, as the last day of that month', async () => {

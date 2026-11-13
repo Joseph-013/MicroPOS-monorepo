@@ -31,9 +31,9 @@ interface LineEntry {
     </hlm-dialog-header>
 
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); submit()">
-      <p class="text-muted-foreground text-sm">The whole order goes into stock at the ordered cost.</p>
+      <p class="text-muted-foreground text-sm">{{ purchase.partlyReceived ? 'What has not arrived yet goes' : 'The whole order goes' }} into stock at the ordered cost.</p>
       <ul class="divide-border flex flex-col divide-y border-y">
-        @for (line of purchase.lines; track line.id) {
+        @for (line of lines; track line.id) {
           <li class="grid gap-3 py-3">
             <div class="flex items-baseline justify-between gap-3">
               <span class="min-w-0 truncate">{{ line.productName }}</span>
@@ -73,6 +73,8 @@ export class PurchaseReceiveForm {
   private readonly products = inject(ProductsService);
   private readonly ref = inject<BrnDialogRef<PurchaseDetail | undefined>>(BrnDialogRef);
   protected readonly purchase = injectBrnDialogContext<PurchaseReceiveContext>().purchase;
+  /** What is still to come: lines already fully received are left out. */
+  protected readonly lines = this.purchase.lines.filter((l) => l.quantityMilli > l.receivedMilli);
 
   private readonly entries = signal<Record<string, LineEntry>>({});
   protected readonly saving = signal(false);
@@ -82,7 +84,7 @@ export class PurchaseReceiveForm {
   protected readonly batches = (line: PurchaseLineRecord): boolean => tracksBatches(line.tracking);
   protected readonly expires = (line: PurchaseLineRecord): boolean => tracksExpiry(line.tracking);
   protected quantity(line: PurchaseLineRecord): string {
-    return `${formatQuantity(line.quantityMilli)}${line.unit === 'each' ? '' : ' ' + line.unit}`;
+    return `${formatQuantity(line.quantityMilli - line.receivedMilli)}${line.unit === 'each' ? '' : ' ' + line.unit}`;
   }
 
   protected entry(line: PurchaseLineRecord): LineEntry {
@@ -107,7 +109,7 @@ export class PurchaseReceiveForm {
     this.saving.set(true);
     const result = await this.purchases.receive({
       purchaseId: this.purchase.id,
-      lines: this.purchase.lines.map((line) => {
+      lines: this.lines.map((line) => {
         const e = this.entry(line);
         return { lineId: line.id, batchNumber: this.batches(line) ? e.batchNumber : null, expiresAt: this.expires(line) ? fromDateInput(e.expiry) : null };
       }),

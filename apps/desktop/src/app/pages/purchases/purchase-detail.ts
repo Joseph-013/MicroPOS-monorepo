@@ -19,7 +19,7 @@ import { AppSettings } from '../../core/settings/app-settings.service';
 import { METHOD_LABELS } from '../orders/sales-order-form';
 import { PurchaseForm, type PurchaseFormContext } from './purchase-form';
 import { PurchaseReceiveForm, type PurchaseReceiveContext } from './purchase-receive-form';
-import { isOverdue, STATUS_LABELS, statusVariant } from './purchase-status';
+import { isOverdue, statusText, statusVariant } from './purchase-status';
 
 export interface PurchaseDetailContext {
   purchase: PurchaseDetail;
@@ -73,7 +73,7 @@ export interface PurchaseDetailContext {
           <li class="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 py-2">
             <div class="min-w-0">
               <p class="truncate">{{ line.productName }}</p>
-              <p class="text-muted-foreground text-xs">{{ quantity(line) }} × {{ line.unitCost | money }}</p>
+              <p class="text-muted-foreground text-xs">{{ quantity(line) }} × {{ line.unitCost | money }}@if (line.receivedMilli > 0) { · {{ received(line) }} received }</p>
             </div>
             <p class="text-right">{{ line.total | money }}</p>
           </li>
@@ -175,8 +175,8 @@ export interface PurchaseDetailContext {
         @if (payable() && !paying()) {
           <button hlmBtn variant="outline" type="button" class="px-4" (click)="startPaying()">Record payment</button>
         }
-        @if (editable()) {
-          <button hlmBtn type="button" class="px-4" (click)="receive()">Receive stock</button>
+        @if (awaiting()) {
+          <button hlmBtn type="button" class="px-4" (click)="receive()">{{ purchase().partlyReceived ? 'Receive the rest' : 'Receive stock' }}</button>
         }
         <button hlmBtn hlmDialogClose variant="outline" type="button" class="px-4">Close</button>
       </div>
@@ -194,10 +194,12 @@ export class PurchaseDetailForm {
   /** Replaced with a fresh copy after every change. */
   protected readonly purchase = signal(injectBrnDialogContext<PurchaseDetailContext>().purchase);
   protected readonly variant = computed(() => statusVariant(this.purchase().status));
-  protected readonly statusLabel = computed(() => STATUS_LABELS[this.purchase().status]);
+  protected readonly statusLabel = computed(() => statusText(this.purchase()));
   protected readonly overdue = computed(() => isOverdue(this.purchase()));
-  /** Not arrived yet: it can still be changed, received or (unpaid) cancelled. */
-  protected readonly editable = computed(() => this.purchase().status === 'ordered');
+  /** Waiting for stock: the rest of it can be received. */
+  protected readonly awaiting = computed(() => this.purchase().status === 'ordered');
+  /** Nothing has arrived yet: it can still be changed or (unpaid) cancelled. */
+  protected readonly editable = computed(() => this.awaiting() && !this.purchase().partlyReceived);
   protected readonly cancellable = computed(() => this.editable() && this.purchase().paid === 0);
   protected readonly payable = computed(() => this.purchase().status !== 'cancelled' && this.purchase().owed > 0);
 
@@ -212,6 +214,10 @@ export class PurchaseDetailForm {
 
   protected quantity(line: PurchaseLineRecord): string {
     return `${formatQuantity(line.quantityMilli)}${line.unit === 'each' ? '' : ' ' + line.unit}`;
+  }
+
+  protected received(line: PurchaseLineRecord): string {
+    return line.receivedMilli >= line.quantityMilli ? 'all' : formatQuantity(line.receivedMilli);
   }
 
   protected startPaying(): void {

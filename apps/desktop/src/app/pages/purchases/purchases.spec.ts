@@ -34,12 +34,13 @@ const purchase = (id: string, number: string, supplierName: string, over: Partia
   receivedAt: null,
   reference: null,
   lineCount: 1,
+  partlyReceived: false,
   total: 100_000,
   paid: 0,
   owed: 100_000,
   note: null,
   employeeName: 'Register',
-  lines: [{ id: `${id}-l1`, productId: 'p1', productName: 'Rice 25kg', unit: 'each', tracking: 'quantity', quantityMilli: 10_000, unitCost: 10_000, total: 100_000 }],
+  lines: [{ id: `${id}-l1`, productId: 'p1', productName: 'Rice 25kg', unit: 'each', tracking: 'quantity', quantityMilli: 10_000, receivedMilli: 0, unitCost: 10_000, total: 100_000 }],
   payments: [],
   ...over,
 });
@@ -235,8 +236,8 @@ describe('PurchasesPage', () => {
   it('receives an order: lot and expiry are asked for only where the product tracks them', async () => {
     const dated = purchase('d', 'PO-1004', 'Metro', {
       lines: [
-        { id: 'd-l1', productId: 'p1', productName: 'Rice 25kg', unit: 'each', tracking: 'quantity', quantityMilli: 2_000, unitCost: 10_000, total: 20_000 },
-        { id: 'd-l2', productId: 'p2', productName: 'Milk', unit: 'each', tracking: 'expiry', quantityMilli: 6_000, unitCost: 5_000, total: 30_000 },
+        { id: 'd-l1', productId: 'p1', productName: 'Rice 25kg', unit: 'each', tracking: 'quantity', quantityMilli: 2_000, receivedMilli: 0, unitCost: 10_000, total: 20_000 },
+        { id: 'd-l2', productId: 'p2', productName: 'Milk', unit: 'each', tracking: 'expiry', quantityMilli: 6_000, receivedMilli: 0, unitCost: 5_000, total: 30_000 },
       ],
     });
     await open([dated]);
@@ -262,6 +263,23 @@ describe('PurchasesPage', () => {
     expect(document.querySelector('#purchase-receive')).toBeNull();
     expect(text('#purchase-detail')).toContain('Received');
     expect(rowOf('PO-1004').textContent).toContain('Received');
+  });
+
+  it('an order with part of it received says so, can only be received in full for the rest, and cannot be edited', async () => {
+    const part = purchase('e', 'PO-1005', 'Metro', { partlyReceived: true });
+    part.lines[0]!.receivedMilli = 4_000;
+    await open([part]);
+    expect(rowOf('PO-1005').textContent).toContain('Partly received');
+    rowOf('PO-1005').click();
+    await settle();
+    const dialog = document.querySelector('#purchase-detail')!;
+    expect(dialog.textContent).toContain('4 received');
+    expect(button(dialog, 'Receive the rest')).toBeDefined();
+    expect(button(dialog, 'Edit')).toBeUndefined();
+    expect(button(dialog, 'Cancel order')).toBeUndefined();
+    button(dialog, 'Receive the rest')!.click();
+    await settle();
+    expect(document.querySelector('#purchase-receive')!.textContent).toContain('6'); // what is left of 10
   });
 
   it('cancels an unpaid order after confirming', async () => {

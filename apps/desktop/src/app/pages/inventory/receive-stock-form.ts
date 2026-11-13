@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
-import { formatQuantity, parseQuantityMilli, type ProductRecord, type StockField, tracksBatches, tracksExpiry } from '@micropos/core';
+import { formatQuantity, parseQuantityMilli, type ProductRecord, type PurchaseDetail, type PurchaseLineRecord, type StockField, tracksBatches, tracksExpiry } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
@@ -9,6 +9,7 @@ import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { NewProductViewer } from '../../core/new-product-viewer';
 import { BannerService } from '../../core/banner';
+import { PurchasesService } from '../../core/data/purchases.service';
 import { ProductDraftService } from '../../core/data/product-draft.service';
 import { InventoryService } from '../../core/data/inventory.service';
 import { ProductsService } from '../../core/data/products.service';
@@ -56,6 +57,23 @@ export const fromDateInput = (value: string): number | null => {
     </hlm-dialog-header>
 
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); submit()">
+      <!-- A delivery against a purchase order: its products are the ones offered, with what is left to come. -->
+      @if (openOrders().length) {
+        <div class="flex flex-col gap-2">
+          <label hlmLabel for="r-order">Purchase order</label>
+          <hlm-combobox [value]="orderId()" (valueChange)="chooseOrder($event ?? null)" [itemToString]="orderName" class="block">
+            <hlm-combobox-input id="r-order" placeholder="None" [showClear]="!!orderId()" clearAriaLabel="Clear purchase order" />
+            <hlm-combobox-content *hlmComboboxPortal>
+              <hlm-combobox-empty>No order found</hlm-combobox-empty>
+              <div hlmComboboxList>
+                @for (o of openOrders(); track o.id) {
+                  <hlm-combobox-item [value]="o.id">{{ o.number }} · {{ o.supplierName }}</hlm-combobox-item>
+                }
+              </div>
+            </hlm-combobox-content>
+          </hlm-combobox>
+        </div>
+      }
       <div class="flex flex-col gap-2">
         <label hlmLabel data-required for="r-product">Product</label>
         <hlm-combobox [value]="productId()" (valueChange)="choose($event ?? null)" [itemToString]="productName" class="block">
@@ -63,13 +81,16 @@ export const fromDateInput = (value: string): number | null => {
           <hlm-combobox-content *hlmComboboxPortal>
             <hlm-combobox-empty>No product found</hlm-combobox-empty>
             <div hlmComboboxList>
-              @for (p of liveProducts(); track p.id) {
+              @for (p of choosable(); track p.id) {
                 <hlm-combobox-item [value]="p.id">{{ p.name }}@if (p.tracking === 'none') { <span class="text-muted-foreground ml-2 text-xs">Not tracked</span> }</hlm-combobox-item>
               }
             </div>
           </hlm-combobox-content>
         </hlm-combobox>
         @if (errorFor('product'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
+        @if (line(); as l) {
+          <p class="text-muted-foreground text-sm">Ordered {{ qty(l.quantityMilli) }} · received {{ qty(l.receivedMilli) }} · {{ qty(l.quantityMilli - l.receivedMilli) }} left</p>
+        }
         @if (unknownCode(); as code) {
           <!-- A scan for a product that does not exist: add it here, over this dialog, and it is picked when saved. -->
           <button hlmBtn variant="outline" type="button" class="self-start px-4" (click)="createProduct(code)">Create product</button>
@@ -181,6 +202,7 @@ export class ReceiveStockForm {
   private readonly banner = inject(BannerService);
   private readonly dialogs = inject(HlmDialogService);
   private readonly drafts = inject(ProductDraftService);
+  private readonly purchases = inject(PurchasesService);
   private readonly ref = inject<BrnDialogRef<boolean>>(BrnDialogRef);
   private start = injectBrnDialogContext<ReceiveStockContext>().product;
 
@@ -192,6 +214,22 @@ export class ReceiveStockForm {
   protected readonly product = computed(() => this.liveProducts().find((p) => p.id === this.productId()) ?? this.start ?? null);
   protected readonly tracked = computed(() => !!this.product() && this.product()!.tracking !== 'none');
   protected readonly trackingText = computed(() => ({ none: '', quantity: 'Tracked by quantity', batch: 'Tracked by batch', expiry: 'Tracked by batch and expiry' })[this.product()?.tracking ?? 'none']);
+  /** Orders still waiting for stock. */
+  protected readonly openOrders = computed(() => this.purchases.purchases().filter((o) => o.status === 'ordered'));
+  protected readonly orderId = signal<string | null>(null);
+  /** The chosen order with its lines (loaded again after every receipt). */
+  private readonly order = signal<PurchaseDetail | null>(null);
+  protected readonly orderName = (id: string | null): string => this.openOrders().find((o) => o.id === id)?.number ?? '';
+  /** What can be picked: every live product, or with an order chosen only its products that still have stock to come. */
+  protected readonly choosable = computed(() => {
+    const order = this.order();
+    if (!order) return this.liveProducts();
+    const open = new Set(order.lines.filter((l) => l.tracking !== 'none' && l.receivedMilli < l.quantityMilli).map((l) => l.productId));
+    return this.liveProducts().filter((p) => open.has(p.id));
+  });
+  /** The order line of the chosen product, with how much of it has arrived. */
+  protected readonly line = computed<PurchaseLineRecord | null>(() => this.order()?.lines.find((l) => l.productId === this.productId()) ?? null);
+  protected readonly qty = formatQuantity;
   protected readonly productName = (id: string | null): string => this.liveProducts().find((p) => p.id === id)?.name ?? '';
   protected readonly batches = computed(() => !!this.product() && tracksBatches(this.product()!.tracking));
   protected readonly expires = computed(() => !!this.product() && tracksExpiry(this.product()!.tracking));
@@ -220,10 +258,15 @@ export class ReceiveStockForm {
   private readonly creating = signal<string | null>(null);
 
   constructor() {
+    void this.purchases.load();
     if (this.start) this.applyDefaults(this.start);
     // A scan picks the product with that code (tracked products only).
     claimScanner(({ code }) => {
       const found = this.liveProducts().find((p) => p.barcode === code);
+      if (found && this.order() && !this.choosable().some((p) => p.id === found.id)) {
+        this.problem.set({ field: 'product', error: `${found.name} is not waiting on ${this.order()!.number}` });
+        return;
+      }
       if (found) return this.choose(found.id);
       this.unknownCode.set(code);
       this.problem.set({ field: 'product', error: `No product with code ${code}` });
@@ -257,6 +300,24 @@ export class ReceiveStockForm {
     this.problem.set(null);
     const p = this.liveProducts().find((x) => x.id === id);
     if (p) this.applyDefaults(p);
+    this.prefillFromOrder();
+  }
+
+  /** Against an order the quantity starts at what is left of the line and the cost at its ordered cost. */
+  private prefillFromOrder(): void {
+    const line = this.line();
+    if (!line) return;
+    this.quantity.set(formatQuantity(line.quantityMilli - line.receivedMilli));
+    this.cost.set(formatCentsInput(line.unitCost));
+  }
+
+  /** Choosing an order limits the products to its own; the product chosen so far is dropped if it is not on it. */
+  protected async chooseOrder(id: string | null): Promise<void> {
+    this.orderId.set(id);
+    this.order.set(id ? await this.purchases.get(id) : null);
+    this.problem.set(null);
+    if (this.productId() && !this.choosable().some((p) => p.id === this.productId())) this.productId.set(null);
+    else this.prefillFromOrder();
   }
 
   /** Opens the product's form over this dialog; what it changes (such as tracking lots) shows here once saved. */
@@ -273,6 +334,21 @@ export class ReceiveStockForm {
       const fresh = this.liveProducts().find((p) => p.id === product.id);
       if (fresh && !this.expiry()) this.applyDefaults(fresh);
     });
+  }
+
+  /** Refreshes the order after a receipt; returns its number when that completed it (it then leaves the list). */
+  private async afterOrderReceipt(): Promise<string | null> {
+    const id = this.orderId();
+    if (!id) return null;
+    void this.purchases.load();
+    const fresh = await this.purchases.get(id);
+    if (fresh && fresh.status !== 'ordered') {
+      this.orderId.set(null);
+      this.order.set(null);
+      return fresh.number;
+    }
+    this.order.set(fresh);
+    return null;
   }
 
   /** An empty form for the next product (the scanner is still claimed, so the next scan picks it). */
@@ -321,16 +397,21 @@ export class ReceiveStockForm {
       quantityMilli,
       unitCost: cost,
       note: this.note() || null,
+      purchaseLineId: this.line()?.id ?? null,
     });
     this.saving.set(false);
     if (result.ok) {
       void this.products.load(); // the Products table shows stock too
+      const done = await this.afterOrderReceipt();
       if (this.continuous()) {
-        this.banner.success(`${p.name} received`, { key: 'inventory-saved' });
+        this.banner.success(done ? `${done} received in full` : `${p.name} received`, { key: 'inventory-saved' });
         this.received.set(true);
         this.startOver();
-      } else this.ref.close(true);
-    } else this.problem.set({ field: result.field, error: result.error });
+      } else {
+        if (done) this.banner.success(`${done} received in full`, { key: 'inventory-saved' });
+        this.ref.close(true);
+      }
+    } else this.problem.set({ field: result.field === 'purchaseLine' ? 'product' : result.field, error: result.error });
   }
 
   protected readonly formatQuantity = formatQuantity;

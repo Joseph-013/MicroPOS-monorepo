@@ -19,7 +19,7 @@ import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { PurchaseForm, type PurchaseFormContext } from './purchase-form';
-import { isOverdue, STATUS_LABELS, statusVariant } from './purchase-status';
+import { isOverdue, STATUS_LABELS, statusText, statusVariant } from './purchase-status';
 
 type SortKey = 'number' | 'supplier' | 'ordered' | 'due' | 'status' | 'total' | 'owed';
 type SortDirection = 'asc' | 'desc';
@@ -71,7 +71,7 @@ export class PurchasesPage {
   protected readonly statusFilterLabel = (f: StatusFilter): string => STATUS_FILTERS[f] ?? '';
   protected readonly owedFilters = Object.keys(OWED_FILTERS) as OwedFilter[];
   protected readonly owedFilterLabel = (f: OwedFilter): string => OWED_FILTERS[f] ?? '';
-  protected readonly statusLabels = STATUS_LABELS;
+  protected readonly statusText = statusText;
   protected readonly statusVariant = statusVariant;
   protected readonly isOverdue = isOverdue;
 
