@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
+import type { Permission } from '@micropos/core';
 import type { AppDatabase } from '../db';
 import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
@@ -11,7 +12,20 @@ import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../db/queries/repackage-draft';
 import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/queries/product-draft';
 import { setScannerEnabled } from '../scanner';
+import { changePin, isAllowed, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
+import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/users';
 import { API_VERSION, CHANNELS } from './channels';
+
+/**
+ * Registers a handler that runs only while someone is signed in who holds one of `needed` (an empty list: anyone
+ * signed in). This is the real gate: the pages hide what a user may not do, but only this keeps them out.
+ */
+function guarded(db: AppDatabase, channel: string, needed: Permission | readonly Permission[], listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown): void {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!isAllowed(db, typeof needed === 'string' ? [needed] : needed)) throw new Error('Not allowed');
+    return listener(event, ...args);
+  });
+}
 
 /**
  * Registers every IPC handler. The renderer only ever reaches the database through these;
@@ -19,74 +33,85 @@ import { API_VERSION, CHANNELS } from './channels';
  */
 export function registerIpcHandlers(db: AppDatabase): void {
   ipcMain.handle(CHANNELS.app.version, () => API_VERSION);
-  ipcMain.handle(CHANNELS.catalog.listProducts, () => listProducts(db));
-  ipcMain.handle(CHANNELS.catalog.listCategories, () => listCategories(db));
+  guarded(db, CHANNELS.catalog.listProducts, [], () => listProducts(db));
+  guarded(db, CHANNELS.catalog.listCategories, [], () => listCategories(db));
   // Product payloads come from the renderer: createProduct/updateProduct validate them before writing.
-  ipcMain.handle(CHANNELS.products.list, (_event, options: unknown) =>
+  guarded(db, CHANNELS.products.list, ['catalog.view', 'catalog.manage'], (_event, options: unknown) =>
     listProductRecords(db, (options as { includeDeleted?: unknown } | undefined)?.includeDeleted === true),
   );
-  ipcMain.handle(CHANNELS.products.create, (_event, input: unknown) => createProduct(db, input));
-  ipcMain.handle(CHANNELS.products.update, (_event, id: unknown, input: unknown) => updateProduct(db, id, input));
-  ipcMain.handle(CHANNELS.products.remove, (_event, ids: unknown) => deleteProducts(db, ids));
-  ipcMain.handle(CHANNELS.products.loadDraft, (_event, form: unknown) => loadProductDraft(db, form));
-  ipcMain.handle(CHANNELS.products.saveDraft, (_event, form: unknown, draft: unknown) => saveProductDraft(db, form, draft));
-  ipcMain.handle(CHANNELS.products.clearDraft, (_event, form: unknown) => clearProductDraft(db, form));
-  ipcMain.handle(CHANNELS.products.setActive, (_event, ids: unknown, active: unknown) => setProductsActive(db, ids, active));
-  ipcMain.handle(CHANNELS.products.restore, (_event, ids: unknown) => restoreProducts(db, ids));
+  guarded(db, CHANNELS.products.create, 'catalog.manage', (_event, input: unknown) => createProduct(db, input));
+  guarded(db, CHANNELS.products.update, 'catalog.manage', (_event, id: unknown, input: unknown) => updateProduct(db, id, input));
+  guarded(db, CHANNELS.products.remove, 'catalog.manage', (_event, ids: unknown) => deleteProducts(db, ids));
+  guarded(db, CHANNELS.products.loadDraft, 'catalog.manage', (_event, form: unknown) => loadProductDraft(db, form));
+  guarded(db, CHANNELS.products.saveDraft, 'catalog.manage', (_event, form: unknown, draft: unknown) => saveProductDraft(db, form, draft));
+  guarded(db, CHANNELS.products.clearDraft, 'catalog.manage', (_event, form: unknown) => clearProductDraft(db, form));
+  guarded(db, CHANNELS.products.setActive, 'catalog.manage', (_event, ids: unknown, active: unknown) => setProductsActive(db, ids, active));
+  guarded(db, CHANNELS.products.restore, 'catalog.manage', (_event, ids: unknown) => restoreProducts(db, ids));
   // Category payloads come from the renderer: create/update validate them before writing.
-  ipcMain.handle(CHANNELS.categories.list, (_event, options: unknown) =>
+  guarded(db, CHANNELS.categories.list, ['catalog.view', 'catalog.manage'], (_event, options: unknown) =>
     listCategoryRecords(db, (options as { includeDeleted?: unknown } | undefined)?.includeDeleted === true),
   );
-  ipcMain.handle(CHANNELS.categories.create, (_event, input: unknown) => createCategory(db, input));
-  ipcMain.handle(CHANNELS.categories.update, (_event, id: unknown, input: unknown) => updateCategory(db, id, input));
-  ipcMain.handle(CHANNELS.categories.remove, (_event, ids: unknown) => deleteCategories(db, ids));
-  ipcMain.handle(CHANNELS.categories.restore, (_event, ids: unknown) => restoreCategories(db, ids));
+  guarded(db, CHANNELS.categories.create, 'catalog.manage', (_event, input: unknown) => createCategory(db, input));
+  guarded(db, CHANNELS.categories.update, 'catalog.manage', (_event, id: unknown, input: unknown) => updateCategory(db, id, input));
+  guarded(db, CHANNELS.categories.remove, 'catalog.manage', (_event, ids: unknown) => deleteCategories(db, ids));
+  guarded(db, CHANNELS.categories.restore, 'catalog.manage', (_event, ids: unknown) => restoreCategories(db, ids));
   // Stock calls validate their input (receiveStock / adjustStock) before writing.
-  ipcMain.handle(CHANNELS.inventory.listBatches, (_event, options: unknown) =>
+  guarded(db, CHANNELS.inventory.listBatches, ['inventory.manage', 'catalog.view'], (_event, options: unknown) =>
     listBatches(db, { includeEmpty: (options as { includeEmpty?: unknown } | undefined)?.includeEmpty === true }),
   );
-  ipcMain.handle(CHANNELS.inventory.overview, () => inventoryOverview(db));
-  ipcMain.handle(CHANNELS.inventory.receive, (_event, input: unknown) => receiveStock(db, input));
-  ipcMain.handle(CHANNELS.inventory.adjust, (_event, input: unknown) => adjustStock(db, input));
-  ipcMain.handle(CHANNELS.inventory.repackage, (_event, input: unknown) => repackageStock(db, input));
-  ipcMain.handle(CHANNELS.inventory.loadRepackageDraft, () => loadRepackageDraft(db));
-  ipcMain.handle(CHANNELS.inventory.saveRepackageDraft, (_event, draft: unknown) => saveRepackageDraft(db, draft));
-  ipcMain.handle(CHANNELS.inventory.clearRepackageDraft, () => clearRepackageDraft(db));
+  guarded(db, CHANNELS.inventory.overview, 'catalog.view', () => inventoryOverview(db));
+  guarded(db, CHANNELS.inventory.receive, 'inventory.manage', (_event, input: unknown) => receiveStock(db, input));
+  guarded(db, CHANNELS.inventory.adjust, 'inventory.manage', (_event, input: unknown) => adjustStock(db, input));
+  guarded(db, CHANNELS.inventory.repackage, 'inventory.manage', (_event, input: unknown) => repackageStock(db, input));
+  guarded(db, CHANNELS.inventory.loadRepackageDraft, 'inventory.manage', () => loadRepackageDraft(db));
+  guarded(db, CHANNELS.inventory.saveRepackageDraft, 'inventory.manage', (_event, draft: unknown) => saveRepackageDraft(db, draft));
+  guarded(db, CHANNELS.inventory.clearRepackageDraft, 'inventory.manage', () => clearRepackageDraft(db));
   ipcMain.handle(CHANNELS.scanner.setEnabled, (_event, on: unknown) => setScannerEnabled(on !== false));
   // Customer payloads come from the renderer: create/update/receivePayment validate them before writing.
-  ipcMain.handle(CHANNELS.suppliers.list, (_event, options: unknown) =>
+  guarded(db, CHANNELS.suppliers.list, ['purchasing.manage', 'inventory.manage'], (_event, options: unknown) =>
     listSuppliers(db, (options as { includeDeleted?: unknown } | undefined)?.includeDeleted === true),
   );
-  ipcMain.handle(CHANNELS.suppliers.create, (_event, input: unknown) => createSupplier(db, input));
-  ipcMain.handle(CHANNELS.suppliers.update, (_event, id: unknown, input: unknown) => updateSupplier(db, id, input));
-  ipcMain.handle(CHANNELS.suppliers.remove, (_event, ids: unknown) => deleteSuppliers(db, ids));
-  ipcMain.handle(CHANNELS.suppliers.restore, (_event, ids: unknown) => restoreSuppliers(db, ids));
-  ipcMain.handle(CHANNELS.purchases.list, () => listPurchases(db));
-  ipcMain.handle(CHANNELS.purchases.get, (_event, id: unknown) => getPurchase(db, id));
-  ipcMain.handle(CHANNELS.purchases.create, (_event, input: unknown) => createPurchase(db, input));
-  ipcMain.handle(CHANNELS.purchases.update, (_event, id: unknown, input: unknown) => updatePurchase(db, id, input));
-  ipcMain.handle(CHANNELS.purchases.receive, (_event, input: unknown) => receivePurchase(db, input));
-  ipcMain.handle(CHANNELS.purchases.pay, (_event, input: unknown) => payPurchase(db, input));
-  ipcMain.handle(CHANNELS.purchases.cancel, (_event, id: unknown) => cancelPurchase(db, id));
-  ipcMain.handle(CHANNELS.customers.list, (_event, options: unknown) =>
+  guarded(db, CHANNELS.suppliers.create, 'purchasing.manage', (_event, input: unknown) => createSupplier(db, input));
+  guarded(db, CHANNELS.suppliers.update, 'purchasing.manage', (_event, id: unknown, input: unknown) => updateSupplier(db, id, input));
+  guarded(db, CHANNELS.suppliers.remove, 'purchasing.manage', (_event, ids: unknown) => deleteSuppliers(db, ids));
+  guarded(db, CHANNELS.suppliers.restore, 'purchasing.manage', (_event, ids: unknown) => restoreSuppliers(db, ids));
+  guarded(db, CHANNELS.purchases.list, ['purchasing.manage', 'inventory.manage'], () => listPurchases(db));
+  guarded(db, CHANNELS.purchases.get, ['purchasing.manage', 'inventory.manage'], (_event, id: unknown) => getPurchase(db, id));
+  guarded(db, CHANNELS.purchases.create, 'purchasing.manage', (_event, input: unknown) => createPurchase(db, input));
+  guarded(db, CHANNELS.purchases.update, 'purchasing.manage', (_event, id: unknown, input: unknown) => updatePurchase(db, id, input));
+  guarded(db, CHANNELS.purchases.receive, 'purchasing.manage', (_event, input: unknown) => receivePurchase(db, input));
+  guarded(db, CHANNELS.purchases.pay, 'purchasing.manage', (_event, input: unknown) => payPurchase(db, input));
+  guarded(db, CHANNELS.purchases.cancel, 'purchasing.manage', (_event, id: unknown) => cancelPurchase(db, id));
+  guarded(db, CHANNELS.customers.list, ['customers.view', 'customers.manage', 'checkout.sell'], (_event, options: unknown) =>
     listCustomers(db, (options as { includeDeleted?: unknown } | undefined)?.includeDeleted === true),
   );
-  ipcMain.handle(CHANNELS.customers.create, (_event, input: unknown) => createCustomer(db, input));
-  ipcMain.handle(CHANNELS.customers.update, (_event, id: unknown, input: unknown) => updateCustomer(db, id, input));
-  ipcMain.handle(CHANNELS.customers.remove, (_event, ids: unknown) => deleteCustomers(db, ids));
-  ipcMain.handle(CHANNELS.customers.restore, (_event, ids: unknown) => restoreCustomers(db, ids));
-  ipcMain.handle(CHANNELS.customers.account, (_event, id: unknown) => getCustomerAccount(db, id));
-  ipcMain.handle(CHANNELS.customers.receivePayment, (_event, input: unknown) => receivePayment(db, input));
-  ipcMain.handle(CHANNELS.orders.list, () => listOrders(db));
-  ipcMain.handle(CHANNELS.orders.get, (_event, id: unknown) => getOrder(db, id));
+  guarded(db, CHANNELS.customers.create, 'customers.manage', (_event, input: unknown) => createCustomer(db, input));
+  guarded(db, CHANNELS.customers.update, 'customers.manage', (_event, id: unknown, input: unknown) => updateCustomer(db, id, input));
+  guarded(db, CHANNELS.customers.remove, 'customers.manage', (_event, ids: unknown) => deleteCustomers(db, ids));
+  guarded(db, CHANNELS.customers.restore, 'customers.manage', (_event, ids: unknown) => restoreCustomers(db, ids));
+  guarded(db, CHANNELS.customers.account, 'customers.view', (_event, id: unknown) => getCustomerAccount(db, id));
+  guarded(db, CHANNELS.customers.receivePayment, 'customers.payments', (_event, input: unknown) => receivePayment(db, input));
+  guarded(db, CHANNELS.orders.list, ['orders.view', 'customers.view'], () => listOrders(db));
+  guarded(db, CHANNELS.orders.get, ['orders.view', 'customers.view'], (_event, id: unknown) => getOrder(db, id));
   // The renderer sends an order id and a reason; voidOrder / refundOrder validate both and decide whether the order may be reversed.
-  ipcMain.handle(CHANNELS.orders.void, (_event, input: unknown) => voidOrder(db, input));
-  ipcMain.handle(CHANNELS.orders.refund, (_event, input: unknown) => refundOrder(db, input));
-  ipcMain.handle(CHANNELS.checkout.loadDraft, () => loadDraft(db));
+  guarded(db, CHANNELS.orders.void, 'orders.reverse', (_event, input: unknown) => voidOrder(db, input));
+  guarded(db, CHANNELS.orders.refund, 'orders.reverse', (_event, input: unknown) => refundOrder(db, input));
+  guarded(db, CHANNELS.checkout.loadDraft, 'checkout.sell', () => loadDraft(db));
   // The payload comes from the renderer, so it is validated (sanitizeDraft) before it is stored.
-  ipcMain.handle(CHANNELS.checkout.saveDraft, (_event, draft: unknown) => saveDraft(db, draft));
-  ipcMain.handle(CHANNELS.checkout.clearDraft, () => clearDraft(db));
-  ipcMain.handle(CHANNELS.checkout.nextOrderNumber, () => nextOrderNumber(db));
+  guarded(db, CHANNELS.checkout.saveDraft, 'checkout.sell', (_event, draft: unknown) => saveDraft(db, draft));
+  guarded(db, CHANNELS.checkout.clearDraft, 'checkout.sell', () => clearDraft(db));
+  guarded(db, CHANNELS.checkout.nextOrderNumber, 'checkout.sell', () => nextOrderNumber(db));
   // The order comes from the renderer: completeOrder validates it and takes prices and names from the catalog.
-  ipcMain.handle(CHANNELS.checkout.completeOrder, (_event, input: unknown) => completeOrder(db, input));
+  guarded(db, CHANNELS.checkout.completeOrder, 'checkout.sell', (_event, input: unknown) => completeOrder(db, input));
+  // Signing in and out: the sign-in screen can ask who may sign in and try a PIN before anyone is signed in.
+  ipcMain.handle(CHANNELS.auth.status, () => currentUser(db));
+  ipcMain.handle(CHANNELS.auth.choices, () => signInChoices(db));
+  ipcMain.handle(CHANNELS.auth.signIn, (_event, input: unknown) => signIn(db, input));
+  guarded(db, CHANNELS.auth.signOut, [], () => signOut(db));
+  guarded(db, CHANNELS.auth.changePin, [], (_event, input: unknown) => changePin(db, input));
+  guarded(db, CHANNELS.users.list, ['users.manage'], () => listUsers(db));
+  guarded(db, CHANNELS.users.create, ['users.manage'], (_event, input: unknown) => createUser(db, input));
+  guarded(db, CHANNELS.users.update, ['users.manage'], (_event, id: unknown, input: unknown) => updateUser(db, id, input));
+  guarded(db, CHANNELS.users.resetPin, ['users.manage'], (_event, id: unknown, pin: unknown) => resetPin(db, id, pin));
+  guarded(db, CHANNELS.users.signInLog, ['users.manage'], () => signInLog(db));
 }

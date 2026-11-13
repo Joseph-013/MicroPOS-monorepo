@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, screen, session } from 'electron';
 import path from 'node:path';
+import { ensureOwner, signOut } from './auth/auth';
 import { createDatabase } from './db';
 import { registerIpcHandlers } from './ipc';
 import { closeCustomerDisplay, registerCustomerDisplay } from './display';
@@ -122,6 +123,7 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
     // Browser storage (the old page's local storage, caches) is held by Chromium: clear it through its own API too.
     if (purged) await session.defaultSession.clearStorageData();
     database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
+    ensureOwner(database.db); // a fresh install gets an owner account to sign in with
     registerIpcHandlers(database.db);
     registerCustomerDisplay({ createWindow: createDisplayWindow, mainWindow: () => mainWindow });
     createWindow();
@@ -131,7 +133,10 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
   });
 }
 
-app.on('will-quit', () => database?.close());
+app.on('will-quit', () => {
+  if (database) signOut(database.db); // records the sign-out of whoever was signed in
+  database?.close();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

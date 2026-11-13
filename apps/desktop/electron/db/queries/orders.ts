@@ -11,6 +11,7 @@ import {
   type SalesOrderSummary,
   type ProductUnit,
 } from '@micropos/core';
+import { currentActorId } from '../../auth/actor';
 import type { AppDatabase } from '../index';
 import { uuid7 } from '../uuid';
 import { asc } from 'drizzle-orm';
@@ -35,10 +36,12 @@ export function nextOrderNumber(db: AppDatabase): string {
 }
 
 /**
- * Who rings up sales until sign-in exists: the first active employee, or a "Register" employee made on first use.
- * Its PIN hash is not a valid hash, so nobody can sign in as it.
+ * Who a sale (or payment) is recorded against: the person signed in. Without one (the seeder, tests) it is the first
+ * active employee, or a "Register" employee made on first use whose PIN hash is not a valid hash, so nobody can sign in as it.
  */
 export function sellingEmployee(tx: Pick<AppDatabase, 'select' | 'insert'>): string {
+  const signedIn = currentActorId();
+  if (signedIn) return signedIn;
   const [existing] = tx
     .select({ id: employees.id, deletedAt: employees.deletedAt, active: employees.active })
     .from(employees)

@@ -15,6 +15,7 @@ import {
   tracksBatches,
   tracksExpiry,
 } from '@micropos/core';
+import { currentActorId } from '../../auth/actor';
 import type { AppDatabase } from '../index';
 import { uuid7 } from '../uuid';
 import { receivedOfLine, settlePurchase } from './purchase-receipt';
@@ -110,7 +111,7 @@ const isMilli = (v: unknown): v is number =>
 export function receiveStock(
   db: AppDatabase,
   raw: unknown,
-  employeeId: string | null = null,
+  employeeId: string | null = currentActorId(),
   now = Date.now(),
   outer?: Pick<AppDatabase, 'select' | 'insert' | 'update'>,
 ): StockResult {
@@ -233,7 +234,7 @@ export function receiveStock(
 export function adjustStock(
   db: AppDatabase,
   raw: unknown,
-  employeeId: string | null = null,
+  employeeId: string | null = currentActorId(),
   now = Date.now(),
 ): StockResult {
   const input = (raw ?? {}) as Partial<AdjustStockInput>;
@@ -287,7 +288,7 @@ const pad = (n: number): string => String(n).padStart(2, '0');
 export function repackageStock(
   db: AppDatabase,
   raw: unknown,
-  employeeId: string | null = null,
+  employeeId: string | null = currentActorId(),
   now = Date.now(),
 ): RepackageResult {
   const fail = (field: RepackageField | null, error: string): RepackageResult => ({
@@ -572,7 +573,7 @@ export function restockSale(
   db: AppDatabase,
   orderLineId: string,
   type: Extract<StockMovementType, 'refund' | 'void'>,
-  employeeId: string | null = null,
+  employeeId: string | null = currentActorId(),
   at = Date.now(),
   /** The open transaction to write in (when this is part of a larger one); otherwise one is started. */
   tx?: Pick<AppDatabase, 'insert'>,

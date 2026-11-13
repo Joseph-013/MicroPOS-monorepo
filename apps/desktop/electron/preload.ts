@@ -64,6 +64,20 @@ const api: DesktopApi = {
     },
     setEnabled: (enabled) => ipcRenderer.invoke(CHANNELS.scanner.setEnabled, enabled),
   },
+  auth: {
+    status: () => ipcRenderer.invoke(CHANNELS.auth.status),
+    choices: () => ipcRenderer.invoke(CHANNELS.auth.choices),
+    signIn: (input) => ipcRenderer.invoke(CHANNELS.auth.signIn, input),
+    signOut: () => ipcRenderer.invoke(CHANNELS.auth.signOut),
+    changePin: (input) => ipcRenderer.invoke(CHANNELS.auth.changePin, input),
+  },
+  users: {
+    list: () => ipcRenderer.invoke(CHANNELS.users.list),
+    create: (input) => ipcRenderer.invoke(CHANNELS.users.create, input),
+    update: (id, input) => ipcRenderer.invoke(CHANNELS.users.update, id, input),
+    resetPin: (id, pin) => ipcRenderer.invoke(CHANNELS.users.resetPin, id, pin),
+    signInLog: () => ipcRenderer.invoke(CHANNELS.users.signInLog),
+  },
   suppliers: {
     list: (options) => ipcRenderer.invoke(CHANNELS.suppliers.list, options),
     create: (input) => ipcRenderer.invoke(CHANNELS.suppliers.create, input),
