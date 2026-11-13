@@ -410,7 +410,7 @@ describe('InventoryPage', () => {
       partlyReceived: false, total: 0, paid: 0, owed: 0, note: null, employeeName: null, payments: [],
       lines: [{ id: 'l1', productId: '1', productName: 'Tea', productCode: null, unit: 'each', tracking: 'none', quantityMilli: 5_000, receivedMilli: 0, unitCost: 400, total: 0 }],
     } as PurchaseDetail;
-    await open([], [product('1', 'Tea', { tracking: 'none' })], [order], '/?receive-order=o1');
+    await open([], [product('1', 'Tea', { tracking: 'none' }), product('2', 'Milk', { tracking: 'quantity' })], [order], '/?receive-order=o1');
     await settle();
     const input = dialog().querySelector('input#r-product, #r-product input') as HTMLInputElement;
     input.focus();
@@ -420,6 +420,17 @@ describe('InventoryPage', () => {
     expect(items).toHaveLength(1);
     expect(items[0]).toContain('Tea');
     expect(items[0]).toContain('Not tracked');
+
+    // The checkbox above the list widens it to every product (those are received on their own, not against the order).
+    expect(dialog().textContent).toContain('Only products on PO-1001');
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await settle();
+    (dialog().querySelector('hlm-checkbox button, hlm-checkbox [role="checkbox"]') as HTMLElement).click();
+    await settle();
+    input.focus();
+    (input.closest('hlm-combobox')!.querySelector('button[data-slot="input-group-button"]') as HTMLElement).click();
+    await settle();
+    expect([...document.querySelectorAll('hlm-combobox-item')].map((i) => i.textContent!.trim().slice(0, 3)).sort()).toEqual(['Mil', 'Tea']);
   });
 
   it('takes an expiry given as a month only, as the last day of that month', async () => {
