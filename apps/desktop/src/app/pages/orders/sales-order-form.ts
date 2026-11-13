@@ -9,6 +9,7 @@ import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { OrdersService } from '../../core/data/orders.service';
+import { DialogPageLink } from '../../core/ui/dialog-page-link';
 import { MoneyPipe } from '../../core/money.pipe';
 import { CustomerViewer } from '../../core/customer-viewer';
 import { OrderActions } from '../../core/order-actions';
@@ -29,10 +30,11 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', 
 /** A sales order in view mode: who, when, the lines, the totals and how it was paid. */
 @Component({
   host: { class: 'contents' },
-  imports: [DatePipe, MoneyPipe, NgIcon, RouterLink, HlmBadgeImports, HlmButtonImports, HlmDialogImports],
+  imports: [DatePipe, MoneyPipe, DialogPageLink, NgIcon, RouterLink, HlmBadgeImports, HlmButtonImports, HlmDialogImports],
   viewProviders: [provideIcons({ lucideExternalLink })],
   template: `
-    <hlm-dialog-header>
+    <app-dialog-page-link path="/orders" label="Sales Orders" [highlight]="order().id" />
+    <hlm-dialog-header class="pe-16">
       <h3 hlmDialogTitle class="flex items-center gap-3">
         <span class="select-text">{{ order().orderNumber }}</span>
         <span hlmBadge [variant]="statusVariant()">{{ statusLabel() }}</span>
@@ -133,12 +135,6 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', 
     </div>
 
     <hlm-dialog-footer>
-      @if (!onOrdersPage) {
-        <!-- Leaving for the page drops the query parameter, which also closes this dialog. -->
-        <a hlmBtn variant="outline" size="icon" routerLink="/orders" [queryParams]="orderQuery()" class="sm:mr-auto" aria-label="Open Sales Orders" title="Open Sales Orders">
-          <ng-icon name="lucideExternalLink" size="18" />
-        </a>
-      }
       @if (canReverse()) {
         <button hlmBtn variant="destructive" type="button" class="px-4" (click)="reverse('void')">Void</button>
         <button hlmBtn variant="outline" type="button" class="px-4" (click)="reverse('refund')">Refund</button>
@@ -174,12 +170,6 @@ export class SalesOrderForm {
   /** The linked sale or refund replaces this dialog. */
   protected openOrder(id: string): void {
     void this.router.navigate([], { queryParams: { [VIEW_SALES_ORDER_PARAM]: id }, queryParamsHandling: 'merge' });
-  }
-  /** Offer the link to the Sales Orders page only when the dialog is over some other page. */
-  protected readonly onOrdersPage = inject(Router).url.split(/[?#]/)[0] === '/orders';
-  /** The Sales Orders page, on the page of the table that holds this order, with its row highlighted. */
-  protected orderQuery(): Record<string, string> {
-    return { [HIGHLIGHT_PARAM]: this.order().id };
   }
 
   private readonly productViewer = inject(ProductViewer);

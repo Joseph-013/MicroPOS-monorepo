@@ -16,6 +16,7 @@ import { PurchasesService } from '../../core/data/purchases.service';
 import { SuppliersService } from '../../core/data/suppliers.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
 import { formatCentsInput, parseCents } from '../../core/money-input';
+import { DialogPageLink } from '../../core/ui/dialog-page-link';
 import { MoneyPipe } from '../../core/money.pipe';
 import { AppSettings } from '../../core/settings/app-settings.service';
 import { METHOD_LABELS } from '../orders/sales-order-form';
@@ -30,9 +31,10 @@ export interface PurchaseDetailContext {
 /** A purchase order: its lines, what is paid and owed, and what can be done next (edit, receive, pay, cancel). */
 @Component({
   host: { class: 'contents' },
-  imports: [DatePipe, MoneyPipe, OnScreenKeypadDirective, HlmAlertDialogImports, HlmBadgeImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
+  imports: [DatePipe, DialogPageLink, MoneyPipe, OnScreenKeypadDirective, HlmAlertDialogImports, HlmBadgeImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
   template: `
-    <hlm-dialog-header>
+    <app-dialog-page-link path="/purchases" label="Purchases" [highlight]="purchase().id" />
+    <hlm-dialog-header class="pe-16">
       <h3 hlmDialogTitle class="flex items-center gap-3">
         <span class="select-text">{{ purchase().number }}</span>
         <span hlmBadge [variant]="variant()">{{ statusLabel() }}</span>

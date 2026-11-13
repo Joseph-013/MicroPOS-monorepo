@@ -13,6 +13,7 @@ import { BannerService } from '../../core/banner';
 import { CustomersService } from '../../core/data/customers.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
 import { formatCentsInput, parseCents } from '../../core/money-input';
+import { DialogPageLink } from '../../core/ui/dialog-page-link';
 import { MoneyPipe } from '../../core/money.pipe';
 import { VIEW_SALES_ORDER_PARAM } from '../../core/sales-order-param';
 import { AppSettings } from '../../core/settings/app-settings.service';
@@ -26,9 +27,10 @@ export interface CustomerAccountContext {
 /** A customer's account: what they owe, the ledger behind it, and a way to record money received. */
 @Component({
   host: { class: 'contents' },
-  imports: [DatePipe, MoneyPipe, OnScreenKeypadDirective, HlmBadgeImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
+  imports: [DatePipe, DialogPageLink, MoneyPipe, OnScreenKeypadDirective, HlmBadgeImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
   template: `
-    <hlm-dialog-header>
+    <app-dialog-page-link path="/customers" label="Customers" [highlight]="account().customer.id" />
+    <hlm-dialog-header class="pe-16">
       <h3 hlmDialogTitle class="flex items-center gap-3">
         <span class="min-w-0 truncate select-text">{{ account().customer.name }}</span>
         @if (account().customer.deletedAt) {
