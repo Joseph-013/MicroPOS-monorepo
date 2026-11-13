@@ -125,6 +125,24 @@ describe('constraints', () => {
 });
 
 describe('seedDatabase', () => {
+  it('seeds customers with credit sales and payments: balances are never negative or past a limit', () => {
+    const summary = seedDatabase(db, { orders: 200, days: 30 });
+    expect(summary.customers).toBe(6);
+    expect(summary.ledgerEntries).toBeGreaterThan(0);
+    const customersNow = listCustomers(db);
+    expect(customersNow).toHaveLength(6);
+    for (const c of customersNow) {
+      expect(c.balance, c.name).toBeGreaterThanOrEqual(0); // payments never exceed what is owed
+      if (c.creditLimit !== null) expect(c.balance, c.name).toBeLessThanOrEqual(c.creditLimit);
+    }
+    expect(customersNow.some((c) => c.balance > 0)).toBe(true);
+    // Credit sales are linked to their customer, and every charge belongs to a completed sale.
+    const linked = db.select().from(orders).all().filter((o) => o.customerId);
+    expect(linked.length).toBeGreaterThan(0);
+    expect(linked.every((o) => o.status === 'completed')).toBe(true);
+    expect(handle.db.$client.pragma('foreign_key_check')).toEqual([]);
+  });
+
   it('produces consistent, constraint-valid dummy data', () => {
     const summary = seedDatabase(db, { orders: 60, days: 14 });
     expect(summary.employees).toBeGreaterThanOrEqual(3);
@@ -141,7 +159,11 @@ describe('seedDatabase', () => {
       const paid = db.select().from(payments).where(eq(payments.orderId, order.id)).all();
       expect(lines.reduce((s, l) => s + l.lineTotal, 0), order.orderNumber).toBe(order.subtotal);
       if (order.status === 'voided') expect(paid).toEqual([]);
-      else expect(paid.reduce((s, p) => s + p.amount, 0), order.orderNumber).toBe(order.total);
+      else {
+        // A credit sale pays part now; the rest is charged to the customer's account.
+        const charged = (handle.db.$client.prepare("SELECT COALESCE(SUM(amount), 0) AS t FROM customer_ledger WHERE order_id = ? AND type = 'charge'").get(order.id) as { t: number }).t;
+        expect(paid.reduce((s, p) => s + p.amount, 0) + charged, order.orderNumber).toBe(order.total);
+      }
       for (const p of paid.filter((x) => x.tendered !== null)) expect(p.tendered! - p.change!).toBe(p.amount);
     }
 

@@ -3,6 +3,9 @@ import type { AppDatabase } from '../index';
 import {
   auditLog,
   categories,
+  customerLedger,
+  customers,
+  type NewCustomerLedgerEntry,
   employees,
   loginSessions,
   type NewProductCategory,
@@ -18,6 +21,7 @@ import {
 import { seedAdmin } from '../seeders/admin.seeder';
 import { uuid7 } from '../uuid';
 import { buildCategory, buildKnownProducts, buildProduct, SAMPLE_CATEGORIES, SAMPLE_PRODUCTS } from './catalog.factory';
+import { buildCustomer } from './customer.factory';
 import { buildEmployee, DUMMY_PIN } from './employee.factory';
 import { SeedStock } from './inventory.factory';
 import { buildRefund, buildSale, type SaleDraft } from './sale.factory';
@@ -34,12 +38,17 @@ export interface SeedOptions {
   days?: number;
   extraProducts?: number;
   extraCashiers?: number;
+  /** Customers who buy on credit. */
+  customers?: number;
 }
 
 export interface SeedSummary {
   employees: number;
   categories: number;
   products: number;
+  customers: number;
+  /** Ledger entries: charges, then payments. */
+  ledgerEntries: number;
   orders: number;
   refunds: number;
   voided: number;
@@ -160,6 +169,63 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
   }
   all.forEach((draft, i) => (draft.order.orderNumber = `SO-${1001 + i}`));
 
+  // Credit: a few customers buy some of their sales on account (part paid now, the rest charged to the customer), and
+  // later pay some of it down. Only sales that stay completed (not refunded or voided) are used, and a customer never
+  // owes more than their credit limit.
+  const customerRows = Array.from({ length: options.customers ?? 6 }, () => buildCustomer({}, start - DAY));
+  const ledgerRows: NewCustomerLedgerEntry[] = [];
+  const owed = new Map(customerRows.map((c) => [c.id!, 0]));
+  const creditSales = drafts.filter((d) => d.order.status === 'completed' && faker.datatype.boolean(0.15));
+  for (const sale of creditSales) {
+    const customer = faker.helpers.arrayElement(customerRows);
+    const order = sale.order;
+    order.customerId = customer.id!;
+    const total = order.total!;
+    const share = faker.helpers.arrayElement([0, 0.3, 0.5, 0.7, 1]); // how much of it is paid now
+    let paid = Math.round(total * share);
+    const charge = total - paid;
+    if (charge > 0 && customer.creditLimit !== null && owed.get(customer.id!)! + charge > customer.creditLimit!) paid = total; // over the limit: pays in full
+    const onAccount = total - paid;
+    const [payment] = sale.payments;
+    if (payment) {
+      if (paid === 0) sale.payments = [];
+      else {
+        payment.amount = paid;
+        if (payment.tendered !== null && payment.tendered !== undefined) {
+          payment.tendered = Math.ceil(paid / 10000) * 10000;
+          payment.change = payment.tendered - paid;
+        }
+      }
+    }
+    if (onAccount > 0) {
+      owed.set(customer.id!, owed.get(customer.id!)! + onAccount);
+      ledgerRows.push({ id: uuid7(order.completedAt!), customerId: customer.id!, type: 'charge', amount: onAccount, orderId: order.id!, employeeId: order.employeeId, at: order.completedAt! });
+    }
+  }
+  // Payments against what is owed, a day or more after the charges, never more than the balance.
+  for (const customer of customerRows) {
+    let balance = owed.get(customer.id!)!;
+    const firstCharge = ledgerRows.filter((e) => e.customerId === customer.id).map((e) => e.at!).sort((a, b) => a - b)[0];
+    if (!balance || firstCharge === undefined) continue;
+    for (let n = faker.number.int({ min: 0, max: 2 }); n > 0 && balance > 0; n--) {
+      const at = firstCharge + faker.number.int({ min: 1, max: 6 }) * DAY;
+      if (at > now) break;
+      const amount = Math.min(balance, Math.round((balance * faker.number.int({ min: 30, max: 100 })) / 100));
+      if (amount <= 0) break;
+      balance -= amount;
+      ledgerRows.push({
+        id: uuid7(at),
+        customerId: customer.id!,
+        type: 'payment',
+        amount: -amount,
+        method: faker.helpers.arrayElement(['cash', 'ewallet', 'bank_transfer'] as const),
+        reference: faker.datatype.boolean(0.5) ? faker.string.alphanumeric({ length: 8, casing: 'upper' }) : null,
+        employeeId: faker.helpers.arrayElement(sellers).id!,
+        at,
+      });
+    }
+  }
+
   // Login sessions: one closed session per employee per working day, plus the manager signed in now.
   const sessionSpans = new Map<string, { employeeId: string; first: number; last: number }>();
   for (const { order } of all) {
@@ -214,6 +280,7 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
   db.transaction((tx) => {
     for (const rows of chunks(staff)) tx.insert(employees).values(rows).run();
     for (const rows of chunks(categoryRows)) tx.insert(categories).values(rows).run();
+    for (const rows of chunks(customerRows)) tx.insert(customers).values(rows).run();
     for (const rows of chunks(productRows)) tx.insert(products).values(rows).run();
     for (const rows of chunks(productCategoryRows)) tx.insert(productCategories).values(rows).run();
     for (const rows of chunks(all.map((d) => d.order))) tx.insert(orders).values(rows).run();
@@ -221,6 +288,7 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
     for (const rows of chunks(stock.batches)) tx.insert(productBatches).values(rows).run();
     for (const rows of chunks(stock.movements)) tx.insert(stockMovements).values(rows).run();
     for (const rows of chunks(all.flatMap((d) => d.payments))) tx.insert(payments).values(rows).run();
+    for (const rows of chunks(ledgerRows)) tx.insert(customerLedger).values(rows).run();
     for (const rows of chunks(sessionRows)) tx.insert(loginSessions).values(rows).run();
     for (const rows of chunks(auditRows)) tx.insert(auditLog).values(rows).run();
     tx.insert(settings)
@@ -236,6 +304,8 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
     employees: staff.length + 1,
     categories: categoryRows.length,
     products: productRows.length,
+    customers: customerRows.length,
+    ledgerEntries: ledgerRows.length,
     orders: drafts.length,
     refunds: refunds.length,
     voided: drafts.filter((d) => d.order.status === 'voided').length,
