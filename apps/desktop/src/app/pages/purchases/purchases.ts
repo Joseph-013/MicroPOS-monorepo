@@ -17,6 +17,9 @@ import { PurchaseViewer, VIEW_PURCHASE_PARAM } from '../../core/purchase-viewer'
 import { HIGHLIGHT_PARAM, rowTarget, scrollToRow } from '../../core/row-target';
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
+import { ConcernsButton } from '../../core/ui/concerns-button';
+import { NavBadges } from '../../core/nav-badges';
+import { PurchaseConcerns } from './purchase-concerns';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { PurchaseForm, type PurchaseFormContext } from './purchase-form';
 import { isOverdue, STATUS_LABELS, statusText, statusVariant } from './purchase-status';
@@ -45,7 +48,7 @@ export const COLUMNS_TEMPLATE = 'minmax(6rem,0.8fr) minmax(10rem,1.6fr) 10rem 9r
 
 /** Purchases: stock ordered from suppliers, often in advance and paid later. Open one to receive it or record payments. */
 @Component({
-  imports: [AppPager, DatePipe, DateRangeFilter, FilterInput, MoneyPipe, NgIcon, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmSelectImports],
+  imports: [AppPager, ConcernsButton, DatePipe, DateRangeFilter, FilterInput, MoneyPipe, NgIcon, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmSelectImports],
   providers: [provideIcons({ lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX })],
   templateUrl: './purchases.html',
 })
@@ -155,6 +158,14 @@ export class PurchasesPage {
   /** Enter on a focused row opens it (ignored when something already handled the key). */
   protected onRowEnter(event: Event, purchase: PurchaseSummary): void {
     if (!event.defaultPrevented) this.view(purchase);
+  }
+
+  /** Orders late or overdue: the same number as the badge on Purchases in the nav rail. */
+  private readonly badges = inject(NavBadges);
+  protected readonly concerns = computed(() => this.badges.count('purchases'));
+
+  protected showConcerns(): void {
+    this.dialogs.open(PurchaseConcerns, { id: 'purchase-concerns', contentClass: 'w-[min(36rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_auto_minmax(0,1fr)_auto]' });
   }
 
   protected add(): void {

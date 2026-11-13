@@ -3,6 +3,7 @@ import type {
   CancelPurchaseResult,
   PayPurchaseInput,
   PayPurchaseResult,
+  PurchaseConcern,
   PurchaseDetail,
   PurchaseInput,
   PurchaseSummary,
@@ -11,12 +12,14 @@ import type {
   SavePurchaseResult,
 } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
+import { NavBadges } from '../nav-badges';
 import type { LoadStatus } from './catalog.service';
 
 /** Purchase orders over IPC. Every change refreshes the list so what is owed is never stale. */
 @Service()
 export class PurchasesService {
   private readonly api = inject(DESKTOP_API);
+  private readonly badges = inject(NavBadges);
 
   readonly purchases = signal<PurchaseSummary[]>([]);
   readonly status = signal<LoadStatus>('idle');
@@ -30,6 +33,7 @@ export class PurchasesService {
     try {
       this.purchases.set(await this.api.purchases.list());
       this.status.set('ready');
+      void this.badges.refresh(); // an order arrived or was paid: so may what needs attention
     } catch (error) {
       console.error('Failed to load purchases', error);
       this.status.set('error');
@@ -97,5 +101,15 @@ export class PurchasesService {
     }
     if (result.ok) await this.load();
     return result;
+  }
+
+  /** Orders that are late or overdue for payment (the Purchases badge): empty when it cannot be read. */
+  async concerns(): Promise<PurchaseConcern[]> {
+    try {
+      return (await this.api?.purchases.concerns()) ?? [];
+    } catch (error) {
+      console.error('Failed to load the purchase concerns', error);
+      return [];
+    }
   }
 }

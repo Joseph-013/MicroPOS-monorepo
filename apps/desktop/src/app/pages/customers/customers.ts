@@ -294,7 +294,7 @@ export class CustomersPage {
   protected readonly concerns = computed(() => this.service.customers().filter((c) => c.alert).length);
 
   protected showConcerns(): void {
-    this.dialogs.open(CreditConcerns, { id: 'credit-concerns', contentClass: 'w-[min(32rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]' });
+    this.dialogs.open(CreditConcerns, { id: 'credit-concerns', contentClass: 'w-[min(32rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_auto_minmax(0,1fr)_auto]' });
   }
 
   protected add(): void {

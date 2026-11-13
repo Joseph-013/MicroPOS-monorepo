@@ -10,7 +10,10 @@ import {
   type ReceiveStockInput,
   type RepackageDraft,
   type RepackageInput,
+  type StockConcern,
 } from '@micropos/core';
+import { NavBadges } from '../../core/nav-badges';
+import { ProductViewer } from '../../core/product-viewer';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { provideRouter, Router } from '@angular/router';
 import { NewProductViewer } from '../../core/new-product-viewer';
@@ -56,6 +59,7 @@ const product = (id: string, name: string, over: Partial<ProductRecord> = {}): P
   unit: 'each',
   tracking: 'expiry',
   shelfLifeDays: 7,
+  criticalLevelMilli: null,
   onHandMilli: 0,
   nextExpiry: null,
   active: true,
@@ -63,6 +67,9 @@ const product = (id: string, name: string, over: Partial<ProductRecord> = {}): P
   deletedAt: null,
   ...over,
 });
+
+/** What the fake main process says needs attention in stock. */
+let concernRows: StockConcern[] = [];
 
 function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = [], orders: PurchaseDetail[] = []) {
   const rows = [...initial];
@@ -73,6 +80,7 @@ function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = [], orders: 
     version: () => Promise.resolve(DESKTOP_API_VERSION),
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     purchases: {
+      concerns: () => Promise.resolve([]),
       list: () => Promise.resolve(orders.map(({ lines: _l, payments: _p, note: _n, employeeName: _e, ...summary }) => summary)),
       get: (id: string) => Promise.resolve(orders.find((o) => o.id === id) ?? null),
     },
@@ -88,6 +96,7 @@ function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = [], orders: 
       },
     },
     inventory: {
+      concerns: () => Promise.resolve(concernRows),
       listBatches: (options?: { includeEmpty?: boolean }) => Promise.resolve(rows.filter((b) => options?.includeEmpty || b.onHandMilli > 0)),
       receive: (input: ReceiveStockInput) => {
         calls.receive.push(input);
@@ -135,11 +144,14 @@ describe('InventoryPage', () => {
   let calls: ReturnType<typeof fakeApi>['calls'];
   let drafts: ReturnType<typeof fakeApi>['drafts'];
 
+  beforeEach(() => (concernRows = []));
   async function open(rows: BatchRecord[], catalog: ProductRecord[] = [], orders: PurchaseDetail[] = [], url = ''): Promise<void> {
     const fake = fakeApi(rows, catalog, orders);
     calls = fake.calls;
     drafts = fake.drafts;
-    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }] });
+    TestBed.configureTestingModule({
+      providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }, { provide: NavBadges, useValue: { count: () => concernRows.length, refresh: () => Promise.resolve() } }],
+    });
     TestBed.inject(ScannerService);
     if (url) await TestBed.inject(Router).navigateByUrl(url);
     fixture = TestBed.createComponent(InventoryPage);
@@ -535,5 +547,50 @@ describe('InventoryPage', () => {
     await settle();
     expect((dialog().querySelector('#rp-qty') as HTMLInputElement).value).toBe('');
     expect(drafts.saved).toBeNull();
+  });
+
+  describe('stock concerns', () => {
+    const concern = (over: Partial<StockConcern>): StockConcern => ({
+      kind: 'out',
+      productId: 'p1',
+      productName: 'Milk',
+      unit: 'each',
+      batchNumber: null,
+      expiresAt: null,
+      onHandMilli: 0,
+      criticalLevelMilli: null,
+      ...over,
+    });
+
+    it('has a button by the title with the number, listing what needs attention, filterable, a row opening the product', async () => {
+      concernRows = [
+        concern({ kind: 'expired', productId: 'p2', productName: 'Bread', batchNumber: 'L7', expiresAt: Date.UTC(2026, 10, 1), onHandMilli: 4_000 }),
+        concern({ kind: 'out', productName: 'Milk' }),
+        concern({ kind: 'low', productId: 'p3', productName: 'Eggs', onHandMilli: 5_000, criticalLevelMilli: 6_000 }),
+      ];
+      await open([], [], [], '/');
+      const button = el.querySelector('button[title="Stock concerns"]') as HTMLButtonElement;
+      expect(button.textContent?.trim()).toBe('3');
+      button.click();
+      await settle();
+      const box = document.querySelector('hlm-dialog-content, [role="dialog"]')!;
+      const rows = (): string[] => Array.from(box.querySelectorAll('li button')).map((b) => b.textContent!.replace(/\s+/g, ' ').trim());
+      expect(box.textContent).toContain('Stock concerns');
+      expect(rows()).toEqual([
+        'BreadLot L7 · expired Nov 1, 2026 · 4 leftExpired',
+        'MilkNone leftOut of stock',
+        'Eggs5 left, critical level 6Low stock',
+      ]);
+      await type(box, 'input[aria-label="Filter product"]', 'egg');
+      expect(rows()).toEqual(['Eggs5 left, critical level 6Low stock']);
+      const opened = vi.spyOn(TestBed.inject(ProductViewer), 'open').mockResolvedValue(true);
+      (box.querySelector('li button') as HTMLElement).click();
+      expect(opened).toHaveBeenCalledWith('p3');
+    });
+
+    it('has no concerns button when nothing needs attention', async () => {
+      await open([]);
+      expect(el.querySelector('button[title="Stock concerns"]')).toBeNull();
+    });
   });
 });

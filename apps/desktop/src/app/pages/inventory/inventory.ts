@@ -29,6 +29,9 @@ import { ReceiveStockForm, type ReceiveStockContext } from './receive-stock-form
 import { rowTarget } from '../../core/row-target';
 import { RowSelection } from '../../core/ui/row-selection';
 import { ConfirmItems, type ConfirmItem } from '../../core/ui/confirm-items';
+import { ConcernsButton } from '../../core/ui/concerns-button';
+import { NavBadges } from '../../core/nav-badges';
+import { StockConcerns } from './stock-concerns';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { openRepackage } from './repackage-form';
 
@@ -60,6 +63,7 @@ export const COLUMNS_TEMPLATE =
 @Component({
   imports: [
     AppPager,
+    ConcernsButton,
     ConfirmItems,
     DatePipe,
     DateRangeFilter,
@@ -253,6 +257,14 @@ export class InventoryPage {
   );
   /** The batch a dialog is open for: highlighted, not selected. */
   protected readonly target = rowTarget();
+
+  /** What needs attention in stock: the same number as the badge on Inventory in the nav rail. */
+  private readonly badges = inject(NavBadges);
+  protected readonly concerns = computed(() => this.badges.count('inventory'));
+
+  protected showConcerns(): void {
+    this.dialogs.open(StockConcerns, { id: 'stock-concerns', contentClass: 'w-[min(34rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_auto_minmax(0,1fr)_auto]' });
+  }
 
   protected receive(orderId?: string): void {
     this.dialogs.open<boolean, ReceiveStockContext>(ReceiveStockForm, {

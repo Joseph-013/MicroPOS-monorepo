@@ -58,6 +58,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     },
     inventory: {
       listBatches: () => Promise.resolve([]),
+      concerns: () => Promise.resolve([]),
       overview: () => Promise.reject(new Error('unused')),
       receive: () => Promise.reject(new Error('unused')),
       adjust: () => Promise.reject(new Error('unused')),
@@ -109,7 +110,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     auth: { status: () => Promise.resolve(null), choices: () => Promise.resolve([]), signIn: () => Promise.reject(new Error('unused')), signOut: () => Promise.resolve(), changePin: () => Promise.reject(new Error('unused')) },
     users: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), resetPin: () => Promise.reject(new Error('unused')), signInLog: () => Promise.resolve([]) },
     suppliers: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve() },
-    purchases: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), pay: () => Promise.reject(new Error('unused')), cancel: () => Promise.reject(new Error('unused')) },
+    purchases: { concerns: () => Promise.resolve([]), list: () => Promise.resolve([]), get: () => Promise.resolve(null), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), pay: () => Promise.reject(new Error('unused')), cancel: () => Promise.reject(new Error('unused')) },
     orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), void: () => Promise.reject(new Error('unused')), refund: () => Promise.reject(new Error('unused')) },
     checkout: {
       loadDraft: () => Promise.resolve(store.draft),

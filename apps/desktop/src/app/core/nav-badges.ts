@@ -1,3 +1,4 @@
+import type { Permission } from '@micropos/core';
 import { DestroyRef, effect, inject, Service, signal } from '@angular/core';
 import { DESKTOP_API } from './api/desktop-api';
 import { AuthService } from './auth/auth.service';
@@ -30,13 +31,27 @@ export class NavBadges {
     return this.counts()[id] ?? 0;
   }
 
-  /** Customers needing attention (see Settings > Credit Alerts): shown on the Customers link. */
+  /**
+   * The counts: customers needing attention (Settings > Credit Alerts), stock needing attention (expired, expiring,
+   * out or low) and purchase orders that are late or overdue. Each is only asked for by someone who may see that page.
+   */
   async refresh(): Promise<void> {
-    if (!this.api || !this.auth.can('customers.view')) return this.counts.set({});
-    try {
-      this.counts.set({ customers: await this.api.customers.alertCount() });
-    } catch (error) {
-      console.error('Failed to read the navigation badges', error);
-    }
+    if (!this.api) return this.counts.set({});
+    const ask = async (id: string, permission: Permission, read: () => Promise<number>): Promise<[string, number]> => {
+      if (!this.auth.can(permission)) return [id, 0];
+      try {
+        return [id, await read()];
+      } catch (error) {
+        console.error(`Failed to read the "${id}" badge`, error);
+        return [id, this.count(id)];
+      }
+    };
+    const api = this.api;
+    const entries = await Promise.all([
+      ask('customers', 'customers.view', () => api.customers.alertCount()),
+      ask('inventory', 'inventory.manage', async () => (await api.inventory.concerns()).length),
+      ask('purchases', 'purchasing.manage', async () => (await api.purchases.concerns()).length),
+    ]);
+    this.counts.set(Object.fromEntries(entries.filter(([, n]) => n > 0)));
   }
 }

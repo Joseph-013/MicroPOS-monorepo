@@ -1,6 +1,9 @@
 <section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
   <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
-    <h1 class="text-2xl">Purchases</h1>
+    <div class="flex items-center gap-3">
+      <h1 class="text-2xl">Purchases</h1>
+      <app-concerns-button [count]="concerns()" noun="purchase concern" (opened)="showConcerns()" />
+    </div>
     <div class="flex items-center gap-4">
       @if (owedTotal() > 0) {
         <span class="text-sm"><span class="text-muted-foreground">Owed</span> <span class="text-destructive ml-1">{{ owedTotal() | money }}</span></span>

@@ -1,7 +1,8 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import type { DesktopApi, PayPurchaseInput, PurchaseDetail, PurchaseInput, PurchaseSummary, ReceivePurchaseInput } from '@micropos/core';
+import { purchaseConcern, type DesktopApi, type PayPurchaseInput, type PurchaseDetail, type PurchaseInput, type PurchaseSummary, type ReceivePurchaseInput } from '@micropos/core';
+import { NavBadges } from '../../core/nav-badges';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
 import { ScannerService } from '../../core/scanner';
@@ -67,6 +68,7 @@ function fakeApi(initial: PurchaseDetail[]) {
     },
     suppliers: { list: () => Promise.resolve([{ id: 's-Metro', name: 'Metro', phone: null, note: null, owed: 0, openOrders: 0, createdAt: 1, deletedAt: null }]) },
     purchases: {
+      concerns: () => Promise.resolve(rows.map(summary).flatMap((p) => purchaseConcern(p, Date.now()) ?? [])),
       list: () => Promise.resolve(rows.map(summary)),
       get: (id: string) => Promise.resolve(rows.find((r) => r.id === id) ?? null),
       create: (input: PurchaseInput) => {
@@ -119,10 +121,15 @@ describe('PurchasesPage', () => {
   let fixture: ComponentFixture<PurchasesPage>;
   let el: HTMLElement;
   let fake: ReturnType<typeof fakeApi>;
+  /** What the nav badge says (the page's concerns button shows the same number). */
+  let badgeCount = 0;
+  beforeEach(() => (badgeCount = 0));
 
   async function open(rows = SAMPLE(), url = '/purchases'): Promise<void> {
     fake = fakeApi(rows);
-    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: fake.api }] });
+    TestBed.configureTestingModule({
+      providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: fake.api }, { provide: NavBadges, useValue: { count: () => badgeCount, refresh: () => Promise.resolve() } }],
+    });
     TestBed.inject(ScannerService);
     TestBed.inject(PurchaseViewer); // started at launch by the app root, before the first navigation
     await TestBed.inject(Router).navigateByUrl(url);
@@ -428,5 +435,31 @@ describe('PurchasesPage', () => {
     expect(TestBed.inject(BannerService).current()?.text).toBe('PO-1004 placed');
     expect(document.querySelector('#purchase-form')).toBeNull();
     expect(numbers()).toContain('PO-1004');
+  });
+
+  it('has a concerns button by the title that lists late and overdue orders, and a row opens the order', async () => {
+    badgeCount = 2;
+    await open([
+      ...SAMPLE(), // PO-1003 is overdue for payment
+      purchase('d', 'PO-1004', 'Cold Chain', { expectedAt: Date.now() - 3 * DAY }),
+    ]);
+    const button = el.querySelector('button[title="Purchase concerns"]') as HTMLButtonElement;
+    expect(button.textContent?.trim()).toBe('2');
+    button.click();
+    await settle();
+    const dialog = document.querySelector('hlm-dialog-content, [role="dialog"]')!;
+    expect(dialog.textContent).toContain('Purchase concerns');
+    const rows = (): string[] => Array.from(dialog.querySelectorAll('li button')).map((b) => b.textContent!.replace(/\s+/g, ' ').trim());
+    expect(rows().sort()).toEqual(['PO-1003 MetroPayment 1 day overdue₱1,000.00', 'PO-1004 Cold ChainDelivery 3 days late₱1,000.00']);
+    await type('input[aria-label="Filter order or supplier"]', 'cold', dialog);
+    expect(rows()).toEqual(['PO-1004 Cold ChainDelivery 3 days late₱1,000.00']);
+    (dialog.querySelector('li button') as HTMLElement).click();
+    await settle();
+    expect(TestBed.inject(Router).url).toContain('view-purchase=d');
+  });
+
+  it('has no concerns button when nothing needs attention', async () => {
+    await open();
+    expect(el.querySelector('button[title="Purchase concerns"]')).toBeNull();
   });
 });

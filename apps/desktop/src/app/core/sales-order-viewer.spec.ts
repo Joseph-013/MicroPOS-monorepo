@@ -51,6 +51,7 @@ const PRODUCT: ProductRecord = {
   cost: 100,
   active: true,
   shelfLifeDays: null,
+  criticalLevelMilli: null,
   onHandMilli: 5_000,
   nextExpiry: null,
   createdAt: 0,

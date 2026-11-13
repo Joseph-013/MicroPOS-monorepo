@@ -86,7 +86,7 @@ export class NavRail {
       children: [
         { id: 'items-overview', path: '/items/overview', label: 'Overview', permission: 'catalog.view' },
         { id: 'items-products', path: '/items/products', label: 'Products', permission: 'catalog.view' },
-        { id: 'items-inventory', path: '/items/inventory', label: 'Inventory', permission: 'inventory.manage' },
+        { id: 'items-inventory', path: '/items/inventory', label: 'Inventory', permission: 'inventory.manage', badge: 'inventory' },
         { id: 'items-categories', path: '/items/categories', label: 'Categories', permission: 'catalog.view' },
       ],
     },
@@ -97,7 +97,7 @@ export class NavRail {
       label: 'Purchasing',
       icon: 'lucideTruck',
       children: [
-        { id: 'purchasing-purchases', path: '/purchases', label: 'Purchases', permission: 'purchasing.manage' },
+        { id: 'purchasing-purchases', path: '/purchases', label: 'Purchases', permission: 'purchasing.manage', badge: 'purchases' },
         { id: 'purchasing-suppliers', path: '/suppliers', label: 'Suppliers', permission: 'purchasing.manage' },
       ],
     },

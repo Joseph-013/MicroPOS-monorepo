@@ -7,9 +7,9 @@ import { fakeAuthApi, sessionUser } from './auth/testing';
 import { NavRail } from './nav-rail';
 
 describe('NavRail access', () => {
-  async function render(permissions: Parameters<typeof sessionUser>[0], alerts = 0): Promise<string> {
+  async function render(permissions: Parameters<typeof sessionUser>[0], alerts = 0, extra: Record<string, unknown> = {}): Promise<string> {
     localStorage.clear();
-    const api = { ...fakeAuthApi({ status: sessionUser(permissions) }).api, customers: { alertCount: () => Promise.resolve(alerts) } } as unknown as DesktopApi;
+    const api = { ...fakeAuthApi({ status: sessionUser(permissions) }).api, customers: { alertCount: () => Promise.resolve(alerts) }, ...extra } as unknown as DesktopApi;
     TestBed.configureTestingModule({
       providers: [provideRouter([{ path: '**', children: [] }]), { provide: DESKTOP_API, useValue: api }],
     });
@@ -47,5 +47,25 @@ describe('NavRail access', () => {
 
   it('shows no count to someone who cannot see customers', async () => {
     expect(await render(['checkout.sell'], 3)).not.toContain('3');
+  });
+
+  it('counts stock and purchase concerns on their links, and the Items group shows the stock total', async () => {
+    const text = await render(['inventory.manage', 'purchasing.manage'], 0, {
+      inventory: { concerns: () => Promise.resolve([{}, {}, {}]) },
+      purchases: { concerns: () => Promise.resolve([{}, {}]) },
+    });
+    const labelled = text.replace(/\s+/g, ' ');
+    expect(labelled).toMatch(/Inventory\s*3/);
+    expect(labelled).toMatch(/Purchases\s*2/);
+    // The groups, collapsed to their icon, carry the total of what is inside them.
+    expect((labelled.match(/3/g) ?? []).length).toBe(2); // the group's number and Inventory's own
+  });
+
+  it('shows no stock or purchase count without those permissions', async () => {
+    const text = await render(['checkout.sell'], 0, {
+      inventory: { concerns: () => Promise.resolve([{}, {}, {}]) },
+      purchases: { concerns: () => Promise.resolve([{}, {}]) },
+    });
+    expect(text).not.toMatch(/\d/);
   });
 });

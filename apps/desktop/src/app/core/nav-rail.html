@@ -111,6 +111,10 @@
           </span>
         }
         <span class="transition-opacity duration-150" [class.opacity-0]="!expanded()">{{ item.label }}</span>
+        @if (!item.icon && badgeOf(item) > 0) {
+          <!-- A sub-entry has no icon to carry the number: it sits at the end of its row (its group shows the total on its icon). -->
+          <span class="bg-destructive text-destructive-foreground ml-auto flex h-4 min-w-4 items-center justify-center px-1 text-[10px] leading-none font-semibold" [attr.aria-label]="badgeOf(item) + ' to review'">{{ badgeText(item) }}</span>
+        }
       </a>
     }
   </ng-template>
