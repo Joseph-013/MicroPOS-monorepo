@@ -1,6 +1,6 @@
 import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideFilterX, lucideX, lucideMinus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
+import { lucideFilterX, lucideX, lucideMinus, lucidePackagePlus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { type CatalogProduct, type CustomerDisplayLine, type CustomerDisplayReceipt, type CustomerDisplayState, type DraftLine, IDLE_DISPLAY_STATE, gramsToQuantityMilli, parseScaleBarcode, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -59,7 +59,7 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
     HlmLabelImports,
     HlmSelectImports,
   ],
-  providers: [provideIcons({ lucideFilterX, lucideX, lucideMinus, lucidePlus, lucideTrash2 })],
+  providers: [provideIcons({ lucideFilterX, lucideX, lucidePackagePlus, lucideMinus, lucidePlus, lucideTrash2 })],
   templateUrl: './checkout.html',
 })
 export class CheckoutPage {

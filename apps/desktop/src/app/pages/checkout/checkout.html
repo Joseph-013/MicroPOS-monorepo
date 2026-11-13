@@ -10,7 +10,9 @@
       </div>
 
       <hlm-dialog>
-        <button hlmDialogTrigger hlmBtn type="button" class="px-4">Add items</button>
+        <button hlmDialogTrigger hlmBtn size="icon" type="button" aria-label="Add items" title="Add items">
+          <ng-icon name="lucidePackagePlus" size="20" />
+        </button>
         <hlm-dialog-content
           *hlmDialogPortal="let ctx"
           class="h-[85vh] w-[min(72rem,95vw)] max-w-none grid-rows-[auto_auto_minmax(0,1fr)_auto] sm:max-w-none"

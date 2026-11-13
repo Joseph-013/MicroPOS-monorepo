@@ -183,7 +183,7 @@ describe('CheckoutPage', () => {
   });
 
   it('shows products from the database in the dialog and adds them to the order', async () => {
-    buttonByText(el, 'Add items').click();
+    (el.querySelector('button[aria-label="Add items"]') as HTMLButtonElement).click();
     await fixture.whenStable();
     expect(articles()).toBe(PRODUCTS.length);
 
@@ -201,7 +201,7 @@ describe('CheckoutPage', () => {
   });
 
   it('shows every category of a product as a tag, collapsing extras into +N', async () => {
-    buttonByText(el, 'Add items').click();
+    (el.querySelector('button[aria-label="Add items"]') as HTMLButtonElement).click();
     await fixture.whenStable();
     const card = (name: string) => [...document.querySelectorAll('article')].find((a) => a.textContent?.includes(name))!;
     const tags = (name: string) => [...card(name).querySelectorAll('[hlmBadge]')].map((t) => t.textContent?.trim());
@@ -215,7 +215,7 @@ describe('CheckoutPage', () => {
 
   it('confirms an item added from the browser in a success banner', async () => {
     const banner = TestBed.inject(BannerService);
-    buttonByText(el, 'Add items').click();
+    (el.querySelector('button[aria-label="Add items"]') as HTMLButtonElement).click();
     await fixture.whenStable();
     await search('bananas');
     const add = document.querySelector('article button') as HTMLButtonElement;
@@ -227,7 +227,7 @@ describe('CheckoutPage', () => {
   });
 
   it('clears the search with its x button and resets all filters with the reset button', async () => {
-    buttonByText(el, 'Add items').click();
+    (el.querySelector('button[aria-label="Add items"]') as HTMLButtonElement).click();
     await fixture.whenStable();
     const reset = document.querySelector('button[aria-label="Reset filters"]') as HTMLButtonElement;
     expect(reset.disabled).toBe(true); // nothing filtered yet
@@ -248,7 +248,7 @@ describe('CheckoutPage', () => {
   });
 
   it('searches name, barcode and SKU in one box', async () => {
-    buttonByText(el, 'Add items').click();
+    (el.querySelector('button[aria-label="Add items"]') as HTMLButtonElement).click();
     await fixture.whenStable();
     const milk = PRODUCTS[1];
     for (const term of [milk.name, milk.name.toUpperCase(), milk.barcode!, milk.sku!, milk.barcode!.slice(-5)]) {
