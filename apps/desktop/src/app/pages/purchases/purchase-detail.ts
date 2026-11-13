@@ -17,6 +17,7 @@ import { formatCentsInput, parseCents } from '../../core/money-input';
 import { MoneyPipe } from '../../core/money.pipe';
 import { AppSettings } from '../../core/settings/app-settings.service';
 import { METHOD_LABELS } from '../orders/sales-order-form';
+import { ReceiveStockForm, type ReceiveStockContext } from '../inventory/receive-stock-form';
 import { PurchaseForm, type PurchaseFormContext } from './purchase-form';
 import { PurchaseReceiveForm, type PurchaseReceiveContext } from './purchase-receive-form';
 import { isOverdue, statusText, statusVariant } from './purchase-status';
@@ -176,6 +177,8 @@ export interface PurchaseDetailContext {
           <button hlmBtn variant="outline" type="button" class="px-4" (click)="startPaying()">Record payment</button>
         }
         @if (awaiting()) {
+          <!-- One product at a time (scan or pick), unlike the delivery below that lists every line at once. -->
+          <button hlmBtn variant="outline" type="button" class="px-4" (click)="receiveByItem()">Receive by item</button>
           <button hlmBtn type="button" class="px-4" (click)="receive()">{{ purchase().partlyReceived ? 'Receive the rest' : 'Receive stock' }}</button>
         }
         <button hlmBtn hlmDialogClose variant="outline" type="button" class="px-4">Close</button>
@@ -257,6 +260,22 @@ export class PurchaseDetailForm {
           this.purchase.set(saved);
           this.banner.success('Purchase order saved', { key: 'purchase-saved' });
         }
+      });
+  }
+
+  /** The Receive stock dialog with this order chosen: scan or pick products as they come out of the box. */
+  protected receiveByItem(): void {
+    const id = this.purchase().id;
+    this.dialogs
+      .open<boolean, ReceiveStockContext>(ReceiveStockForm, {
+        id: 'receive-stock',
+        contentClass: 'w-[min(34rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
+        context: { orderId: id },
+      })
+      .closed$.subscribe(async () => {
+        const fresh = await this.purchases.get(id); // receipts changed what has arrived
+        if (fresh) this.purchase.set(fresh);
+        void this.suppliers.load();
       });
   }
 

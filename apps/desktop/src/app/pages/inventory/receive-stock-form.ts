@@ -22,6 +22,8 @@ import { ProductForm, type ProductFormContext } from '../products/product-form';
 export interface ReceiveStockContext {
   /** Product to receive stock for, when opened from a product row. */
   product?: ProductRecord;
+  /** Start with this purchase order chosen (opened from the order's own dialog). */
+  orderId?: string;
 }
 
 const DAY_MS = 86_400_000;
@@ -204,7 +206,8 @@ export class ReceiveStockForm {
   private readonly drafts = inject(ProductDraftService);
   private readonly purchases = inject(PurchasesService);
   private readonly ref = inject<BrnDialogRef<boolean>>(BrnDialogRef);
-  private start = injectBrnDialogContext<ReceiveStockContext>().product;
+  private readonly context = injectBrnDialogContext<ReceiveStockContext>();
+  private start = this.context.product;
 
   /** Products that track stock, alphabetically (the list comes sorted from the database). */
   protected readonly trackedProducts = computed(() => this.products.products().filter((p) => p.tracking !== 'none' && !p.deletedAt));
@@ -259,6 +262,7 @@ export class ReceiveStockForm {
 
   constructor() {
     void this.purchases.load();
+    if (this.context.orderId) void this.chooseOrder(this.context.orderId);
     if (this.start) this.applyDefaults(this.start);
     // A scan picks the product with that code (tracked products only).
     claimScanner(({ code }) => {

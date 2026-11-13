@@ -18,7 +18,6 @@ import { HIGHLIGHT_PARAM, rowTarget, scrollToRow } from '../../core/row-target';
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
 import { AppPager, Pager } from '../../core/ui/pager';
-import { ReceiveStockForm, type ReceiveStockContext } from '../inventory/receive-stock-form';
 import { PurchaseForm, type PurchaseFormContext } from './purchase-form';
 import { isOverdue, STATUS_LABELS, statusText, statusVariant } from './purchase-status';
 
@@ -169,20 +168,6 @@ export class PurchasesPage {
         if (!placed) return;
         this.banner.success(`${placed.number} placed`, { key: 'purchase-saved' });
         this.reveal(placed.id);
-      });
-  }
-
-  /** Receive stock, over this page: against an order (choose it in the dialog) or on its own. */
-  protected receiveStock(): void {
-    this.dialogs
-      .open<boolean, ReceiveStockContext>(ReceiveStockForm, {
-        id: 'receive-stock',
-        contentClass: 'w-[min(34rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
-        context: {},
-      })
-      .closed$.subscribe((saved) => {
-        if (saved) this.banner.success('Stock received', { key: 'inventory-saved' });
-        void this.service.load(); // orders may have been received in part or in full
       });
   }
 
