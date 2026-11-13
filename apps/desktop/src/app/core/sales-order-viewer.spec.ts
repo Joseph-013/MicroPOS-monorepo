@@ -81,7 +81,7 @@ function setup() {
     },
     products: { list: () => Promise.resolve([PRODUCT]) },
     customers: {
-      account: (id: string) => Promise.resolve(id === 'cu1' ? { customer: { id: 'cu1', name: 'Aling Nena', phone: null, note: null, creditLimit: null, balance: 400, lastActivityAt: 1, createdAt: 1, deletedAt: null }, entries: [] } : null),
+      account: (id: string) => Promise.resolve(id === 'cu1' ? { customer: { id: 'cu1', name: 'Aling Nena', phone: null, note: null, creditLimit: null, interestMode: null, interestRateBp: null, interestStartedAt: null, alert: null, balance: 400, lastActivityAt: 1, createdAt: 1, deletedAt: null }, entries: [] } : null),
     },
   } as unknown as DesktopApi;
   void DESKTOP_API_VERSION;

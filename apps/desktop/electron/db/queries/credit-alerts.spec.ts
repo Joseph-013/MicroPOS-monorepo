@@ -4,8 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_CREDIT_ALERTS } from '@micropos/core';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from '../index';
-import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from './credit-alerts';
-import { createCustomer, deleteCustomers, receivePayment } from './customers';
+import { countCreditAlerts, creditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from './credit-alerts';
+import { createCustomer, deleteCustomers, listCustomers, receivePayment } from './customers';
 import { completeOrder } from './orders';
 import { createProduct } from './products';
 
@@ -59,6 +59,21 @@ describe('customers needing attention', () => {
     owe(fine, 50_000, T0 + 40 * DAY);
     owe(both, 250_000, T0);
     expect(countCreditAlerts(db, T0 + 45 * DAY)).toBe(3);
+    const reasons = creditAlerts(db, T0 + 45 * DAY);
+    expect(reasons.get(big)).toEqual({ overAmount: 200_000, unpaidDays: null });
+    expect(reasons.get(old)).toEqual({ overAmount: null, unpaidDays: 45 });
+    expect(reasons.get(both)).toEqual({ overAmount: 200_000, unpaidDays: 45 });
+    expect(reasons.has(fine)).toBe(false);
+  });
+
+  it('puts the reason on the customer record, and none on one who needs nothing', () => {
+    saveCreditAlertSettings(db, { amount: 200_000, days: 30 });
+    const late = customer('Late');
+    const fine = customer('Fine');
+    owe(late, 900_000, Date.now() - 40 * DAY);
+    owe(fine, 10_000, Date.now() - DAY);
+    const byName = Object.fromEntries(listCustomers(db).map((c) => [c.name, c.alert]));
+    expect(byName).toEqual({ Late: { overAmount: 200_000, unpaidDays: 40 }, Fine: null });
   });
 
   it('stops flagging a customer once the old sale is paid, even if a newer one is owed', () => {

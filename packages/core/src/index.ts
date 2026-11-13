@@ -73,6 +73,7 @@ export {
   MAX_ALERT_AMOUNT,
   MAX_ALERT_DAYS,
   type CreditAlertSettings,
+  type CustomerAlert,
 } from './credit-alerts.js';
 export {
   addMonths,

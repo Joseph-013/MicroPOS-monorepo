@@ -21,11 +21,19 @@ export const isAlertDays = (value: unknown): value is number => typeof value ===
 
 const DAY_MS = 86_400_000;
 
+/** Why a customer needs attention: owing over the amount limit, a sale unpaid for longer than the days limit, or both. */
+export interface CustomerAlert {
+  /** The amount limit they are over (cents); null when they are not. */
+  overAmount: Money | null;
+  /** Whole days their oldest unpaid sale has been unpaid; null when it is not past the days limit. */
+  unpaidDays: number | null;
+}
+
 /**
- * Whether a customer is over the amount, or has a sale unpaid for longer than the days. The age is the oldest sale
- * with something still unpaid (payments are applied oldest first, as for interest).
+ * What needs attention about a customer's credit, or null when nothing does. The age is the oldest sale with
+ * something still unpaid (payments are applied oldest first, as for interest).
  */
-export function creditAlert(entries: readonly InterestEntry[], settings: CreditAlertSettings, now: number): { overAmount: boolean; overdue: boolean } {
+export function creditAlert(entries: readonly InterestEntry[], settings: CreditAlertSettings, now: number): CustomerAlert | null {
   let balance = 0;
   const chargedAt = new Map<string, number>();
   for (const e of entries) {
@@ -33,15 +41,16 @@ export function creditAlert(entries: readonly InterestEntry[], settings: CreditA
     balance += e.amount;
     if (e.type === 'charge' && e.orderId && !chargedAt.has(e.orderId)) chargedAt.set(e.orderId, e.at);
   }
-  const overAmount = settings.amount !== null && balance > settings.amount;
-  let overdue = false;
+  const overAmount = settings.amount !== null && balance > settings.amount ? settings.amount : null;
+  let unpaidDays: number | null = null;
   if (settings.days !== null && balance > 0) {
     for (const [orderId, unpaid] of unpaidByOrder(entries, now, 0)) {
       if (unpaid > 0) {
-        overdue = now - chargedAt.get(orderId)! > settings.days * DAY_MS;
+        const age = now - chargedAt.get(orderId)!;
+        if (age > settings.days * DAY_MS) unpaidDays = Math.floor(age / DAY_MS);
         break; // the oldest unpaid sale decides
       }
     }
   }
-  return { overAmount, overdue };
+  return overAmount === null && unpaidDays === null ? null : { overAmount, unpaidDays };
 }

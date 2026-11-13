@@ -28,6 +28,7 @@ const customer = (id: string, name: string, over: Partial<CustomerRecord> = {}):
   interestMode: null,
   interestRateBp: null,
   interestStartedAt: null,
+  alert: null,
   balance: 0,
   lastActivityAt: null,
   createdAt: 1,
@@ -123,7 +124,7 @@ describe('CustomersPage', () => {
     document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
   });
 
-  const names = (): string[] => Array.from(el.querySelectorAll('[role="row"] [role="cell"]:nth-child(2)')).map((c) => c.textContent!.trim());
+  const names = (): string[] => Array.from(el.querySelectorAll('[role="row"] [role="cell"]:nth-child(2) > p:first-child')).map((c) => c.textContent!.trim());
   const rowOf = (name: string): HTMLElement => Array.from(el.querySelectorAll<HTMLElement>('[role="row"]')).find((r) => r.textContent?.includes(name))!;
   const type = async (selector: string, text: string, root: ParentNode = el): Promise<void> => {
     const input = root.querySelector(selector) as HTMLInputElement;
@@ -143,6 +144,21 @@ describe('CustomersPage', () => {
     expect(row('Aling Nena')).toContain('₱2,000.00'); // the limit
     expect(row('Cora')).toContain('Credit ₱50.00');
     expect(rowOf('Bong').querySelectorAll('[role="cell"]')[3].textContent!.trim()).toBe('-'); // settled
+  });
+
+  it('flags customers who need attention with the reason, and filters to them', async () => {
+    await open([
+      customer('a', 'Aling Nena', { balance: 600_000, alert: { overAmount: 500_000, unpaidDays: 45 } }),
+      customer('b', 'Bakery Boy', { balance: 10_000, alert: { overAmount: null, unpaidDays: 1 } }),
+      customer('c', 'Cora', { balance: 100 }),
+    ]);
+    const alertOf = (name: string): string | null => rowOf(name).querySelector('[data-alert]')?.textContent?.trim() ?? null;
+    expect(alertOf('Aling Nena')).toBe('Over ₱5,000.00 · Unpaid 45 days');
+    expect(alertOf('Bakery Boy')).toBe('Unpaid 1 day');
+    expect(alertOf('Cora')).toBeNull();
+    (fixture.componentInstance as unknown as { balanceFilter: { set(v: string): void } }).balanceFilter.set('attention');
+    await fixture.whenStable();
+    expect(names()).toEqual(['Aling Nena', 'Bakery Boy']);
   });
 
   it('sorts by what they owe and filters by name, phone and balance', async () => {

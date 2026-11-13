@@ -32,7 +32,7 @@ type SortDirection = 'asc' | 'desc';
 type BulkKind = 'delete' | 'restore';
 
 const ALL = 'all';
-const BALANCE_FILTERS = { [ALL]: 'All', owes: 'Owes', settled: 'Settled', credit: 'Has credit' } as const;
+const BALANCE_FILTERS = { [ALL]: 'All', owes: 'Owes', settled: 'Settled', credit: 'Has credit', attention: 'Needs attention' } as const;
 type BalanceFilter = keyof typeof BALANCE_FILTERS;
 
 const SORT_VALUES: Record<SortKey, (c: CustomerRecord) => string | number | null> = {
@@ -86,6 +86,13 @@ export class CustomersPage {
     { key: 'activity', label: 'Last activity' },
   ];
   protected readonly balanceFilters = Object.keys(BALANCE_FILTERS) as BalanceFilter[];
+  private readonly money = new MoneyPipe();
+  /** Why a customer is flagged, for the line under their name: "Over ₱5,000.00 · Unpaid 45 days". */
+  protected alertText(customer: CustomerRecord): string {
+    const alert = customer.alert;
+    if (!alert) return '';
+    return [alert.overAmount !== null ? `Over ${this.money.transform(alert.overAmount)}` : '', alert.unpaidDays !== null ? `Unpaid ${alert.unpaidDays} ${alert.unpaidDays === 1 ? 'day' : 'days'}` : ''].filter(Boolean).join(' · ');
+  }
   protected readonly balanceFilterLabel = (f: BalanceFilter): string => BALANCE_FILTERS[f] ?? '';
 
   // Column filters (second header row); they combine.
@@ -138,7 +145,7 @@ export class CustomersPage {
           !!c.deletedAt === deletedOnly &&
           (!name || c.name.toLowerCase().includes(name)) &&
           (!phone || !!c.phone?.toLowerCase().includes(phone)) &&
-          (balance === ALL || (balance === 'owes' ? c.balance > 0 : balance === 'credit' ? c.balance < 0 : c.balance === 0)) &&
+          (balance === ALL || (balance === 'owes' ? c.balance > 0 : balance === 'credit' ? c.balance < 0 : balance === 'attention' ? !!c.alert : c.balance === 0)) &&
           (noActivityFilter || (c.lastActivityAt !== null && c.lastActivityAt >= from && c.lastActivityAt <= to)),
       )
       .sort(compare);
@@ -199,7 +206,6 @@ export class CustomersPage {
   protected readonly confirmText = signal('');
   protected readonly confirmLabel = signal('Delete');
   protected readonly confirmItems = signal<ConfirmItem[]>([]);
-  private readonly money = new MoneyPipe();
 
   protected ask(kind: BulkKind, customers: CustomerRecord[]): void {
     const rows = kind === 'delete' ? customers.filter((c) => c.balance === 0) : customers;

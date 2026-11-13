@@ -496,7 +496,7 @@ describe('CheckoutPage', () => {
     });
 
     describe('on account', () => {
-      const NENA: CustomerRecord = { id: 'a', name: 'Aling Nena', phone: null, note: null, creditLimit: 100_000, balance: 70_000, lastActivityAt: null, interestMode: null, interestRateBp: null, interestStartedAt: null, createdAt: 1, deletedAt: null };
+      const NENA: CustomerRecord = { id: 'a', name: 'Aling Nena', phone: null, note: null, creditLimit: 100_000, balance: 70_000, lastActivityAt: null, interestMode: null, interestRateBp: null, interestStartedAt: null, alert: null, createdAt: 1, deletedAt: null };
       const chooseCustomer = async (id: string | null): Promise<void> => {
         (fixture.componentInstance as unknown as { customerId: { set(v: string | null): void } }).customerId.set(id);
         await fixture.whenStable();

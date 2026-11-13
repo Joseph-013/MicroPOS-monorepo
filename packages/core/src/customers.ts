@@ -1,4 +1,5 @@
 import type { OrderPaymentMethod } from './draft.js';
+import type { CustomerAlert } from './credit-alerts.js';
 import type { InterestMode } from './credit-interest.js';
 import type { Money } from './index.js';
 
@@ -26,6 +27,8 @@ export interface CustomerRecord extends CustomerInput {
   lastActivityAt: number | null;
   /** When interest was switched on (it is only charged from then); null without interest. */
   interestStartedAt: number | null;
+  /** Why the customer needs attention (the Customers badge counts these), or null. */
+  alert: CustomerAlert | null;
   createdAt: number;
   deletedAt: number | null;
 }

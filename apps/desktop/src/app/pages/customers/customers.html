@@ -101,7 +101,12 @@
                 <div role="cell" class="flex items-center px-3" (pointerdown)="selection.noteModifiers($event)" (click)="$event.stopPropagation()">
                   <hlm-checkbox [aria-label]="'Select ' + customer.name" [checked]="isSelected(customer)" (checkedChange)="toggleRow(customer, $event)" />
                 </div>
-                <div role="cell" class="truncate px-3 text-base">{{ customer.name }}</div>
+                <div role="cell" class="min-w-0 px-3 py-1">
+                  <p class="truncate text-base">{{ customer.name }}</p>
+                  @if (customer.alert) {
+                    <p class="text-destructive truncate text-xs" data-alert>{{ alertText(customer) }}</p>
+                  }
+                </div>
                 <div role="cell" class="text-muted-foreground truncate px-3">{{ customer.phone ?? '-' }}</div>
                 <div role="cell" class="px-3 text-right {{ customer.balance > 0 ? 'text-destructive' : 'text-muted-foreground' }}">
                   {{ customer.balance < 0 ? 'Credit ' : '' }}{{ customer.balance === 0 ? '-' : (customer.balance < 0 ? -customer.balance : customer.balance) | money }}

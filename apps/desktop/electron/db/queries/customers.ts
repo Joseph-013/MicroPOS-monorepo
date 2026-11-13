@@ -16,6 +16,7 @@ import {
 } from '@micropos/core';
 import type { AppDatabase } from '../index';
 import { customerLedger, customers } from '../schema';
+import { creditAlerts } from './credit-alerts';
 import { sellingEmployee } from './orders';
 
 const MAX_BULK = 1000;
@@ -69,7 +70,7 @@ interface Row {
 }
 
 function selectRecords(db: AppDatabase, where: string, params: unknown[] = []): CustomerRecord[] {
-  return db.$client
+  const rows = db.$client
     .prepare(
       `SELECT c.id AS id, c.name AS name, c.phone AS phone, c.note AS note, c.credit_limit AS creditLimit,
               c.interest_mode AS interestMode, c.interest_rate_bp AS interestRateBp, c.interest_started_at AS interestStartedAt,
@@ -79,6 +80,8 @@ function selectRecords(db: AppDatabase, where: string, params: unknown[] = []): 
          FROM customers c ${where} ORDER BY lower(c.name), c.id`,
     )
     .all(...params) as Row[];
+  const alerts = creditAlerts(db);
+  return rows.map((r) => ({ ...r, alert: alerts.get(r.id) ?? null }));
 }
 
 /** Live customers with their balances; deleted ones too when asked. */
