@@ -37,6 +37,7 @@ function createDisplayWindow(bounds: { x: number; y: number; width: number; heig
     autoHideMenuBar: true,
     webPreferences,
   });
+  win.on('page-title-updated', (event) => event.preventDefault()); // the title stays as set above, whatever the page is called
   if (devServerUrl) void win.loadURL(`${devServerUrl}#/customer-display`);
   else void win.loadFile(path.join(__dirname, '../renderer/index.html'), { hash: '/customer-display' });
   return win;
@@ -52,6 +53,8 @@ function createWindow(): void {
     webPreferences,
   });
   mainWindow = win;
+  // The window is always called MicroPOS: the page titles ("Checkout", "Sales Orders") are for the browser, not the title bar.
+  win.on('page-title-updated', (event) => event.preventDefault());
   win.on('closed', () => {
     mainWindow = undefined;
     closeCustomerDisplay(); // the customer display never outlives the till

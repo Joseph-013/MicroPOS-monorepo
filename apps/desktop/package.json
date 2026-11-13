@@ -1,7 +1,8 @@
 {
   "name": "@micropos/desktop",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "productName": "MicroPOS",
+  "desktopName": "micropos.desktop",
   "scripts": {
     "ng": "ng",
     "build:renderer": "ng build",
