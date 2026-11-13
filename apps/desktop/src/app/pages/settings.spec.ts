@@ -85,7 +85,7 @@ describe('SettingsPage', () => {
     const fixture = TestBed.createComponent(SettingsPage);
     await fixture.whenStable();
     const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('h2')].map((h) => h.textContent!.trim());
-    expect(titles).toEqual(['Account', 'Credit Interest', 'Credit Alerts', 'Input', 'Customer Display']);
+    expect(titles).toEqual(['Account', 'Credit Interest', 'Credit Alerts', 'Input', 'Window', 'Customer Display']);
   });
 
   describe('Credit Interest', () => {
@@ -185,6 +185,39 @@ describe('SettingsPage', () => {
       await submit();
       expect(saved).toHaveLength(1);
       expect(el.textContent).toContain('Enter an amount and a number of days');
+    });
+  });
+
+  describe('Window', () => {
+    async function open(permissions: Parameters<typeof sessionUser>[0], initial = false) {
+      const saved: boolean[] = [];
+      const api = {
+        ...fakeAuthApi({ status: sessionUser(permissions) }).api,
+        display: { isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined },
+        shell: { getCloseToTray: () => Promise.resolve(initial), setCloseToTray: (v: boolean) => (saved.push(v), Promise.resolve(true)) },
+      } as unknown as DesktopApi;
+      TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
+      await TestBed.inject(AuthService).whenReady();
+      const fixture = TestBed.createComponent(SettingsPage);
+      await fixture.whenStable();
+      await new Promise((r) => setTimeout(r, 20));
+      await fixture.whenStable();
+      return { fixture, el: fixture.nativeElement as HTMLElement, saved };
+    }
+
+    it('lets an admin keep the app running in the tray when the window is closed', async () => {
+      const { fixture, el, saved } = await open(['settings.manage'], true);
+      const toggle = el.querySelector('app-window-settings hlm-switch button') as HTMLButtonElement;
+      expect(toggle.getAttribute('aria-checked')).toBe('true'); // shows what is saved
+      toggle.click();
+      await fixture.whenStable();
+      expect(saved).toEqual([false]);
+      expect(toggle.getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('is only for people who may change shop settings', async () => {
+      const { el } = await open(['customers.manage', 'users.manage']);
+      expect(el.querySelector('app-window-settings')).toBeNull();
     });
   });
 

@@ -69,6 +69,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       clearRepackageDraft: () => Promise.resolve(),
     },
     data: { onChanged: () => () => undefined },
+      shell: { getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true) },
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: {
       listProducts: () => Promise.resolve(PRODUCTS),
