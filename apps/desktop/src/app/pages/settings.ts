@@ -9,6 +9,7 @@ import { BannerService } from '../core/banner';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
+import { THEME_LABELS, THEME_MODES, type ThemeMode, ThemeService } from '../core/theme.service';
 import { CustomerDisplayService } from '../core/customer-display.service';
 import { CUSTOMER_DISPLAY_MODES, type CustomerDisplayMode } from '@micropos/core';
 import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-settings.service';
@@ -27,6 +28,19 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
           <div class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
             <span>Signed in as {{ user.name }}</span>
             <button hlmBtn variant="outline" type="button" class="px-4" (click)="changePin()">Change PIN</button>
+          </div>
+          <div class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+            <span id="theme-label">Theme</span>
+            <hlm-select [value]="theme.mode()" (valueChange)="setTheme($event)" [itemToString]="themeLabel">
+              <hlm-select-trigger class="w-40" aria-labelledby="theme-label">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (mode of themes; track mode) {
+                  <hlm-select-item [value]="mode">{{ themeLabel(mode) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
           </div>
         </div>
       </section>
@@ -104,6 +118,12 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
 })
 export class SettingsPage {
   protected readonly auth = inject(AuthService);
+  protected readonly theme = inject(ThemeService);
+  protected readonly themes = THEME_MODES;
+  protected readonly themeLabel = (mode: ThemeMode): string => THEME_LABELS[mode];
+  protected setTheme(mode: ThemeMode | null | undefined): void {
+    if (mode) this.theme.set(mode);
+  }
   private readonly dialogs = inject(HlmDialogService);
   private readonly banner = inject(BannerService);
   protected changePin(): void {

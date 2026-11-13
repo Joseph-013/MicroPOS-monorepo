@@ -10,8 +10,6 @@ import {
   lucideLock,
   lucideUserCog,
   lucideUserRound,
-  lucideMonitor,
-  lucideMoon,
   lucidePackage,
   lucidePin,
   lucidePinOff,
@@ -19,7 +17,6 @@ import {
   lucideUsers,
   lucideSettings,
   lucideShoppingCart,
-  lucideSun,
   lucideTruck,
 } from '@ng-icons/lucide';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
@@ -29,7 +26,6 @@ import { AuthService } from './auth/auth.service';
 import { NavBadges } from './nav-badges';
 import { Logo } from './logo';
 import { StorageService } from './storage/storage.service';
-import { ThemeMode, ThemeService } from './theme.service';
 
 /** A nav entry: either a link (`path`) or a group (`children`), nestable to any depth. */
 export interface NavItem {
@@ -65,9 +61,6 @@ export interface NavItem {
   lucideUserCog,
   lucideUserRound,
       lucideLayoutGrid,
-      lucideSun,
-      lucideMoon,
-      lucideMonitor,
       lucidePin,
       lucidePinOff,
     }),
@@ -76,7 +69,6 @@ export interface NavItem {
   host: { class: 'block shrink-0 transition-[width] duration-200 ease-out' , '[style.width]': 'pinned() ? "16rem" : "3.5rem"' },
 })
 export class NavRail {
-  protected readonly theme = inject(ThemeService);
   protected readonly auth = inject(AuthService);
   private readonly badges = inject(NavBadges);
   private readonly storage = inject(StorageService);
@@ -244,15 +236,6 @@ export class NavRail {
     return level === 0 ? 11 : 41 + (level - 1) * 12;
   }
 
-  private readonly modes: { id: ThemeMode; label: string; icon: string }[] = [
-    { id: 'light', label: 'Light', icon: 'lucideSun' },
-    { id: 'dark', label: 'Dark', icon: 'lucideMoon' },
-    { id: 'system', label: 'System', icon: 'lucideMonitor' },
-  ];
-
-  protected readonly currentMode = computed(
-    () => this.modes.find((m) => m.id === this.theme.mode()) ?? this.modes[2],
-  );
 
   protected lock(): void {
     void this.auth.signOut();
@@ -271,8 +254,4 @@ export class NavRail {
     this.storage.set('navPinned', this.pinned());
   }
 
-  protected cycleTheme(): void {
-    const i = this.modes.findIndex((m) => m.id === this.theme.mode());
-    this.theme.mode.set(this.modes[(i + 1) % this.modes.length].id);
-  }
 }
