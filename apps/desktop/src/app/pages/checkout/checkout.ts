@@ -14,7 +14,6 @@ import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
-import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { BannerService } from '../../core/banner';
 import { scrollToRow } from '../../core/row-target';
 import { CatalogService } from '../../core/data/catalog.service';
@@ -59,7 +58,6 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
     HlmInputImports,
     HlmLabelImports,
     HlmSelectImports,
-    HlmSwitchImports,
   ],
   providers: [provideIcons({ lucideFilterX, lucideX, lucideMinus, lucidePlus, lucideTrash2 })],
   templateUrl: './checkout.html',
@@ -70,8 +68,8 @@ export class CheckoutPage {
   private readonly banner = inject(BannerService);
   private readonly viewer = inject(SalesOrderViewer);
   protected readonly customers = inject(CustomersService);
-  /** The customer-facing window: opened and closed from the header, and kept up to date with the order. */
-  protected readonly display = inject(CustomerDisplayService);
+  /** The customer-facing window (opened and closed in Settings): kept up to date with the order. */
+  private readonly display = inject(CustomerDisplayService);
 
   // The order in progress. It is saved automatically as a draft and restored when the page opens.
   protected readonly lines = signal<DraftLine[]>([]);

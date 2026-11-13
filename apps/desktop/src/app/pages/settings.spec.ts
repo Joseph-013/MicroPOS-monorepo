@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import type { CustomerDisplayMode, DesktopApi } from '@micropos/core';
+import { DESKTOP_API } from '../core/api/desktop-api';
 import { AppSettings } from '../core/settings/app-settings.service';
 import { SettingsPage } from './settings';
 
@@ -140,5 +142,53 @@ describe('SettingsPage', () => {
     localStorage.setItem('micropos.schemaVersion', '5');
     expect(TestBed.inject(AppSettings).customerDisplayMode()).toBe('windowed');
     expect(localStorage.getItem('micropos.customerDisplayMode')).toBe('"windowed"');
+  });
+
+  it('has the switch that shows and hides the customer display window, and follows the window being closed', async () => {
+    const calls = { show: [] as (CustomerDisplayMode | undefined)[], hide: 0 };
+    const listeners: ((open: boolean) => void)[] = [];
+    const api = {
+      display: {
+        show: (options?: { mode?: CustomerDisplayMode }) => {
+          calls.show.push(options?.mode);
+          listeners.forEach((l) => l(true));
+          return Promise.resolve();
+        },
+        hide: () => {
+          calls.hide++;
+          listeners.forEach((l) => l(false));
+          return Promise.resolve();
+        },
+        isOpen: () => Promise.resolve(false),
+        onVisibility: (l: (open: boolean) => void) => {
+          listeners.push(l);
+          return () => undefined;
+        },
+      },
+    } as unknown as DesktopApi;
+    TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
+    const fixture = TestBed.createComponent(SettingsPage);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Show customer display');
+    const row = [...el.querySelectorAll('label')].find((l) => l.textContent?.includes('Show customer display'))!;
+    const button = row.querySelector('hlm-switch button') as HTMLElement;
+    expect(button.getAttribute('aria-checked')).toBe('false');
+
+    button.click();
+    await fixture.whenStable();
+    expect(calls.show).toEqual(['windowed']); // opened in the chosen window mode
+    expect(button.getAttribute('aria-checked')).toBe('true');
+    button.click();
+    await fixture.whenStable();
+    expect(calls.hide).toBe(1);
+    expect(button.getAttribute('aria-checked')).toBe('false');
+
+    listeners.forEach((l) => l(true)); // opened from elsewhere (on start)
+    await fixture.whenStable();
+    expect(button.getAttribute('aria-checked')).toBe('true');
+    listeners.forEach((l) => l(false)); // closed from the window's own title bar
+    await fixture.whenStable();
+    expect(button.getAttribute('aria-checked')).toBe('false');
   });
 });

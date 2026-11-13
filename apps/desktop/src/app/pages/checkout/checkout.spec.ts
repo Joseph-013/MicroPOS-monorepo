@@ -615,26 +615,9 @@ describe('CheckoutPage', () => {
     beforeEach(() => open());
     const last = (): CustomerDisplayState => store.published.at(-1)!;
 
-    it('has a switch that shows and hides the window, and reflects whether it is open', async () => {
-      const toggle = (): HTMLButtonElement => el.querySelector('hlm-switch[aria-label="Customer display"] button, hlm-switch button') as HTMLButtonElement;
-      expect(toggle().getAttribute('aria-checked')).toBe('false');
-      toggle().click();
-      await fixture.whenStable();
-      expect(store.displayOpen).toBe(true);
-      expect(toggle().getAttribute('aria-checked')).toBe('true');
-      toggle().click();
-      await fixture.whenStable();
-      expect(store.displayOpen).toBe(false);
-      expect(toggle().getAttribute('aria-checked')).toBe('false');
-    });
-
-    it('follows the window when it is closed from the window itself', async () => {
-      await (TestBed.inject(DESKTOP_API) as DesktopApi).display.show();
-      await fixture.whenStable();
-      expect((el.querySelector('hlm-switch button') as HTMLElement).getAttribute('aria-checked')).toBe('true');
-      await (TestBed.inject(DESKTOP_API) as DesktopApi).display.hide();
-      await fixture.whenStable();
-      expect((el.querySelector('hlm-switch button') as HTMLElement).getAttribute('aria-checked')).toBe('false');
+    it('has no switch for the window: that is in Settings', () => {
+      expect(el.querySelector('hlm-switch')).toBeNull();
+      expect(el.textContent).not.toContain('Customer display');
     });
 
     it('publishes the order as it is rung up: lines with quantities and prices, and the total', async () => {

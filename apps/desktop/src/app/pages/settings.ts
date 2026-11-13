@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
+import { CustomerDisplayService } from '../core/customer-display.service';
 import { CUSTOMER_DISPLAY_MODES, type CustomerDisplayMode } from '@micropos/core';
 import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-settings.service';
 
@@ -34,6 +35,11 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
         <h2 hlmCardTitle>Customer Display</h2>
       </div>
       <div hlmCardContent>
+        <!-- Shows or hides the customer-facing window now (it follows the window being closed from its own title bar). -->
+        <label class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+          <span>Show customer display</span>
+          <hlm-switch aria-label="Show customer display" [checked]="display.open()" (checkedChange)="display.set($event)" />
+        </label>
         <label class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
           <span>Open on start</span>
           <hlm-switch [checked]="settings.customerDisplayOnStart()" (checkedChange)="settings.customerDisplayOnStart.set($event)" />
@@ -70,6 +76,7 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
 })
 export class SettingsPage {
   protected readonly settings = inject(AppSettings);
+  protected readonly display = inject(CustomerDisplayService);
   protected readonly scales = CUSTOMER_DISPLAY_SCALES;
   protected readonly modes = CUSTOMER_DISPLAY_MODES;
   protected readonly modeLabel = (mode: CustomerDisplayMode): string => ({ windowed: 'Windowed', maximized: 'Maximized', fullscreen: 'Full screen' })[mode] ?? '';
