@@ -24,7 +24,7 @@ import { AppPager, Pager } from '../../core/ui/pager';
 import type { OrderActionKind } from './order-action-form';
 import { METHOD_LABELS, STATUS_LABELS } from './sales-order-form';
 
-type SortKey = 'number' | 'date' | 'cashier' | 'items' | 'method' | 'status' | 'total';
+type SortKey = 'number' | 'date' | 'cashier' | 'customer' | 'items' | 'method' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
 type Status = SalesOrderSummary['status'];
 
@@ -41,6 +41,7 @@ const SORT_VALUES: Record<SortKey, (o: SalesOrderSummary) => string | number> = 
   number: (o) => o.orderNumber,
   date: (o) => o.createdAt,
   cashier: (o) => o.employeeName,
+  customer: (o) => o.customerName ?? '',
   items: (o) => o.itemCount,
   method: methodText,
   status: (o) => o.status,
@@ -48,7 +49,7 @@ const SORT_VALUES: Record<SortKey, (o: SalesOrderSummary) => string | number> = 
 };
 
 /** Column widths shared by the title row, the filter row and every row. */
-export const COLUMNS_TEMPLATE = '3.5rem minmax(8rem,1fr) 13rem minmax(9rem,1.4fr) 6rem minmax(8rem,1fr) 9rem 8rem';
+export const COLUMNS_TEMPLATE = '3.5rem minmax(8rem,1fr) 13rem minmax(9rem,1.4fr) minmax(9rem,1.2fr) 6rem minmax(8rem,1fr) 9rem 8rem';
 
 /** Sales Orders: every recorded sale, newest first. Open one to see its lines and payment. */
 @Component({
@@ -82,6 +83,7 @@ export class OrdersPage {
     { key: 'number', label: 'Order' },
     { key: 'date', label: 'Date' },
     { key: 'cashier', label: 'Cashier' },
+    { key: 'customer', label: 'Customer' },
     { key: 'items', label: 'Items', right: true },
     { key: 'method', label: 'Payment' },
     { key: 'status', label: 'Status' },
@@ -96,12 +98,13 @@ export class OrdersPage {
   // Column filters (second header row); they combine.
   protected readonly numberFilter = signal('');
   protected readonly cashierFilter = signal('');
+  protected readonly customerFilter = signal('');
   protected readonly methodFilter = signal<MethodFilter>(ALL);
   protected readonly statusFilter = signal<StatusFilter>(ALL);
   protected readonly dateFrom = signal('');
   protected readonly dateTo = signal('');
   protected readonly filtered = computed(
-    () => !!(this.numberFilter() || this.cashierFilter() || this.dateFrom() || this.dateTo()) || this.methodFilter() !== ALL || this.statusFilter() !== ALL,
+    () => !!(this.numberFilter() || this.cashierFilter() || this.customerFilter() || this.dateFrom() || this.dateTo()) || this.methodFilter() !== ALL || this.statusFilter() !== ALL,
   );
 
   protected readonly sortKey = signal<SortKey>('date');
@@ -121,6 +124,7 @@ export class OrdersPage {
   protected readonly visible = computed(() => {
     const number = this.numberFilter().trim().toLowerCase();
     const cashier = this.cashierFilter().trim().toLowerCase();
+    const customer = this.customerFilter().trim().toLowerCase();
     const method = this.methodFilter();
     const status = this.statusFilter();
     const from = this.dateFrom() ? new Date(`${this.dateFrom()}T00:00:00`).getTime() : -Infinity;
@@ -138,6 +142,7 @@ export class OrdersPage {
         (o) =>
           (!number || o.orderNumber.toLowerCase().includes(number)) &&
           (!cashier || o.employeeName.toLowerCase().includes(cashier)) &&
+          (!customer || !!o.customerName?.toLowerCase().includes(customer)) &&
           (method === ALL || o.methods.includes(method as OrderPaymentMethod)) &&
           (status === ALL || (status === 'refund' ? o.isRefund : o.status === (status as Status) && !o.isRefund)) &&
           o.createdAt >= from &&
@@ -148,7 +153,7 @@ export class OrdersPage {
 
   protected readonly pager = new Pager(
     () => this.visible(),
-    () => [this.numberFilter(), this.cashierFilter(), this.methodFilter(), this.statusFilter(), this.dateFrom(), this.dateTo(), this.sortKey(), this.sortDirection()],
+    () => [this.numberFilter(), this.cashierFilter(), this.customerFilter(), this.methodFilter(), this.statusFilter(), this.dateFrom(), this.dateTo(), this.sortKey(), this.sortDirection()],
   );
   /** The row that is the target of a link or of the order dialog: highlighted, not selected. */
   protected readonly target = rowTarget();
@@ -199,6 +204,7 @@ export class OrdersPage {
   protected resetFilters(): void {
     this.numberFilter.set('');
     this.cashierFilter.set('');
+    this.customerFilter.set('');
     this.methodFilter.set(ALL);
     this.statusFilter.set(ALL);
     this.dateFrom.set('');

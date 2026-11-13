@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { DESKTOP_API_VERSION, type DesktopApi, type ProductRecord, type SalesOrderDetail } from '@micropos/core';
 import { DESKTOP_API } from './api/desktop-api';
 import { BannerService } from './banner';
+import { CustomerViewer } from './customer-viewer';
 import { ProductViewer } from './product-viewer';
 import { SalesOrderViewer } from './sales-order-viewer';
 
@@ -79,13 +80,17 @@ function setup() {
       },
     },
     products: { list: () => Promise.resolve([PRODUCT]) },
+    customers: {
+      account: (id: string) => Promise.resolve(id === 'cu1' ? { customer: { id: 'cu1', name: 'Aling Nena', phone: null, note: null, creditLimit: null, balance: 400, lastActivityAt: 1, createdAt: 1, deletedAt: null }, entries: [] } : null),
+    },
   } as unknown as DesktopApi;
   void DESKTOP_API_VERSION;
   TestBed.configureTestingModule({
     providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }],
   });
   const viewer = TestBed.inject(SalesOrderViewer);
-  TestBed.inject(ProductViewer); // both are started at launch by the app root
+  TestBed.inject(ProductViewer); // all of them are started at launch by the app root
+  TestBed.inject(CustomerViewer);
   return { viewer, router: TestBed.inject(Router) };
 }
 
@@ -216,6 +221,23 @@ describe('SalesOrderViewer', () => {
     expect(TestBed.inject(BannerService).current()?.text).toBe('Order not found');
     expect(router.url).toBe('/orders');
     expect(dialogText()).toBe('');
+  });
+
+  it('a credit sale shows its customer and what went on account; the customer opens their account over the order', async () => {
+    const { router } = setup();
+    fake.order = { ...ORDER, customer: { id: 'cu1', name: 'Aling Nena' }, onAccount: 400 };
+    await router.navigateByUrl('/orders?view-sales-order=o1');
+    await settle();
+    const order = document.querySelector('#sales-order')!.textContent!.replace(/\s+/g, ' ');
+    expect(order).toContain('Customer');
+    expect(order).toContain('On account');
+    expect(order).toContain('₱4.00');
+
+    (Array.from(document.querySelectorAll<HTMLButtonElement>('#sales-order dl button')).find((b) => b.textContent?.trim() === 'Aling Nena'))!.click();
+    await settle();
+    expect(router.url).toBe('/orders?view-sales-order=o1&view-customer=cu1');
+    expect(document.querySelector('#customer-account')?.textContent).toContain('Aling Nena');
+    expect(document.querySelector('#sales-order')).not.toBeNull(); // the order stays underneath
   });
 
   describe('void and refund', () => {

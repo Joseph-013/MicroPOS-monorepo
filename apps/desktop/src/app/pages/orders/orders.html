@@ -14,7 +14,7 @@
   </header>
 
   <div class="min-h-0 flex-1 overflow-auto">
-    <div role="table" aria-label="Sales Orders" class="min-w-[66rem] text-sm" [style.--cols]="columnsTemplate">
+    <div role="table" aria-label="Sales Orders" class="min-w-[74rem] text-sm" [style.--cols]="columnsTemplate">
       <div role="rowgroup" class="bg-background sticky top-0 z-10">
         <!-- Row 1: column titles, click to sort -->
         <div role="row" class="grid grid-cols-(--cols) border-b">
@@ -53,6 +53,9 @@
           </div>
           <div role="columnheader" class="px-3 py-2">
             <app-filter-input [(value)]="cashierFilter" placeholder="Cashier" label="Filter cashier" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="customerFilter" placeholder="Customer" label="Filter customer" />
           </div>
           <div role="columnheader"></div>
           <div role="columnheader" class="px-3 py-2">
@@ -109,6 +112,16 @@
               <div role="cell" class="truncate px-3 text-base">{{ order.orderNumber }}</div>
               <div role="cell" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ order.createdAt | date: 'MMM d, y, h:mm a' }}</div>
               <div role="cell" class="text-muted-foreground truncate px-3">{{ order.employeeName }}</div>
+              <div role="cell" class="min-w-0 px-3">
+                @if (order.customerName) {
+                  <p class="truncate">{{ order.customerName }}</p>
+                  @if (order.onAccount !== 0) {
+                    <p class="text-xs {{ order.onAccount > 0 ? 'text-destructive' : 'text-muted-foreground' }}">{{ order.onAccount | money }} on account</p>
+                  }
+                } @else {
+                  <span class="text-muted-foreground">-</span>
+                }
+              </div>
               <div role="cell" class="text-muted-foreground px-3 text-right">{{ order.itemCount }}</div>
               <div role="cell" class="text-muted-foreground truncate px-3">{{ methodText(order) }}</div>
               <div role="cell" class="px-3">

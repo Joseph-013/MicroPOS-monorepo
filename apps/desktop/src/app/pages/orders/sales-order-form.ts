@@ -10,6 +10,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { OrdersService } from '../../core/data/orders.service';
 import { MoneyPipe } from '../../core/money.pipe';
+import { CustomerViewer } from '../../core/customer-viewer';
 import { OrderActions } from '../../core/order-actions';
 import { ProductViewer } from '../../core/product-viewer';
 import { HIGHLIGHT_PARAM } from '../../core/row-target';
@@ -44,6 +45,14 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', 
         <dd class="text-foreground">{{ (order().completedAt ?? order().createdAt) | date: 'MMM d, y, h:mm a' }}</dd>
         <dt>Cashier</dt>
         <dd class="text-foreground">{{ order().employeeName }}</dd>
+        @if (order().customer; as customer) {
+          <dt>Customer</dt>
+          <dd><button type="button" class="text-primary underline-offset-4 hover:underline" (click)="viewCustomer(customer.id)">{{ customer.name }}</button></dd>
+        }
+        @if (order().onAccount !== 0) {
+          <dt>On account</dt>
+          <dd [class.text-destructive]="order().onAccount > 0">{{ order().onAccount | money }}</dd>
+        }
         @if (order().refundOf; as source) {
           <dt>Refund of</dt>
           <dd><button type="button" class="text-primary underline-offset-4 hover:underline" (click)="openOrder(source.id)">{{ source.orderNumber }}</button></dd>
@@ -144,6 +153,12 @@ export class SalesOrderForm {
   private readonly actions = inject(OrderActions);
   private readonly orders = inject(OrdersService);
   private readonly router = inject(Router);
+  private readonly customerViewer = inject(CustomerViewer);
+
+  /** Opens the customer's account over this dialog. */
+  protected viewCustomer(customerId: string): void {
+    void this.customerViewer.open(customerId);
+  }
   protected readonly canReverse = computed(() => canReverseOrder({ status: this.order().status, isRefund: !!this.order().refundOf }));
   protected readonly statusLabel = computed(() => (this.order().refundOf ? 'Refund' : STATUS_LABELS[this.order().status]));
 

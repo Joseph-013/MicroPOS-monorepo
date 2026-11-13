@@ -363,4 +363,26 @@ describe('OrdersPage refund rows', () => {
     expect(names()).toEqual(['SO-1']);
     fixture.destroy();
   });
+
+  it('shows the customer and what is on account, and filters by customer', async () => {
+    const list = [order('s', 1, { customerName: 'Aling Nena', onAccount: 700 }), order('t', 2), order('u', 3, { customerName: 'Bong', onAccount: 0 })];
+    const api = { orders: { list: () => Promise.resolve(list), get: () => Promise.resolve(null) } } as unknown as DesktopApi;
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
+    const fixture = TestBed.createComponent(OrdersPage);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const rowText = (n: number): string => Array.from(el.querySelectorAll('[role="row"]')).find((r) => r.textContent?.includes(`SO-${n}`))!.textContent!.replace(/\s+/g, ' ');
+    expect(rowText(1)).toContain('Aling Nena');
+    expect(rowText(1)).toContain('₱7.00 on account');
+    expect(rowText(3)).toContain('Bong');
+    expect(rowText(3)).not.toContain('on account'); // fully paid
+    expect(rowText(2)).not.toContain('Aling');
+
+    const input = el.querySelector('input[aria-label="Filter customer"]') as HTMLInputElement;
+    input.value = 'nena';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await fixture.whenStable();
+    expect(Array.from(el.querySelectorAll('[role="row"] [role="cell"]:nth-child(2)')).map((c) => c.textContent!.trim())).toEqual(['SO-1']);
+    fixture.destroy();
+  });
 });
