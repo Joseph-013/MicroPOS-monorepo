@@ -139,7 +139,7 @@ export { DESKTOP_API_VERSION, type DesktopApi } from './desktop-api.js';
 export { canReverseOrder, ORDER_PAYMENT_METHODS } from './draft.js';
 export type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, DraftLine, OrderLineProblem, OrderPaymentMethod, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
 export { formatQuantity, lineTotal, MAX_QUANTITY_DECIMALS, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from './quantity.js';
-export { gramsToQuantityMilli, isScaleBarcode, parseScaleBarcode, type ScaleLabel } from './scale-barcode.js';
+export { gramsToQuantityMilli, isScaleBarcode, parseScaleBarcode, productCodeOf, type ScaleLabel } from './scale-barcode.js';
 
 export {
   ALL_PERMISSIONS,

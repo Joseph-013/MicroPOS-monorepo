@@ -422,6 +422,16 @@ describe('ProductsPage', () => {
       expect(TestBed.inject(BannerService).current()?.text).toBe('No product with barcode 1111111111116');
     });
 
+    it('a scale label (2 + PLU + weight) looks up the PLU inside it', async () => {
+      await open([record('1', 'Milk', { barcode: '5900000000107' }), record('2', 'Cheddar', { barcode: '71072', unit: 'kg' })]);
+      await scan('2710720033506'); // PLU 71072, 3.35 kg
+      expect(rowNames()).toEqual(['Cheddar']);
+      expect((el.querySelector('input[aria-label="Filter barcode or PLU"]') as HTMLInputElement).value).toBe('71072');
+      await scan('2999990033502'); // a label for a PLU nobody has
+      expect(rowNames()).toEqual([]);
+      expect(TestBed.inject(BannerService).current()?.text).toBe('No product with PLU 99999');
+    });
+
     it('with the form open, a scan fills its barcode field and leaves the table alone', async () => {
       await open([record('1', 'Milk', { barcode: '5900000000107' }), record('2', 'Eggs', { barcode: '5900000000015' })]);
       bodyRows()[0]!.click();

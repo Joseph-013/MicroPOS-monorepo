@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
-import { formatQuantity, parseQuantityMilli, type ProductRecord, type PurchaseDetail, type PurchaseLineRecord, type StockField, tracksBatches, tracksExpiry } from '@micropos/core';
+import { productCodeOf, formatQuantity, parseQuantityMilli, type ProductRecord, type PurchaseDetail, type PurchaseLineRecord, type StockField, tracksBatches, tracksExpiry } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
@@ -272,7 +272,8 @@ export class ReceiveStockForm {
     if (this.context.orderId) void this.chooseOrder(this.context.orderId);
     if (this.start) this.applyDefaults(this.start);
     // A scan picks the product with that code (tracked products only).
-    claimScanner(({ code }) => {
+    claimScanner(({ code: scanned }) => {
+      const code = productCodeOf(scanned); // a scale label stands for its PLU
       const found = this.liveProducts().find((p) => p.barcode === code);
       if (found && this.order() && !this.choosable().some((p) => p.id === found.id)) {
         this.problem.set({ field: 'product', error: `${found.name} is not waiting on ${this.order()!.number}` });

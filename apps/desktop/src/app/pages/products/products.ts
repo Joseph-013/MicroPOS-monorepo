@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2, lucideUndo2 } from '@ng-icons/lucide';
-import { expiryState, formatQuantity, isPlu, isWeighed, type ProductRecord } from '@micropos/core';
+import { expiryState, productCodeOf, formatQuantity, isPlu, isWeighed, type ProductRecord } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -380,12 +380,13 @@ export class ProductsPage {
 
     // A scan looks the code up: other filters are cleared and the barcode / PLU filter is set to the code. While a
     // dialog is open the form claims the scanner instead, so scans never change the table behind it.
-    claimScanner(({ code }) => {
+    claimScanner(({ code: scanned }) => {
+      const code = productCodeOf(scanned); // a scale label looks up the PLU inside it
       this.resetFilters();
       this.codeFilter.set(code);
       this.clearSelection();
       if (!this.service.products().some((p) => p.barcode === code)) {
-        this.banner.warning(`No product with barcode ${code}`, { duration: 'long', key: 'unknown-barcode' });
+        this.banner.warning(`No product with ${code === scanned ? 'barcode' : 'PLU'} ${code}`, { duration: 'long', key: 'unknown-barcode' });
       }
     });
   }

@@ -38,3 +38,10 @@ export function gramsToQuantityMilli(grams: number, unit: ProductUnit): number |
   const per = GRAMS_PER[unit];
   return per ? Math.max(1, Math.round((grams / per) * 1000)) : null;
 }
+
+/**
+ * The code to look a product up by when something was scanned: a scale label stands for the PLU inside it (the weight
+ * is of no use when finding a product), any other code stands for itself. Checkout reads the weight as well and
+ * uses `parseScaleBarcode` directly.
+ */
+export const productCodeOf = (scanned: string): string => parseScaleBarcode(scanned)?.plu ?? scanned;

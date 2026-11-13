@@ -1,5 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { formatQuantity, parseQuantityMilli, type PurchaseDetail, type PurchaseLineRecord, tracksBatches, tracksExpiry } from '@micropos/core';
+import { productCodeOf, formatQuantity, parseQuantityMilli, type PurchaseDetail, type PurchaseLineRecord, tracksBatches, tracksExpiry } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -131,7 +131,8 @@ export class PurchaseReceiveForm {
 
   constructor() {
     // A scan counts one of that product as arrived (the line's quantity can then be corrected by hand).
-    claimScanner(({ code }) => {
+    claimScanner(({ code: scanned }) => {
+      const code = productCodeOf(scanned); // a scale label stands for its PLU
       const line = this.lines.find((l) => l.productCode === code && l.tracking !== 'none');
       if (!line) {
         this.problem.set({ lineId: null, field: null, error: `No product with code ${code} is waiting on ${this.purchase.number}` });

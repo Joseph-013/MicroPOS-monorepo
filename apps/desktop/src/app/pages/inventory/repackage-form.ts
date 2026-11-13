@@ -1,7 +1,7 @@
 import { Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePlus, lucideX } from '@ng-icons/lucide';
-import { formatQuantity, parseQuantityMilli, type ProductRecord, type RepackageDraft, type RepackageField, tracksExpiry } from '@micropos/core';
+import { productCodeOf, formatQuantity, parseQuantityMilli, type ProductRecord, type RepackageDraft, type RepackageField, tracksExpiry } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmComboboxImports } from '@spartan-ng/helm/combobox';
@@ -223,7 +223,8 @@ export class RepackageForm {
       if (!this.finished) this.inventory.flushRepackageDraft();
     });
     // A scan picks the product to open (tracked products only).
-    claimScanner(({ code }) => {
+    claimScanner(({ code: scanned }) => {
+      const code = productCodeOf(scanned); // a scale label stands for its PLU
       const found = this.trackedProducts().find((p) => p.barcode === code);
       if (found) this.chooseSource(found.id);
       else this.problem.set({ field: 'source', error: `No tracked product with code ${code}` });
