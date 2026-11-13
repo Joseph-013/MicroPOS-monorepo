@@ -328,6 +328,15 @@ describe('PurchasesPage', () => {
     expect(button(dialog, 'Cancel order')).toBeUndefined();
   });
 
+  it('Receive stock opens over the page, against an order, and the list follows', async () => {
+    await open();
+    button(el, 'Receive stock')!.click();
+    await settle();
+    const form = document.querySelector('#receive-stock')!;
+    expect(form.textContent).toContain('Receive stock');
+    expect(form.querySelector('#r-order')).not.toBeNull(); // PO-1003 is waiting for stock
+  });
+
   it('places an order: pick a supplier and products, with quantity and cost', async () => {
     await open();
     button(el, 'New purchase')!.click();

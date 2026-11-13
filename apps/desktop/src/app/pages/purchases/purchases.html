@@ -5,6 +5,7 @@
       @if (owedTotal() > 0) {
         <span class="text-sm"><span class="text-muted-foreground">Owed</span> <span class="text-destructive ml-1">{{ owedTotal() | money }}</span></span>
       }
+      <button hlmBtn variant="outline" type="button" class="px-4" (click)="receiveStock()">Receive stock</button>
       <button hlmBtn type="button" class="px-4" (click)="add()">New purchase</button>
     </div>
   </header>
