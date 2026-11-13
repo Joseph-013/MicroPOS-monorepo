@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { formatQuantity, parseQuantityMilli, type PurchaseDetail, type PurchaseLineRecord, tracksBatches, tracksExpiry } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
+import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmInputImports } from '@spartan-ng/helm/input';
@@ -8,6 +9,7 @@ import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { ProductsService } from '../../core/data/products.service';
 import { PurchasesService } from '../../core/data/purchases.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
+import { ConfirmItems, type ConfirmItem } from '../../core/ui/confirm-items';
 import { claimScanner } from '../../core/scanner';
 import { AppSettings } from '../../core/settings/app-settings.service';
 import { fromDateInput } from '../inventory/receive-stock-form';
@@ -29,13 +31,13 @@ interface LineEntry {
  */
 @Component({
   host: { class: 'contents' },
-  imports: [OnScreenKeypadDirective, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports],
+  imports: [ConfirmItems, OnScreenKeypadDirective, HlmAlertDialogImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports],
   template: `
     <hlm-dialog-header>
       <h3 hlmDialogTitle>Receive {{ purchase.number }}</h3>
     </hlm-dialog-header>
 
-    <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); submit()">
+    <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); review()">
       <ul class="divide-border flex flex-col divide-y border-y">
         @for (line of lines; track line.id) {
           <li class="grid gap-3 py-3">
@@ -90,9 +92,26 @@ interface LineEntry {
       <button hlmBtn variant="outline" type="button" class="px-4" (click)="takeAll()">Everything left</button>
       <div class="flex gap-2">
         <button hlmBtn hlmDialogClose variant="outline" type="button" class="px-5">Cancel</button>
-        <button hlmBtn type="button" class="px-6" [disabled]="saving() || !anyArriving()" (click)="submit()">Receive</button>
+        <button hlmBtn type="button" class="px-6" [disabled]="saving() || !anyArriving()" (click)="review()">Receive</button>
       </div>
     </hlm-dialog-footer>
+
+    <!-- Asked before anything is written: what is about to go into stock (or that nothing will). -->
+    <hlm-alert-dialog [state]="confirming() ? 'open' : 'closed'" (closed)="confirming.set(false)">
+      <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+        <hlm-alert-dialog-header>
+          <h3 hlmAlertDialogTitle>Receive stock for {{ purchase.number }}?</h3>
+          <p hlmAlertDialogDescription>{{ confirmText() }}</p>
+        </hlm-alert-dialog-header>
+        @if (confirmItems().length) {
+          <app-confirm-items [items]="confirmItems()" />
+        }
+        <hlm-alert-dialog-footer>
+          <button hlmAlertDialogCancel type="button">Cancel</button>
+          <button hlmAlertDialogAction type="button" (click)="send()">Receive</button>
+        </hlm-alert-dialog-footer>
+      </hlm-alert-dialog-content>
+    </hlm-alert-dialog>
   `,
 })
 export class PurchaseReceiveForm {
@@ -163,14 +182,36 @@ export class PurchaseReceiveForm {
     return p?.lineId === line.id ? p.error : null;
   }
 
-  protected async submit(): Promise<void> {
+  protected readonly confirming = signal(false);
+  protected readonly confirmItems = signal<ConfirmItem[]>([]);
+  protected readonly confirmText = signal('');
+
+  /** Checks what was entered, then asks to confirm; nothing is written until it is. */
+  protected review(): void {
+    if (this.saving() || !this.anyArriving()) return;
+    this.problem.set(null);
+    for (const line of this.lines.filter((l) => l.tracking !== 'none')) {
+      const e = this.entry(line);
+      if (e.arriving.trim() !== '' && parseQuantityMilli(e.arriving) === null) return void this.problem.set({ lineId: line.id, field: 'quantity', error: `${line.productName}: Enter a valid quantity` });
+      if (this.arriving(line) > this.left(line)) return void this.problem.set({ lineId: line.id, field: 'quantity', error: `${line.productName}: More than is left` });
+      if (this.arriving(line) > 0 && this.batches(line) && !e.batchNumber.trim()) return void this.problem.set({ lineId: line.id, field: 'batchNumber', error: `${line.productName}: Enter a batch number` });
+      if (this.arriving(line) > 0 && this.expires(line) && fromDateInput(e.expiry) === null) return void this.problem.set({ lineId: line.id, field: 'expiresAt', error: `${line.productName}: Enter an expiry date` });
+    }
+    const arriving = this.lines.filter((l) => l.tracking !== 'none' && this.arriving(l) > 0);
+    this.confirmItems.set(arriving.map((l) => ({ label: l.productName, detail: `${formatQuantity(this.arriving(l))}${this.unitText(l)}` })));
+    const rest = this.lines.some((l) => l.tracking !== 'none' && this.arriving(l) < this.left(l));
+    this.confirmText.set(
+      arriving.length
+        ? `These go into stock now at the ordered cost.${rest ? ' What has not arrived stays on the order.' : ''}`
+        : 'None of these products track stock, so nothing is added to stock. The order is marked received.',
+    );
+    this.confirming.set(true);
+  }
+
+  protected async send(): Promise<void> {
+    this.confirming.set(false);
     if (this.saving()) return;
     this.problem.set(null);
-    for (const line of this.lines) {
-      const text = this.entry(line).arriving.trim();
-      if (text !== '' && parseQuantityMilli(text) === null) return void this.problem.set({ lineId: line.id, field: 'quantity', error: `${line.productName}: Enter a valid quantity` });
-      if (this.arriving(line) > this.left(line)) return void this.problem.set({ lineId: line.id, field: 'quantity', error: `${line.productName}: More than is left` });
-    }
     this.saving.set(true);
     const result = await this.purchases.receive({
       purchaseId: this.purchase.id,

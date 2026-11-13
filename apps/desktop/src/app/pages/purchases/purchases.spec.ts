@@ -151,6 +151,10 @@ describe('PurchasesPage', () => {
   };
   const button = (root: ParentNode, label: string): HTMLButtonElement | undefined =>
     Array.from(root.querySelectorAll('button')).find((b) => b.textContent?.trim() === label);
+  /** The confirmation that asks before a delivery is received. */
+  const confirmReceive = (): void => {
+    Array.from(document.querySelectorAll<HTMLElement>('hlm-alert-dialog-content button')).find((b) => b.textContent?.trim() === 'Receive')!.click();
+  };
   const text = (selector: string): string => document.querySelector(selector)?.textContent?.replace(/\s+/g, ' ') ?? '';
 
   it('lists orders newest first with status, what is owed, and flags an overdue one', async () => {
@@ -270,15 +274,43 @@ describe('PurchasesPage', () => {
     button(form, 'Receive')!.click(); // no lot yet
     await settle();
     expect(form.textContent).toContain('Milk: Enter a batch number');
-    expect(fake.calls.received).toHaveLength(1);
+    expect(fake.calls.received).toHaveLength(0); // refused before asking to confirm
 
     await type('#rc-lot-d-l2', 'L-5', form);
     await type('#rc-exp-d-l2', '2027-01-31', form);
     button(form, 'Receive')!.click();
     await settle();
+    // Nothing is written until it is confirmed, and the confirmation lists what arrives.
+    expect(fake.calls.received).toHaveLength(0);
+    const asked = document.querySelector('hlm-alert-dialog-content')!;
+    expect(asked.textContent).toContain('Receive stock for PO-1004?');
+    expect(asked.textContent).toContain('Milk');
+    expect(asked.textContent).toContain('2');
+    expect(asked.textContent).not.toContain('Rice');
+    expect(asked.textContent).toContain('What has not arrived stays on the order');
+    confirmReceive();
+    await settle();
     expect(fake.calls.received.at(-1)).toMatchObject({ purchaseId: 'd', lines: [{ lineId: 'd-l1', quantityMilli: 0 }, { lineId: 'd-l2', quantityMilli: 2_000, batchNumber: 'L-5' }] });
     expect(TestBed.inject(BannerService).current()?.text).toBe('PO-1004 received into stock');
     expect(document.querySelector('#purchase-receive')).toBeNull();
+  });
+
+  it('an order of products that track no stock says nothing will be added to stock before it is received', async () => {
+    const untracked = purchase('u', 'PO-1006', 'Metro');
+    untracked.lines[0]!.tracking = 'none';
+    await open([untracked]);
+    rowOf('PO-1006').click();
+    await settle();
+    button(document.querySelector('#purchase-detail')!, 'Receive stock')!.click();
+    await settle();
+    const form = document.querySelector('#purchase-receive')!;
+    button(form, 'Receive')!.click();
+    await settle();
+    expect(document.querySelector('hlm-alert-dialog-content')!.textContent).toContain('nothing is added to stock');
+    expect(fake.calls.received).toHaveLength(0);
+    confirmReceive();
+    await settle();
+    expect(fake.calls.received).toHaveLength(1);
   });
 
   it('Everything left fills every line with what has not arrived', async () => {
@@ -292,6 +324,8 @@ describe('PurchasesPage', () => {
     await settle();
     expect((form.querySelector('input[aria-label="Arrived of Rice 25kg"]') as HTMLInputElement).value).toBe('10');
     button(form, 'Receive')!.click();
+    await settle();
+    confirmReceive();
     await settle();
     expect(fake.calls.received.at(-1)).toMatchObject({ lines: [{ lineId: 'd-l1', quantityMilli: 10_000 }] });
   });
