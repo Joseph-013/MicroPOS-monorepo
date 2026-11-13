@@ -1,7 +1,12 @@
 // Dev runner: Angular dev server (HMR) + Electron loading it.
 import { spawn } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4200;
 const url = `http://localhost:${PORT}`;
 const children = [];
@@ -37,6 +42,29 @@ async function waitFor(target, timeoutMs = 120_000) {
 // The dev server pre-bundles @micropos/core into .angular/cache and does not notice when core is rebuilt, so the
 // page kept running an old DESKTOP_API_VERSION and showed "out of date". Dropping the pre-bundle each start is cheap.
 rmSync('.angular/cache', { recursive: true, force: true });
+
+// Linux taskbars take a window's icon from the launcher entry matching its app id. The dev app announces
+// `micropos-dev` (see electron/main.ts), so write that entry, pointing at the app icon in the repo. Hidden from the
+// application menu (NoDisplay); only the taskbar uses it. Safe to run every start.
+if (process.platform === 'linux') {
+  try {
+    const dir = path.join(homedir(), '.local', 'share', 'applications');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      path.join(dir, 'micropos-dev.desktop'),
+      `[Desktop Entry]\nType=Application\nName=MicroPOS (dev)\nIcon=${path.join(ROOT, 'assets', 'icon.png')}\nExec=${path.join(ROOT, '..', '..', 'node_modules', 'electron', 'dist', 'electron')} ${ROOT}\nStartupWMClass=micropos-dev\nNoDisplay=true\n`,
+    );
+    // Let KDE notice the new entry now rather than at the next login (best effort; not every desktop has it).
+    for (const tool of ['kbuildsycoca6', 'kbuildsycoca5']) {
+      try {
+        execFileSync(tool, [], { stdio: 'ignore' });
+        break;
+      } catch {}
+    }
+  } catch (error) {
+    console.warn('Could not write the dev launcher entry (the taskbar icon will be generic):', error.message);
+  }
+}
 
 const ng = run('pnpm', ['exec', 'ng', 'serve', '--port', String(PORT)]);
 ng.on('exit', (code) => shutdown(code ?? 1));

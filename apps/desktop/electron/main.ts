@@ -94,6 +94,11 @@ function migrationsFolder(): string {
     : path.join(app.getAppPath(), 'electron', 'db', 'migrations');
 }
 
+// Development has an app id (and launcher entry, written by scripts/dev.mjs) of its own: on Linux the taskbar takes the
+// icon from the launcher entry that matches the app id, and the packaged app's `micropos` would match whatever
+// MicroPOS happens to be installed on the machine.
+if (!app.isPackaged) app.setDesktopName('micropos-dev.desktop');
+
 /**
  * A packaged app starts on a folder an earlier MicroPOS may have used (same name, other schema): make it this app's
  * own before anything opens it. Not in development, where the data lives in the project.
