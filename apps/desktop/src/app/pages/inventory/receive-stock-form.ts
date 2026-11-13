@@ -79,10 +79,7 @@ export const fromDateInput = (value: string): number | null => {
       <div class="flex flex-col gap-2">
         <label hlmLabel data-required for="r-product">Product</label>
         @if (order(); as o) {
-          <label class="flex items-center gap-3 text-sm">
-            <hlm-checkbox [checked]="onlyOrder()" (checkedChange)="onlyOrder.set($event)" />
-            <span>Only products on {{ o.number }}</span>
-          </label>
+          <p class="text-muted-foreground text-sm">Showing only products on {{ o.number }}. Clear the order to receive anything else.</p>
         }
         <hlm-combobox [value]="productId()" (valueChange)="choose($event ?? null)" [itemToString]="productName" class="block">
           <hlm-combobox-input id="r-product" placeholder="Search or scan a product" />
@@ -96,9 +93,6 @@ export const fromDateInput = (value: string): number | null => {
           </hlm-combobox-content>
         </hlm-combobox>
         @if (errorFor('product'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
-        @if (order() && product() && !line()) {
-          <p class="text-muted-foreground text-sm">Not on {{ order()!.number }}: received on its own</p>
-        }
         @if (line(); as l) {
           <p class="text-muted-foreground text-sm">Ordered {{ qty(l.quantityMilli) }} · received {{ qty(l.receivedMilli) }} · {{ qty(l.quantityMilli - l.receivedMilli) }} left</p>
         }
@@ -232,16 +226,14 @@ export class ReceiveStockForm {
   /** The chosen order with its lines (loaded again after every receipt). */
   private readonly order = signal<PurchaseDetail | null>(null);
   protected readonly orderName = (id: string | null): string => this.openOrders().find((o) => o.id === id)?.number ?? '';
-  /** With an order chosen: list only its products (the default) or every product. */
-  protected readonly onlyOrder = signal(true);
   /**
-   * What can be picked: every live product, or with an order chosen and the checkbox ticked only its products that
-   * still have something to come. Products that track no stock are included (they show as not tracked, with Edit
-   * product to change that). A product not on the order is received on its own, not against the order.
+   * What can be picked: every live product, or with an order chosen only its products that still have something to
+   * come. Products that track no stock are included (they show as not tracked, with Edit product to change that).
+   * Anything else is received with no order chosen.
    */
   protected readonly choosable = computed(() => {
     const order = this.order();
-    if (!order || !this.onlyOrder()) return this.liveProducts();
+    if (!order) return this.liveProducts();
     const open = new Set(order.lines.filter((l) => l.receivedMilli < l.quantityMilli).map((l) => l.productId));
     return this.liveProducts().filter((p) => open.has(p.id));
   });
@@ -282,7 +274,7 @@ export class ReceiveStockForm {
     // A scan picks the product with that code (tracked products only).
     claimScanner(({ code }) => {
       const found = this.liveProducts().find((p) => p.barcode === code);
-      if (found && this.order() && this.onlyOrder() && !this.choosable().some((p) => p.id === found.id)) {
+      if (found && this.order() && !this.choosable().some((p) => p.id === found.id)) {
         this.problem.set({ field: 'product', error: `${found.name} is not waiting on ${this.order()!.number}` });
         return;
       }

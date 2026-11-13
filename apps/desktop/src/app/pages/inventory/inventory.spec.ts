@@ -421,16 +421,8 @@ describe('InventoryPage', () => {
     expect(items[0]).toContain('Tea');
     expect(items[0]).toContain('Not tracked');
 
-    // The checkbox above the list widens it to every product (those are received on their own, not against the order).
-    expect(dialog().textContent).toContain('Only products on PO-1001');
-    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    await settle();
-    (dialog().querySelector('hlm-checkbox button, hlm-checkbox [role="checkbox"]') as HTMLElement).click();
-    await settle();
-    input.focus();
-    (input.closest('hlm-combobox')!.querySelector('button[data-slot="input-group-button"]') as HTMLElement).click();
-    await settle();
-    expect([...document.querySelectorAll('hlm-combobox-item')].map((i) => i.textContent!.trim().slice(0, 3)).sort()).toEqual(['Mil', 'Tea']);
+    // The order limits the list, and a note says so.
+    expect(dialog().textContent).toContain('Showing only products on PO-1001');
   });
 
   it('takes an expiry given as a month only, as the last day of that month', async () => {
