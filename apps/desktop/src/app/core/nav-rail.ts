@@ -7,7 +7,9 @@ import {
   lucideChevronRight,
   lucideComputer,
   lucideLayoutGrid,
-  lucideLogOut,
+  lucideLock,
+  lucideUserCog,
+  lucideUserRound,
   lucideMonitor,
   lucideMoon,
   lucidePackage,
@@ -21,7 +23,9 @@ import {
   lucideTruck,
 } from '@ng-icons/lucide';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import type { Permission } from '@micropos/core';
 import { devNav } from '../../environments/dev-tools';
+import { AuthService } from './auth/auth.service';
 import { Logo } from './logo';
 import { StorageService } from './storage/storage.service';
 import { ThemeMode, ThemeService } from './theme.service';
@@ -33,6 +37,8 @@ export interface NavItem {
   icon?: string;
   path?: string;
   children?: NavItem[];
+  /** Shown only to people who hold it (a group: when any of its entries is shown). */
+  permission?: Permission;
 }
 
 /**
@@ -52,7 +58,9 @@ export interface NavItem {
       lucideUsers,
       lucideTruck,
       lucideSettings,
-      lucideLogOut,
+      lucideLock,
+  lucideUserCog,
+  lucideUserRound,
       lucideLayoutGrid,
       lucideSun,
       lucideMoon,
@@ -66,6 +74,7 @@ export interface NavItem {
 })
 export class NavRail {
   protected readonly theme = inject(ThemeService);
+  protected readonly auth = inject(AuthService);
   private readonly storage = inject(StorageService);
 
   protected readonly pinned = signal(this.storage.get('navPinned', false, (v): v is boolean => typeof v === 'boolean'));
@@ -73,32 +82,46 @@ export class NavRail {
   protected readonly expanded = computed(() => this.pinned() || this.hovered());
 
   protected readonly nav: NavItem[] = [
-    { id: 'checkout', path: '/checkout', label: 'Checkout', icon: 'lucideShoppingCart' },
+    { id: 'checkout', path: '/checkout', label: 'Checkout', icon: 'lucideShoppingCart', permission: 'checkout.sell' },
     {
       id: 'items',
       label: 'Items',
       icon: 'lucidePackage',
       children: [
-        { id: 'items-overview', path: '/items/overview', label: 'Overview' },
-        { id: 'items-products', path: '/items/products', label: 'Products' },
-        { id: 'items-inventory', path: '/items/inventory', label: 'Inventory' },
-        { id: 'items-categories', path: '/items/categories', label: 'Categories' },
+        { id: 'items-overview', path: '/items/overview', label: 'Overview', permission: 'catalog.view' },
+        { id: 'items-products', path: '/items/products', label: 'Products', permission: 'catalog.view' },
+        { id: 'items-inventory', path: '/items/inventory', label: 'Inventory', permission: 'inventory.manage' },
+        { id: 'items-categories', path: '/items/categories', label: 'Categories', permission: 'catalog.view' },
       ],
     },
-    { id: 'orders', path: '/orders', label: 'Sales Orders', icon: 'lucideReceipt' },
-    { id: 'customers', path: '/customers', label: 'Customers', icon: 'lucideUsers' },
+    { id: 'orders', path: '/orders', label: 'Sales Orders', icon: 'lucideReceipt', permission: 'orders.view' },
+    { id: 'customers', path: '/customers', label: 'Customers', icon: 'lucideUsers', permission: 'customers.view' },
     {
       id: 'purchasing',
       label: 'Purchasing',
       icon: 'lucideTruck',
       children: [
-        { id: 'purchasing-purchases', path: '/purchases', label: 'Purchases' },
-        { id: 'purchasing-suppliers', path: '/suppliers', label: 'Suppliers' },
+        { id: 'purchasing-purchases', path: '/purchases', label: 'Purchases', permission: 'purchasing.manage' },
+        { id: 'purchasing-suppliers', path: '/suppliers', label: 'Suppliers', permission: 'purchasing.manage' },
       ],
     },
+    { id: 'users', path: '/users', label: 'Users', icon: 'lucideUserCog', permission: 'users.manage' },
     // Developer-only entries (the component gallery): none in production builds.
     ...devNav,
   ];
+
+  /** The entries the signed-in person may use; a group with none of its entries left is dropped. */
+  protected readonly visibleNav = computed(() => this.visible(this.nav));
+
+  private visible(items: NavItem[]): NavItem[] {
+    return items.flatMap((item) => {
+      if (item.children) {
+        const children = this.visible(item.children);
+        return children.length ? [{ ...item, children }] : [];
+      }
+      return !item.permission || this.auth.can(item.permission) ? [item] : [];
+    });
+  }
 
   private readonly router = inject(Router);
   private readonly url = toSignal(
@@ -216,6 +239,10 @@ export class NavRail {
   protected readonly currentMode = computed(
     () => this.modes.find((m) => m.id === this.theme.mode()) ?? this.modes[2],
   );
+
+  protected lock(): void {
+    void this.auth.signOut();
+  }
 
   protected setHovered(value: boolean): void {
     this.hovered.set(value);

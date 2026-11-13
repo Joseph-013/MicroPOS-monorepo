@@ -23,7 +23,7 @@ describe('App', () => {
     expect(el.querySelector('svg[aria-label="MicroPOS"]')).toBeTruthy();
     expect(el.textContent).toContain('Sales Orders');
     expect(el.querySelector('a[href="/settings"]')).toBeTruthy();
-    expect(el.textContent).toContain('Logout');
+    expect(el.textContent).toContain('Lock');
   });
 
   it('opens a nav group containing the current page and shows its children', async () => {

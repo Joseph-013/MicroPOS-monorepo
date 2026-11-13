@@ -1,5 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { AuthService } from './core/auth/auth.service';
+import { SignInScreen } from './core/auth/sign-in-screen';
 import { DesktopApiGuard } from './core/api/desktop-api-guard';
 import { BannerHost, BannerService } from './core/banner';
 import { OnScreenKeyboardService } from './core/keyboard';
@@ -17,7 +19,7 @@ import { AppSettings } from './core/settings/app-settings.service';
 import { TooSmallOverlay } from './core/viewport/too-small-overlay';
 
 @Component({
-  imports: [BannerHost, NavRail, RouterOutlet, TooSmallOverlay],
+  imports: [BannerHost, NavRail, RouterOutlet, SignInScreen, TooSmallOverlay],
   selector: 'app-root',
   templateUrl: './app.html',
 })
@@ -37,6 +39,9 @@ export class App {
   private readonly customerViewer = inject(CustomerViewer);
   /** Opens `?view-purchase=<id>` in a purchase order dialog over any page. */
   private readonly purchaseViewer = inject(PurchaseViewer);
+  private readonly auth = inject(AuthService);
+  /** Nobody is signed in (or the person must still choose their own PIN): only the sign-in screen is usable. */
+  protected readonly locked = computed(() => !this.auth.user() || this.auth.user()!.pinChangeRequired);
   /** Height of the banner strip (`h-9`); pages and the nav rail read it as `--banner-offset`. */
   protected readonly bannerOffset = inject(BannerService).reserveSpace;
 

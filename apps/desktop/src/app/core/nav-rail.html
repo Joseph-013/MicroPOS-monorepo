@@ -34,7 +34,7 @@
   </div>
 
   <ul class="flex flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden">
-    @for (item of nav; track item.id) {
+    @for (item of visibleNav(); track item.id) {
       <li>
         <ng-container *ngTemplateOutlet="itemTpl; context: { $implicit: item, level: 0 }" />
       </li>
@@ -127,13 +127,22 @@
       <span class="transition-opacity duration-150" [class.opacity-0]="!expanded()">Settings</span>
     </a>
 
+    @if (auth.user(); as user) {
+      <!-- Who is signed in; the person's own PIN is changed in Settings. -->
+      <div class="text-muted-foreground flex h-10 items-center gap-3 px-[11px] text-sm whitespace-nowrap" [attr.title]="expanded() ? null : user.name">
+        <ng-icon name="lucideUserRound" size="18" strokeWidth="1.5" class="shrink-0" />
+        <span class="truncate transition-opacity duration-150" [class.opacity-0]="!expanded()">{{ user.name }}</span>
+      </div>
+    }
+
     <button
       type="button"
       class="hover:bg-accent text-foreground flex h-10 items-center gap-3 px-[11px] text-sm whitespace-nowrap transition-colors"
-      [attr.title]="expanded() ? null : 'Logout'"
+      [attr.title]="expanded() ? null : 'Lock'"
+      (click)="lock()"
     >
-      <ng-icon name="lucideLogOut" size="18" strokeWidth="1.5" class="shrink-0" />
-      <span class="transition-opacity duration-150" [class.opacity-0]="!expanded()">Logout</span>
+      <ng-icon name="lucideLock" size="18" strokeWidth="1.5" class="shrink-0" />
+      <span class="transition-opacity duration-150" [class.opacity-0]="!expanded()">Lock</span>
     </button>
   </div>
 </nav>
