@@ -73,6 +73,9 @@ function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = []) {
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     products: {
       list: () => Promise.resolve([...catalog]),
+      loadDraft: () => Promise.resolve(null),
+      saveDraft: () => Promise.resolve(),
+      clearDraft: () => Promise.resolve(),
       create: (input: ProductInput) => {
         const created = product(`n${catalog.length}`, input.name, { barcode: input.barcode, tracking: input.tracking, price: input.price, cost: input.cost });
         catalog.push(created);
@@ -312,6 +315,30 @@ describe('InventoryPage', () => {
     buttonByText(dialog(), 'Receive').click();
     await settle();
     expect(calls.receive.map((r) => [r.productId, r.quantityMilli])).toEqual([['1', 12_000], ['2', 3_000]]);
+  });
+
+  it('Edit product opens the product over Receive stock, also for one that tracks no stock', async () => {
+    await open([], [product('1', 'Milk', { tracking: 'quantity' }), product('2', 'Tea', { tracking: 'none' })]);
+    buttonByText(el, 'Receive stock').click();
+    await settle();
+    TestBed.inject(ScannerService).receive('5901');
+    await settle();
+    expect(dialog().querySelector('#r-lot')).toBeNull(); // tracked by quantity only: no lot to enter
+    expect(dialog().textContent).toContain('Tracked by quantity');
+    buttonByText(dialog(), 'Edit product').click();
+    await settle();
+    const form = document.querySelector('#product-form')!;
+    expect((form.querySelector('#p-name') as HTMLInputElement).value).toBe('Milk');
+    buttonByText(form, 'Close').click();
+    await settle();
+    expect(document.querySelector('#product-form')).toBeNull();
+
+    TestBed.inject(ScannerService).receive('5902'); // exists but stock is not tracked
+    await settle();
+    expect(dialog().textContent).toContain('Stock is not tracked for Tea');
+    expect(dialog().querySelector('#r-qty')).toBeNull();
+    expect(buttonByText(dialog(), 'Receive').disabled).toBe(true);
+    expect(buttonByText(dialog(), 'Edit product')).toBeDefined();
   });
 
   it('takes an expiry given as a month only, as the last day of that month', async () => {

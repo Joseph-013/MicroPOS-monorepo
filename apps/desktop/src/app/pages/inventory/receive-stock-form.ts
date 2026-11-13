@@ -4,17 +4,19 @@ import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmComboboxImports } from '@spartan-ng/helm/combobox';
-import { HlmDialogImports } from '@spartan-ng/helm/dialog';
+import { HlmDialogImports, HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { NewProductViewer } from '../../core/new-product-viewer';
 import { BannerService } from '../../core/banner';
+import { ProductDraftService } from '../../core/data/product-draft.service';
 import { InventoryService } from '../../core/data/inventory.service';
 import { ProductsService } from '../../core/data/products.service';
 import { formatCentsInput, parseCents } from '../../core/money-input';
 import { OnScreenKeypadDirective } from '../../core/keypad';
 import { claimScanner, ScanInputDirective } from '../../core/scanner';
 import { AppSettings } from '../../core/settings/app-settings.service';
+import { ProductForm, type ProductFormContext } from '../products/product-form';
 
 export interface ReceiveStockContext {
   /** Product to receive stock for, when opened from a product row. */
@@ -59,10 +61,10 @@ export const fromDateInput = (value: string): number | null => {
         <hlm-combobox [value]="productId()" (valueChange)="choose($event ?? null)" [itemToString]="productName" class="block">
           <hlm-combobox-input id="r-product" placeholder="Search or scan a product" />
           <hlm-combobox-content *hlmComboboxPortal>
-            <hlm-combobox-empty>No tracked product found</hlm-combobox-empty>
+            <hlm-combobox-empty>No product found</hlm-combobox-empty>
             <div hlmComboboxList>
-              @for (p of trackedProducts(); track p.id) {
-                <hlm-combobox-item [value]="p.id">{{ p.name }}</hlm-combobox-item>
+              @for (p of liveProducts(); track p.id) {
+                <hlm-combobox-item [value]="p.id">{{ p.name }}@if (p.tracking === 'none') { <span class="text-muted-foreground ml-2 text-xs">Not tracked</span> }</hlm-combobox-item>
               }
             </div>
           </hlm-combobox-content>
@@ -75,6 +77,18 @@ export const fromDateInput = (value: string): number | null => {
       </div>
 
       @if (product(); as p) {
+        <!-- Lot and expiry are asked for only as far as the product tracks them; change that here without leaving. -->
+        <div class="flex items-center justify-between gap-3">
+          @if (tracked()) {
+            <span class="text-muted-foreground text-sm">{{ trackingText() }}</span>
+          } @else {
+            <span class="text-sm">Stock is not tracked for {{ p.name }}</span>
+          }
+          <button hlmBtn variant="outline" size="sm" type="button" class="px-3" (click)="editProduct(p)">Edit product</button>
+        </div>
+      }
+      @if (product(); as p) {
+       @if (tracked()) {
         @if (batches()) {
           <div class="flex flex-col gap-2">
             <label hlmLabel data-required for="r-lot">Batch number</label>
@@ -139,6 +153,7 @@ export const fromDateInput = (value: string): number | null => {
           <label hlmLabel for="r-note">Note</label>
           <input hlmInput id="r-note" type="text" [value]="note()" (input)="note.set($any($event.target).value)" />
         </div>
+       }
       }
 
       @if (formError(); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
@@ -153,7 +168,7 @@ export const fromDateInput = (value: string): number | null => {
       </label>
       <div class="flex gap-2">
         <button hlmBtn hlmDialogClose variant="outline" type="button" class="px-5">{{ received() ? 'Close' : 'Cancel' }}</button>
-        <button hlmBtn type="button" class="px-6" [disabled]="saving() || !product()" (click)="submit()">Receive</button>
+        <button hlmBtn type="button" class="px-6" [disabled]="saving() || !product() || !tracked()" (click)="submit()">Receive</button>
       </div>
     </hlm-dialog-footer>
   `,
@@ -164,14 +179,20 @@ export class ReceiveStockForm {
   private readonly inventory = inject(InventoryService);
   private readonly newProduct = inject(NewProductViewer);
   private readonly banner = inject(BannerService);
+  private readonly dialogs = inject(HlmDialogService);
+  private readonly drafts = inject(ProductDraftService);
   private readonly ref = inject<BrnDialogRef<boolean>>(BrnDialogRef);
   private start = injectBrnDialogContext<ReceiveStockContext>().product;
 
   /** Products that track stock, alphabetically (the list comes sorted from the database). */
   protected readonly trackedProducts = computed(() => this.products.products().filter((p) => p.tracking !== 'none' && !p.deletedAt));
   protected readonly productId = signal<string | null>(this.start?.id ?? null);
-  protected readonly product = computed(() => this.trackedProducts().find((p) => p.id === this.productId()) ?? this.start ?? null);
-  protected readonly productName = (id: string | null): string => this.trackedProducts().find((p) => p.id === id)?.name ?? '';
+  /** Every live product: one that does not track stock can be picked too, and set to track it with Edit product. */
+  protected readonly liveProducts = computed(() => this.products.products().filter((p) => !p.deletedAt));
+  protected readonly product = computed(() => this.liveProducts().find((p) => p.id === this.productId()) ?? this.start ?? null);
+  protected readonly tracked = computed(() => !!this.product() && this.product()!.tracking !== 'none');
+  protected readonly trackingText = computed(() => ({ none: '', quantity: 'Tracked by quantity', batch: 'Tracked by batch', expiry: 'Tracked by batch and expiry' })[this.product()?.tracking ?? 'none']);
+  protected readonly productName = (id: string | null): string => this.liveProducts().find((p) => p.id === id)?.name ?? '';
   protected readonly batches = computed(() => !!this.product() && tracksBatches(this.product()!.tracking));
   protected readonly expires = computed(() => !!this.product() && tracksExpiry(this.product()!.tracking));
   protected readonly unitSuffix = computed(() => (this.product() && this.product()!.unit !== 'each' ? ` (${this.product()!.unit})` : ''));
@@ -202,16 +223,10 @@ export class ReceiveStockForm {
     if (this.start) this.applyDefaults(this.start);
     // A scan picks the product with that code (tracked products only).
     claimScanner(({ code }) => {
-      const found = this.trackedProducts().find((p) => p.barcode === code);
+      const found = this.liveProducts().find((p) => p.barcode === code);
       if (found) return this.choose(found.id);
-      const untracked = this.products.products().find((p) => p.barcode === code && !p.deletedAt);
-      if (untracked) {
-        this.unknownCode.set(null);
-        this.problem.set({ field: 'product', error: `Stock is not tracked for ${untracked.name}` });
-      } else {
-        this.unknownCode.set(code);
-        this.problem.set({ field: 'product', error: `No product with code ${code}` });
-      }
+      this.unknownCode.set(code);
+      this.problem.set({ field: 'product', error: `No product with code ${code}` });
     });
     effect(() => {
       const code = this.creating();
@@ -240,8 +255,24 @@ export class ReceiveStockForm {
     this.unknownCode.set(null);
     this.productId.set(id);
     this.problem.set(null);
-    const p = this.trackedProducts().find((x) => x.id === id);
+    const p = this.liveProducts().find((x) => x.id === id);
     if (p) this.applyDefaults(p);
+  }
+
+  /** Opens the product's form over this dialog; what it changes (such as tracking lots) shows here once saved. */
+  protected async editProduct(product: ProductRecord): Promise<void> {
+    const draft = await this.drafts.load(product.id);
+    const ref = this.dialogs.open<boolean, ProductFormContext>(ProductForm, {
+      id: 'product-form',
+      contentClass: 'w-[min(40rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
+      context: { product, draft },
+    });
+    ref.closed$.subscribe((saved) => {
+      if (!saved) return;
+      this.banner.success('Product saved', { key: 'product-saved' });
+      const fresh = this.liveProducts().find((p) => p.id === product.id);
+      if (fresh && !this.expiry()) this.applyDefaults(fresh);
+    });
   }
 
   /** An empty form for the next product (the scanner is still claimed, so the next scan picks it). */
