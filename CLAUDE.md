@@ -24,6 +24,7 @@ Each app gets its own CLAUDE.md with app-specific notes once scaffolded.
 - Core is ESM with NodeNext: relative imports inside it need `.js` extensions.
 - Depend on core with `"@micropos/core": "workspace:*"`.
 - better-sqlite3 is used only in Electron's main process; the renderer reaches it over IPC. Mobile cannot use it.
+- Whenever the system changes (a new page, feature, setting, IPC call or action), check whether permissions need updating: a new `Permission` or preset entry in `packages/core/src/auth.ts`, a `guarded()` channel in `electron/ipc/index.ts`, a route `requires()` and a nav entry. Details in `apps/desktop/CLAUDE.md` (Users and permissions).
 - Every update of the desktop app bumps `version` in `apps/desktop/package.json` in the same change (patch fix, minor feature, major breaking or data reset); the Windows installer only upgrades to a higher version. Claude makes the bump (and names the version in its report) without being asked. Details in `apps/desktop/CLAUDE.md`.
 
 ## Docs
