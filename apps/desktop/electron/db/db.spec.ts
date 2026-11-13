@@ -1446,6 +1446,57 @@ describe('purchases from suppliers', () => {
     expect(ok(payPurchase(db, { purchaseId: po.id, amount: 10_050, method: 'cash', reference: null })).purchase.owed).toBe(0);
   });
 
+  it('receives an order in parts through Receive stock: the order completes when everything has arrived', () => {
+    const s = supplier();
+    const a = product();
+    const b = product();
+    const po = ok(createPurchase(db, { supplierId: s.id, expectedAt: null, dueAt: null, reference: null, note: null, lines: [{ productId: a.id, quantityMilli: 10_000, unitCost: 1_000 }, { productId: b.id, quantityMilli: 4_000, unitCost: 500 }] })).purchase;
+    const [la, lb] = po.lines;
+    const receive = (productId: string, lineId: string | null, quantityMilli: number) =>
+      receiveStock(db, { productId, batchNumber: null, expiresAt: null, quantityMilli, unitCost: 1_000, note: null, purchaseLineId: lineId });
+
+    // Part of one line arrives.
+    expect(receive(a.id, la!.id, 6_000)).toMatchObject({ ok: true });
+    let now = getPurchase(db, po.id)!;
+    expect(now).toMatchObject({ status: 'ordered', partlyReceived: true });
+    expect(now.lines.map((l) => l.receivedMilli)).toEqual([6_000, 0]);
+    expect(db.select().from(stockMovements).where(eq(stockMovements.productId, a.id)).get()).toMatchObject({ purchaseOrderLineId: la!.id, note: `Received on ${po.number}` });
+    // Parts of an order cannot be changed or cancelled any more.
+    const same = { supplierId: s.id, expectedAt: null, dueAt: null, reference: null, note: null, lines: [{ productId: a.id, quantityMilli: 1_000, unitCost: 1 }] };
+    expect(updatePurchase(db, po.id, same)).toMatchObject({ ok: false, error: 'Part of this order has arrived, so it cannot be changed' });
+    expect(cancelPurchase(db, po.id)).toMatchObject({ ok: false });
+
+    // Refused: more than is left, the wrong product, an unknown line.
+    expect(receive(a.id, la!.id, 4_001)).toMatchObject({ ok: false, field: 'quantity', error: 'Only 4 is left on PO-1001' });
+    expect(receive(b.id, la!.id, 1_000)).toMatchObject({ ok: false, field: 'purchaseLine' });
+    expect(receive(a.id, 'nope', 1_000)).toMatchObject({ ok: false, field: 'purchaseLine' });
+    expect(onHand(a.id)).toBe(6_000);
+
+    // The rest of that line, then the other: the order completes by itself.
+    expect(receive(a.id, la!.id, 4_000)).toMatchObject({ ok: true });
+    expect(getPurchase(db, po.id)).toMatchObject({ status: 'ordered', partlyReceived: true });
+    expect(receive(b.id, lb!.id, 4_000)).toMatchObject({ ok: true });
+    now = getPurchase(db, po.id)!;
+    expect(now).toMatchObject({ status: 'received', partlyReceived: false });
+    expect(now.receivedAt).not.toBeNull();
+    expect(receive(a.id, la!.id, 1_000)).toMatchObject({ ok: false, field: 'purchaseLine' }); // received already
+    // A receipt that is not against an order is as before.
+    expect(receive(a.id, null, 1_000)).toMatchObject({ ok: true });
+  });
+
+  it('receiving the order after part of it has arrived takes only what is left', () => {
+    const s = supplier();
+    const a = product();
+    const b = product();
+    const po = ok(createPurchase(db, { supplierId: s.id, expectedAt: null, dueAt: null, reference: null, note: null, lines: [{ productId: a.id, quantityMilli: 10_000, unitCost: 1_000 }, { productId: b.id, quantityMilli: 4_000, unitCost: 500 }] })).purchase;
+    expect(receiveStock(db, { productId: a.id, batchNumber: null, expiresAt: null, quantityMilli: 7_000, unitCost: 1_000, note: null, purchaseLineId: po.lines[0]!.id })).toMatchObject({ ok: true });
+    const done = ok(receivePurchase(db, { purchaseId: po.id, lines: [] })).purchase;
+    expect(done).toMatchObject({ status: 'received', partlyReceived: false });
+    expect(done.lines.map((l) => l.receivedMilli)).toEqual([10_000, 4_000]);
+    expect(onHand(a.id)).toBe(10_000);
+    expect(onHand(b.id)).toBe(4_000);
+  });
+
   it('a product that tracks lots and expiry needs them, and one refused line receives nothing', () => {
     const s = supplier();
     const plain = product();

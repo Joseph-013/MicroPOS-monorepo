@@ -108,7 +108,7 @@ export function buildPurchases(
       for (const line of lines) {
         const batchId = unnamed.get(line.productId);
         if (batchId) {
-          out.movements.push({ id: uuid7(receivedAt!), productId: line.productId, batchId, type: 'receive', quantityMilli: line.quantityMilli, employeeId, at: receivedAt!, note: `Received on PO-${1001 + i}` });
+          out.movements.push({ id: uuid7(receivedAt!), productId: line.productId, batchId, type: 'receive', quantityMilli: line.quantityMilli, purchaseOrderLineId: line.id, employeeId, at: receivedAt!, note: `Received on PO-${1001 + i}` });
         }
       }
     }

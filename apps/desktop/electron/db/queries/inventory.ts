@@ -3,6 +3,7 @@ import {
   type AdjustStockInput,
   type BatchRecord,
   expiryState,
+  formatQuantity,
   type InventoryOverview,
   type MovementRecord,
   type ReceiveStockInput,
@@ -16,6 +17,7 @@ import {
 } from '@micropos/core';
 import type { AppDatabase } from '../index';
 import { uuid7 } from '../uuid';
+import { receivedOfLine, settlePurchase } from './purchase-receipt';
 import {
   type ProductTracking,
   productBatches,
@@ -154,10 +156,28 @@ export function receiveStock(
   ) {
     return problem('unitCost', 'Enter a valid cost');
   }
-  const note =
+  let note =
     typeof input.note === 'string' && input.note.trim()
       ? input.note.trim().slice(0, MAX_NOTE)
       : null;
+
+  // A delivery against a purchase order line: it must be that product, on an order still waiting for stock, and
+  // never more than is left of the line.
+  let purchase: { lineId: string; orderId: string } | null = null;
+  if (input.purchaseLineId !== undefined && input.purchaseLineId !== null) {
+    const line = db.$client
+      .prepare(
+        `SELECT l.id AS id, l.purchase_order_id AS orderId, l.product_id AS productId, l.quantity_milli AS quantity, o.status AS status, o.po_number AS number
+           FROM purchase_order_lines l JOIN purchase_orders o ON o.id = l.purchase_order_id WHERE l.id = ?`,
+      )
+      .get(input.purchaseLineId) as { id: string; orderId: string; productId: string; quantity: number; status: string; number: string } | undefined;
+    if (!line || line.productId !== product.id) return problem('purchaseLine', 'That product is not on the purchase order');
+    if (line.status !== 'ordered') return problem('purchaseLine', `${line.number} is already received or cancelled`);
+    const left = line.quantity - receivedOfLine(db, line.id);
+    if (input.quantityMilli! > left) return problem('quantity', left > 0 ? `Only ${formatQuantity(left)} is left on ${line.number}` : `Everything ordered of this on ${line.number} has arrived`);
+    purchase = { lineId: line.id, orderId: line.orderId };
+    note ??= `Received on ${line.number}`;
+  }
 
   const write = (tx: Pick<AppDatabase, 'select' | 'insert' | 'update'>): string | Problem => {
     const sameBatch = tx
@@ -195,11 +215,13 @@ export function receiveStock(
         batchId: id,
         type: 'receive',
         quantityMilli: input.quantityMilli as number,
+        purchaseOrderLineId: purchase?.lineId ?? null,
         employeeId,
         at: now,
         note,
       })
       .run();
+    if (purchase) settlePurchase(db, purchase.orderId, now);
     return id;
   };
   const batchId = outer ? write(outer) : db.transaction(write);

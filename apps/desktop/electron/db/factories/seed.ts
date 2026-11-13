@@ -302,10 +302,12 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
     for (const rows of chunks(all.map((d) => d.order))) tx.insert(orders).values(rows).run();
     for (const rows of chunks(all.flatMap((d) => d.lines))) tx.insert(orderLines).values(rows).run();
     for (const rows of chunks(stock.batches)) tx.insert(productBatches).values(rows).run();
-    for (const rows of chunks([...stock.movements, ...purchasing.movements])) tx.insert(stockMovements).values(rows).run();
+    for (const rows of chunks(stock.movements)) tx.insert(stockMovements).values(rows).run();
     for (const rows of chunks(purchasing.orders)) tx.insert(purchaseOrders).values(rows).run();
     for (const rows of chunks(purchasing.lines)) tx.insert(purchaseOrderLines).values(rows).run();
     for (const rows of chunks(purchasing.payments)) tx.insert(purchasePayments).values(rows).run();
+    // Receipts against purchase order lines need those lines to exist.
+    for (const rows of chunks(purchasing.movements)) tx.insert(stockMovements).values(rows).run();
     for (const rows of chunks(all.flatMap((d) => d.payments))) tx.insert(payments).values(rows).run();
     for (const rows of chunks(ledgerRows)) tx.insert(customerLedger).values(rows).run();
     for (const rows of chunks(sessionRows)) tx.insert(loginSessions).values(rows).run();

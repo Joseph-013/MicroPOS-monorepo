@@ -23,7 +23,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 22;
+export const DESKTOP_API_VERSION = 23;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -122,7 +122,7 @@ export interface DesktopApi {
     create(input: PurchaseInput): Promise<SavePurchaseResult>;
     /** Changes an order that has not arrived yet (its lines are replaced); never below what is already paid. */
     update(id: string, input: PurchaseInput): Promise<SavePurchaseResult>;
-    /** The whole order arrived: its products go into inventory as new stock at the ordered cost. All or nothing. */
+    /** What has not arrived yet of the order arrives: it goes into inventory as new stock at the ordered cost. All or nothing. */
     receive(input: ReceivePurchaseInput): Promise<ReceivePurchaseResult>;
     /** Records money paid to the supplier towards the order (never more than is owed). */
     pay(input: PayPurchaseInput): Promise<PayPurchaseResult>;

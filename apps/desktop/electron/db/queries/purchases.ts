@@ -174,7 +174,7 @@ export function nextPurchaseNumber(db: AppDatabase): string {
   return `PO-${Math.max(row.last ?? 0, FIRST_NUMBER - 1) + 1}`;
 }
 
-type SummaryRow = Omit<PurchaseSummary, 'owed'>;
+type SummaryRow = Omit<PurchaseSummary, 'owed' | 'partlyReceived'> & { anyReceived: number };
 
 function summaries(db: AppDatabase, where = '', params: unknown[] = []): PurchaseSummary[] {
   const rows = db.$client
@@ -182,12 +182,17 @@ function summaries(db: AppDatabase, where = '', params: unknown[] = []): Purchas
       `SELECT p.id AS id, p.po_number AS number, p.supplier_id AS supplierId, s.name AS supplierName, p.status AS status,
               p.ordered_at AS orderedAt, p.expected_at AS expectedAt, p.due_at AS dueAt, p.received_at AS receivedAt,
               p.reference AS reference, p.total AS total, ${PAID} AS paid,
-              (SELECT COUNT(*) FROM purchase_order_lines l WHERE l.purchase_order_id = p.id) AS lineCount
+              (SELECT COUNT(*) FROM purchase_order_lines l WHERE l.purchase_order_id = p.id) AS lineCount,
+              EXISTS (SELECT 1 FROM stock_movements m JOIN purchase_order_lines l ON l.id = m.purchase_order_line_id WHERE l.purchase_order_id = p.id) AS anyReceived
          FROM purchase_orders p JOIN suppliers s ON s.id = p.supplier_id ${where}
         ORDER BY p.ordered_at DESC, p.rowid DESC`,
     )
     .all(...params) as SummaryRow[];
-  return rows.map((r) => ({ ...r, owed: r.status === 'cancelled' ? 0 : r.total - r.paid }));
+  return rows.map(({ anyReceived, ...r }) => ({
+    ...r,
+    partlyReceived: r.status === 'ordered' && anyReceived === 1,
+    owed: r.status === 'cancelled' ? 0 : r.total - r.paid,
+  }));
 }
 
 export const listPurchases = (db: AppDatabase): PurchaseSummary[] => summaries(db);
@@ -202,7 +207,8 @@ export function getPurchase(db: AppDatabase, id: unknown): PurchaseDetail | null
   const lines = db.$client
     .prepare(
       `SELECT l.id AS id, l.product_id AS productId, pr.name AS productName, pr.unit AS unit, pr.tracking AS tracking,
-              l.quantity_milli AS quantityMilli, l.unit_cost AS unitCost
+              l.quantity_milli AS quantityMilli, l.unit_cost AS unitCost,
+              COALESCE((SELECT SUM(m.quantity_milli) FROM stock_movements m WHERE m.purchase_order_line_id = l.id AND m.type = 'receive'), 0) AS receivedMilli
          FROM purchase_order_lines l JOIN products pr ON pr.id = l.product_id
         WHERE l.purchase_order_id = ? ORDER BY l.rowid`,
     )
@@ -258,6 +264,7 @@ function save(db: AppDatabase, id: string | null, raw: unknown, now: number): Sa
         const current = summaries(db, 'WHERE p.id = ?', [id])[0];
         if (!current) throw new Stop('Purchase order not found');
         if (current.status !== 'ordered') throw new Stop('Only an order that has not arrived can be changed');
+        if (current.partlyReceived) throw new Stop('Part of this order has arrived, so it cannot be changed');
         if (input.total < current.paid) throw new Stop('The total is less than what is already paid', 'lines');
         tx.update(purchaseOrders).set({ ...header, updatedAt: now }).where(eq(purchaseOrders.id, id)).run();
         tx.delete(purchaseOrderLines).where(eq(purchaseOrderLines.purchaseOrderId, id)).run();
@@ -308,6 +315,7 @@ export function cancelPurchase(db: AppDatabase, id: unknown, now = Date.now()): 
   const order = typeof id === 'string' ? summaries(db, 'WHERE p.id = ?', [id])[0] : undefined;
   if (!order) return { ok: false, error: 'Purchase order not found' };
   if (order.status !== 'ordered') return { ok: false, error: 'Only an order that has not arrived can be cancelled' };
+  if (order.partlyReceived) return { ok: false, error: 'Part of this order has arrived, so it cannot be cancelled' };
   if (order.paid > 0) return { ok: false, error: 'Money has been paid on this order, so it cannot be cancelled' };
   db.update(purchaseOrders).set({ status: 'cancelled', updatedAt: now }).where(eq(purchaseOrders.id, order.id)).run();
   return { ok: true, purchase: getPurchase(db, order.id)! };
@@ -320,7 +328,7 @@ class ReceiveStop extends Error {
 }
 
 /**
- * The whole order arrived: every product that tracks stock goes into inventory as a new delivery at the ordered cost
+ * What has not arrived yet of the order arrived: every product that tracks stock goes into inventory as a new delivery at the ordered cost
  * (products that do not track stock are just recorded as bought). A product that tracks lots or expiry needs them in
  * `lines`. All or nothing: if any line is refused nothing is received and the order stays ordered.
  */
@@ -342,7 +350,8 @@ export function receivePurchase(db: AppDatabase, raw: unknown, now = Date.now())
       if (order.status !== 'ordered') throw new ReceiveStop({ ok: false, lineId: null, field: null, error: 'This order has already been received or cancelled' });
       const employeeId = sellingEmployee(tx);
       for (const line of order.lines) {
-        if (line.tracking === 'none') continue;
+        const left = line.quantityMilli - line.receivedMilli;
+        if (line.tracking === 'none' || left <= 0) continue;
         const details = given.get(line.id);
         const result = receiveStock(
           db,
@@ -350,9 +359,9 @@ export function receivePurchase(db: AppDatabase, raw: unknown, now = Date.now())
             productId: line.productId,
             batchNumber: details?.batchNumber ?? null,
             expiresAt: details?.expiresAt ?? null,
-            quantityMilli: line.quantityMilli,
+            quantityMilli: left,
             unitCost: line.unitCost,
-            note: `Received on ${order.number}`,
+            purchaseLineId: line.id,
           },
           employeeId,
           now,
@@ -363,6 +372,7 @@ export function receivePurchase(db: AppDatabase, raw: unknown, now = Date.now())
           throw new ReceiveStop({ ok: false, lineId: line.id, field, error: `${line.productName}: ${result.error}` });
         }
       }
+      // Receiving the rest completes the order (also when it holds only products that track no stock).
       tx.update(purchaseOrders).set({ status: 'received', receivedAt: now, updatedAt: now }).where(eq(purchaseOrders.id, order.id)).run();
       return { ok: true as const, purchase: getPurchase(db, order.id)! };
     });

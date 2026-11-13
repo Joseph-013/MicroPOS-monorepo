@@ -60,6 +60,8 @@ export interface ReceiveStockInput {
   quantityMilli: number;
   unitCost: Money | null;
   note: string | null;
+  /** The purchase order line this delivery is against: it counts towards what has arrived of that order. */
+  purchaseLineId?: string | null;
 }
 
 /**
@@ -73,7 +75,7 @@ export interface AdjustStockInput {
   note: string | null;
 }
 
-export type StockField = 'product' | 'batchNumber' | 'expiresAt' | 'quantity' | 'unitCost' | 'note';
+export type StockField = 'product' | 'batchNumber' | 'expiresAt' | 'quantity' | 'unitCost' | 'note' | 'purchaseLine';
 
 export type StockResult = { ok: true; batch: BatchRecord } | { ok: false; field: StockField | null; error: string };
 

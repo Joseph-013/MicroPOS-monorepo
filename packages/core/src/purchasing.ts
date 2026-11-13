@@ -65,6 +65,8 @@ export interface PurchaseLineRecord {
   unit: string;
   tracking: ProductTracking;
   quantityMilli: number;
+  /** How much of it has arrived so far (receipts against this line); always 0 for a product that tracks no stock. */
+  receivedMilli: number;
   unitCost: Money;
   total: Money;
 }
@@ -92,6 +94,8 @@ export interface PurchaseSummary {
   receivedAt: number | null;
   reference: string | null;
   lineCount: number;
+  /** Ordered, with some of it already received (the rest is still to come). */
+  partlyReceived: boolean;
   total: Money;
   paid: Money;
   /** Total less paid; 0 for a cancelled order. */
