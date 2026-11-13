@@ -82,7 +82,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       saveDraft: () => Promise.resolve(),
       clearDraft: () => Promise.resolve(),
     },
-    customers: { list: () => Promise.resolve(store.customers), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve(), account: () => Promise.resolve(null), receivePayment: () => Promise.reject(new Error('unused')), interestDefaults: () => Promise.resolve({ orderRateBp: 300, totalRateBp: 300 }), saveInterestDefaults: () => Promise.resolve(true) },
+    customers: { list: () => Promise.resolve(store.customers), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve(), account: () => Promise.resolve(null), receivePayment: () => Promise.reject(new Error('unused')), interestDefaults: () => Promise.resolve({ orderRateBp: 300, totalRateBp: 300 }), saveInterestDefaults: () => Promise.resolve(true), alertCount: () => Promise.resolve(0), alertSettings: () => Promise.resolve({ amount: null, days: null }), saveAlertSettings: () => Promise.resolve(true) },
     display: {
       show: () => {
         store.displayOpen = true;

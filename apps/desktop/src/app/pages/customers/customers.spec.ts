@@ -71,6 +71,7 @@ function fakeApi(initial: CustomerRecord[]) {
       },
       interestDefaults: () => Promise.resolve({ orderRateBp: 500, totalRateBp: 200 }),
       saveInterestDefaults: () => Promise.resolve(true),
+      alertCount: () => Promise.resolve(0),
       receivePayment: (input: ReceivePaymentInput) => {
         calls.payments.push(input);
         const c = rows.find((r) => r.id === input.customerId)!;

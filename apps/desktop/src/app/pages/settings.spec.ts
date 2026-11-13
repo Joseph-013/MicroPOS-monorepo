@@ -85,7 +85,7 @@ describe('SettingsPage', () => {
     const fixture = TestBed.createComponent(SettingsPage);
     await fixture.whenStable();
     const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('h2')].map((h) => h.textContent!.trim());
-    expect(titles).toEqual(['Account', 'Credit Interest', 'Input', 'Customer Display']);
+    expect(titles).toEqual(['Account', 'Credit Interest', 'Credit Alerts', 'Input', 'Customer Display']);
   });
 
   describe('Credit Interest', () => {
@@ -132,6 +132,59 @@ describe('SettingsPage', () => {
     it('is only for people who may change customers', async () => {
       const { el } = await open(['checkout.sell', 'customers.view']);
       expect(el.querySelector('app-credit-interest-settings')).toBeNull();
+    });
+  });
+
+  describe('Credit Alerts', () => {
+    async function open(initial: { amount: number | null; days: number | null }) {
+      const saved: unknown[] = [];
+      const api = {
+        ...fakeAuthApi({ status: sessionUser(['customers.manage']) }).api,
+        display: { isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined },
+        customers: {
+          interestDefaults: () => Promise.resolve({ orderRateBp: 300, totalRateBp: 300 }),
+          alertSettings: () => Promise.resolve(initial),
+          alertCount: () => Promise.resolve(0),
+          saveAlertSettings: (v: unknown) => (saved.push(v), Promise.resolve(true)),
+        },
+      } as unknown as DesktopApi;
+      TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
+      await TestBed.inject(AuthService).whenReady();
+      const fixture = TestBed.createComponent(SettingsPage);
+      await fixture.whenStable();
+      await new Promise((r) => setTimeout(r, 20));
+      await fixture.whenStable();
+      const el = fixture.nativeElement as HTMLElement;
+      const set = (id: string, value: string): void => {
+        const input = el.querySelector(id) as HTMLInputElement;
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      const submit = async (): Promise<void> => {
+        (el.querySelector('app-credit-alert-settings form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+        await fixture.whenStable();
+      };
+      return { el, saved, set, submit };
+    }
+
+    it('shows the saved limits and saves changed ones', async () => {
+      const { el, saved, set, submit } = await open({ amount: 500_000, days: 30 });
+      expect([(el.querySelector('#alert-amount') as HTMLInputElement).value, (el.querySelector('#alert-days') as HTMLInputElement).value]).toEqual(['5000.00', '30']);
+      set('#alert-amount', '2,500');
+      set('#alert-days', '14');
+      await submit();
+      expect(saved).toEqual([{ amount: 250_000, days: 14 }]);
+    });
+
+    it('turns a limit off when left blank, and refuses what is not a limit', async () => {
+      const { el, saved, set, submit } = await open({ amount: 500_000, days: 30 });
+      set('#alert-amount', '');
+      await submit();
+      expect(saved).toEqual([{ amount: null, days: 30 }]);
+      set('#alert-days', '0');
+      await submit();
+      expect(saved).toHaveLength(1);
+      expect(el.textContent).toContain('Enter an amount and a number of days');
     });
   });
 

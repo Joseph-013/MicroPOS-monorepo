@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import type { DesktopApi } from '@micropos/core';
 import { provideRouter } from '@angular/router';
 import { DESKTOP_API } from './api/desktop-api';
 import { AuthService } from './auth/auth.service';
@@ -6,13 +7,16 @@ import { fakeAuthApi, sessionUser } from './auth/testing';
 import { NavRail } from './nav-rail';
 
 describe('NavRail access', () => {
-  async function render(permissions: Parameters<typeof sessionUser>[0]): Promise<string> {
+  async function render(permissions: Parameters<typeof sessionUser>[0], alerts = 0): Promise<string> {
     localStorage.clear();
+    const api = { ...fakeAuthApi({ status: sessionUser(permissions) }).api, customers: { alertCount: () => Promise.resolve(alerts) } } as unknown as DesktopApi;
     TestBed.configureTestingModule({
-      providers: [provideRouter([{ path: '**', children: [] }]), { provide: DESKTOP_API, useValue: fakeAuthApi({ status: sessionUser(permissions) }).api }],
+      providers: [provideRouter([{ path: '**', children: [] }]), { provide: DESKTOP_API, useValue: api }],
     });
     await TestBed.inject(AuthService).whenReady();
     const fixture = TestBed.createComponent(NavRail);
+    await fixture.whenStable();
+    await new Promise((r) => setTimeout(r, 20));
     await fixture.whenStable();
     return (fixture.nativeElement as HTMLElement).textContent!;
   }
@@ -32,5 +36,16 @@ describe('NavRail access', () => {
     expect(text).toContain('Inventory');
     expect(text).not.toContain('Products');
     expect(text).toContain('Users');
+  });
+
+  it('shows how many customers need attention on the Customers link, and nothing when none do', async () => {
+    expect(await render(['customers.view'], 3)).toContain('3');
+    TestBed.resetTestingModule();
+    const text = await render(['customers.view'], 0);
+    expect(text).not.toMatch(/\d/);
+  });
+
+  it('shows no count to someone who cannot see customers', async () => {
+    expect(await render(['checkout.sell'], 3)).not.toContain('3');
   });
 });

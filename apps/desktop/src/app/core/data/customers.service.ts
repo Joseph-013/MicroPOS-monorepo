@@ -1,5 +1,5 @@
 import { inject, Service, signal } from '@angular/core';
-import { DEFAULT_INTEREST_DEFAULTS, type InterestDefaults } from '@micropos/core';
+import { type CreditAlertSettings, DEFAULT_CREDIT_ALERTS, DEFAULT_INTEREST_DEFAULTS, type InterestDefaults } from '@micropos/core';
 import type {
   CustomerAccount,
   CustomerInput,
@@ -10,12 +10,14 @@ import type {
   SaveCustomerResult,
 } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
+import { NavBadges } from '../nav-badges';
 import type { LoadStatus } from './catalog.service';
 
 /** Customers and their accounts over IPC. Every change refreshes the list so balances are never stale. */
 @Service()
 export class CustomersService {
   private readonly api = inject(DESKTOP_API);
+  private readonly badges = inject(NavBadges);
 
   readonly customers = signal<CustomerRecord[]>([]);
   readonly status = signal<LoadStatus>('idle');
@@ -38,6 +40,7 @@ export class CustomersService {
     try {
       this.customers.set(await this.api.customers.list({ includeDeleted: this.includeDeleted() }));
       this.status.set('ready');
+      void this.badges.refresh(); // balances changed: so may who needs attention
     } catch (error) {
       console.error('Failed to load customers', error);
       this.status.set('error');
@@ -125,6 +128,27 @@ export class CustomersService {
       return false;
     }
     this.interestDefaults.set(input);
+    return true;
+  }
+
+  async loadAlertSettings(): Promise<CreditAlertSettings> {
+    try {
+      return (await this.api?.customers.alertSettings()) ?? DEFAULT_CREDIT_ALERTS;
+    } catch (error) {
+      console.error('Failed to load the credit alert limits', error);
+      return DEFAULT_CREDIT_ALERTS;
+    }
+  }
+
+  /** Saves the limits and refreshes the badge; false when they could not be saved. */
+  async saveAlertSettings(input: CreditAlertSettings): Promise<boolean> {
+    try {
+      if (!(await this.api?.customers.saveAlertSettings(input))) return false;
+    } catch (error) {
+      console.error('Failed to save the credit alert limits', error);
+      return false;
+    }
+    void this.badges.refresh();
     return true;
   }
 }

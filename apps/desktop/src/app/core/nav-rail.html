@@ -56,7 +56,12 @@
         (click)="toggleGroup(item)"
       >
         @if (item.icon) {
-          <ng-icon [name]="item.icon" size="18" strokeWidth="1.5" class="shrink-0" />
+          <span class="relative flex shrink-0">
+            <ng-icon [name]="item.icon" size="18" strokeWidth="1.5" />
+        @if (badgeOf(item) > 0) {
+          <span class="bg-destructive text-destructive-foreground absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center px-1 text-[10px] leading-none font-semibold" [attr.aria-label]="badgeOf(item) + ' to review'">{{ badgeText(item) }}</span>
+        }
+          </span>
         }
         <span class="flex-1 transition-opacity duration-150" [class.opacity-0]="!expanded()">{{ item.label }}</span>
         <ng-icon
@@ -98,7 +103,12 @@
         style="padding-right: 11px"
       >
         @if (item.icon) {
-          <ng-icon [name]="item.icon" size="18" strokeWidth="1.5" class="shrink-0" />
+          <span class="relative flex shrink-0">
+            <ng-icon [name]="item.icon" size="18" strokeWidth="1.5" />
+        @if (badgeOf(item) > 0) {
+          <span class="bg-destructive text-destructive-foreground absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center px-1 text-[10px] leading-none font-semibold" [attr.aria-label]="badgeOf(item) + ' to review'">{{ badgeText(item) }}</span>
+        }
+          </span>
         }
         <span class="transition-opacity duration-150" [class.opacity-0]="!expanded()">{{ item.label }}</span>
       </a>

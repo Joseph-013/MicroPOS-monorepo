@@ -26,6 +26,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/ro
 import type { Permission } from '@micropos/core';
 import { devNav } from '../../environments/dev-tools';
 import { AuthService } from './auth/auth.service';
+import { NavBadges } from './nav-badges';
 import { Logo } from './logo';
 import { StorageService } from './storage/storage.service';
 import { ThemeMode, ThemeService } from './theme.service';
@@ -39,6 +40,8 @@ export interface NavItem {
   children?: NavItem[];
   /** Shown only to people who hold it (a group: when any of its entries is shown). */
   permission?: Permission;
+  /** The id the count on this entry is kept under in `NavBadges` (a group shows the total of its entries). */
+  badge?: string;
 }
 
 /**
@@ -75,6 +78,7 @@ export interface NavItem {
 export class NavRail {
   protected readonly theme = inject(ThemeService);
   protected readonly auth = inject(AuthService);
+  private readonly badges = inject(NavBadges);
   private readonly storage = inject(StorageService);
 
   protected readonly pinned = signal(this.storage.get('navPinned', false, (v): v is boolean => typeof v === 'boolean'));
@@ -95,7 +99,7 @@ export class NavRail {
       ],
     },
     { id: 'orders', path: '/orders', label: 'Sales Orders', icon: 'lucideReceipt', permission: 'orders.view' },
-    { id: 'customers', path: '/customers', label: 'Customers', icon: 'lucideUsers', permission: 'customers.view' },
+    { id: 'customers', path: '/customers', label: 'Customers', icon: 'lucideUsers', permission: 'customers.view', badge: 'customers' },
     {
       id: 'purchasing',
       label: 'Purchasing',
@@ -112,6 +116,16 @@ export class NavRail {
 
   /** The entries the signed-in person may use; a group with none of its entries left is dropped. */
   protected readonly visibleNav = computed(() => this.visible(this.nav));
+
+  /** The number on an entry (a group: the total of what it holds); 0 shows nothing. */
+  protected badgeOf(item: NavItem): number {
+    if (item.children) return item.children.reduce((sum, child) => sum + this.badgeOf(child), 0);
+    return item.badge ? this.badges.count(item.badge) : 0;
+  }
+  protected badgeText(item: NavItem): string {
+    const n = this.badgeOf(item);
+    return n > 99 ? '99+' : String(n);
+  }
 
   private visible(items: NavItem[]): NavItem[] {
     return items.flatMap((item) => {

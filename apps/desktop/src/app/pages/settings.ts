@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
+import { CreditAlertSettingsCard } from './credit-alert-settings';
 import { CreditInterestSettings } from './credit-interest-settings';
 import { AuthService } from '../core/auth/auth.service';
 import { ChangePinDialog } from '../core/auth/change-pin-dialog';
@@ -14,7 +15,7 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
 
 /** Per-device settings. */
 @Component({
-  imports: [CreditInterestSettings, HlmButtonImports, HlmCardImports, HlmSelectImports, HlmSwitchImports],
+  imports: [CreditAlertSettingsCard, CreditInterestSettings, HlmButtonImports, HlmCardImports, HlmSelectImports, HlmSwitchImports],
   template: `
     <h1 class="mb-3 text-2xl">Settings</h1>
     @if (auth.user(); as user) {
@@ -32,6 +33,7 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
     }
     @if (auth.can('customers.manage')) {
       <app-credit-interest-settings />
+      <app-credit-alert-settings />
     }
     <section hlmCard class="mt-3 max-w-xl">
       <div hlmCardHeader>
