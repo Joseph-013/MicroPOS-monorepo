@@ -34,7 +34,7 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', 
   viewProviders: [provideIcons({ lucideExternalLink })],
   template: `
     <app-dialog-page-link path="/orders" label="Sales Orders" [highlight]="order().id" />
-    <hlm-dialog-header class="pe-16">
+    <hlm-dialog-header class="pe-24">
       <h3 hlmDialogTitle class="flex items-center gap-3">
         <span class="select-text">{{ order().orderNumber }}</span>
         <span hlmBadge [variant]="statusVariant()">{{ statusLabel() }}</span>

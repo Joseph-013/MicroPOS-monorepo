@@ -34,7 +34,7 @@ export interface PurchaseDetailContext {
   imports: [DatePipe, DialogPageLink, MoneyPipe, OnScreenKeypadDirective, HlmAlertDialogImports, HlmBadgeImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
   template: `
     <app-dialog-page-link path="/purchases" label="Purchases" [highlight]="purchase().id" />
-    <hlm-dialog-header class="pe-16">
+    <hlm-dialog-header class="pe-24">
       <h3 hlmDialogTitle class="flex items-center gap-3">
         <span class="select-text">{{ purchase().number }}</span>
         <span hlmBadge [variant]="variant()">{{ statusLabel() }}</span>

@@ -30,7 +30,7 @@ export interface CustomerAccountContext {
   imports: [DatePipe, DialogPageLink, MoneyPipe, OnScreenKeypadDirective, HlmBadgeImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
   template: `
     <app-dialog-page-link path="/customers" label="Customers" [highlight]="account().customer.id" />
-    <hlm-dialog-header class="pe-16">
+    <hlm-dialog-header class="pe-24">
       <h3 hlmDialogTitle class="flex items-center gap-3">
         <span class="min-w-0 truncate select-text">{{ account().customer.name }}</span>
         @if (account().customer.deletedAt) {

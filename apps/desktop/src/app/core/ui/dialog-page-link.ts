@@ -10,7 +10,7 @@ import { HIGHLIGHT_PARAM } from '../row-target';
  * account has "Open Customers", a sales order "Open Sales Orders". It is only there when the dialog is over some
  * other page. Going there drops the dialog's query parameters, which closes it (and any dialog under it), and the
  * page shows the page of its table that holds the record, highlighted. Put it anywhere in the dialog's template
- * (it positions itself against the dialog) and give the header `pe-16` so a long title stays clear of the two buttons.
+ * (it positions itself against the dialog) and give the header `pe-24` so a long title stays clear of the two buttons.
  */
 @Component({
   selector: 'app-dialog-page-link',
@@ -23,7 +23,7 @@ import { HIGHLIGHT_PARAM } from '../row-target';
         hlmBtn
         variant="ghost"
         size="icon-sm"
-        class="absolute end-10 top-2"
+        class="absolute end-16 top-2"
         [routerLink]="path()"
         [queryParams]="query()"
         [attr.aria-label]="'Open ' + label()"

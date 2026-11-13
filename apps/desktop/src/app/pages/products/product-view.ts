@@ -21,7 +21,7 @@ export interface ProductViewContext {
   imports: [DatePipe, MoneyPipe, DialogPageLink, HlmBadgeImports, HlmButtonImports, HlmDialogImports],
   template: `
     <app-dialog-page-link path="/items/products" label="Products" [highlight]="product.id" />
-    <hlm-dialog-header class="pe-16">
+    <hlm-dialog-header class="pe-24">
       <h3 hlmDialogTitle class="flex items-center gap-3">
         <span class="min-w-0 truncate select-text">{{ product.name }}</span>
         <span hlmBadge [variant]="statusVariant()">{{ statusLabel() }}</span>
