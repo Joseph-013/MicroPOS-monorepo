@@ -15,8 +15,12 @@ import {
   productBatches,
   productCategories,
   products,
+  purchaseOrderLines,
+  purchaseOrders,
+  purchasePayments,
   settings,
   stockMovements,
+  suppliers,
 } from '../schema';
 import { seedAdmin } from '../seeders/admin.seeder';
 import { uuid7 } from '../uuid';
@@ -24,6 +28,7 @@ import { buildCategory, buildKnownProducts, buildProduct, SAMPLE_CATEGORIES, SAM
 import { buildCustomer } from './customer.factory';
 import { buildEmployee, DUMMY_PIN } from './employee.factory';
 import { SeedStock } from './inventory.factory';
+import { buildPurchases, buildSupplier } from './purchase.factory';
 import { buildRefund, buildSale, type SaleDraft } from './sale.factory';
 
 const HOUR = 3_600_000;
@@ -40,6 +45,10 @@ export interface SeedOptions {
   extraCashiers?: number;
   /** Customers who buy on credit. */
   customers?: number;
+  /** Suppliers the store buys from. */
+  suppliers?: number;
+  /** Purchase orders placed with them (received, on the way or cancelled; paid in full, in part or not at all). */
+  purchases?: number;
 }
 
 export interface SeedSummary {
@@ -47,6 +56,8 @@ export interface SeedSummary {
   categories: number;
   products: number;
   customers: number;
+  suppliers: number;
+  purchaseOrders: number;
   /** Ledger entries: charges, then payments. */
   ledgerEntries: number;
   orders: number;
@@ -277,16 +288,24 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
     })),
   ];
 
+  // Purchasing: suppliers and the orders placed with them. Drawn last so the data above is unchanged by it.
+  const supplierRows = Array.from({ length: options.suppliers ?? 4 }, () => buildSupplier({}, start - DAY));
+  const purchasing = buildPurchases(options.purchases ?? 10, supplierRows, productRows.map((p) => ({ id: p.id!, tracking: p.tracking ?? 'none', unit: p.unit ?? 'each', cost: p.cost ?? null, price: p.price })), stock.batches, manager.id!, start, now);
+
   db.transaction((tx) => {
     for (const rows of chunks(staff)) tx.insert(employees).values(rows).run();
     for (const rows of chunks(categoryRows)) tx.insert(categories).values(rows).run();
     for (const rows of chunks(customerRows)) tx.insert(customers).values(rows).run();
+    for (const rows of chunks(supplierRows)) tx.insert(suppliers).values(rows).run();
     for (const rows of chunks(productRows)) tx.insert(products).values(rows).run();
     for (const rows of chunks(productCategoryRows)) tx.insert(productCategories).values(rows).run();
     for (const rows of chunks(all.map((d) => d.order))) tx.insert(orders).values(rows).run();
     for (const rows of chunks(all.flatMap((d) => d.lines))) tx.insert(orderLines).values(rows).run();
     for (const rows of chunks(stock.batches)) tx.insert(productBatches).values(rows).run();
-    for (const rows of chunks(stock.movements)) tx.insert(stockMovements).values(rows).run();
+    for (const rows of chunks([...stock.movements, ...purchasing.movements])) tx.insert(stockMovements).values(rows).run();
+    for (const rows of chunks(purchasing.orders)) tx.insert(purchaseOrders).values(rows).run();
+    for (const rows of chunks(purchasing.lines)) tx.insert(purchaseOrderLines).values(rows).run();
+    for (const rows of chunks(purchasing.payments)) tx.insert(purchasePayments).values(rows).run();
     for (const rows of chunks(all.flatMap((d) => d.payments))) tx.insert(payments).values(rows).run();
     for (const rows of chunks(ledgerRows)) tx.insert(customerLedger).values(rows).run();
     for (const rows of chunks(sessionRows)) tx.insert(loginSessions).values(rows).run();
@@ -305,6 +324,8 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
     categories: categoryRows.length,
     products: productRows.length,
     customers: customerRows.length,
+    suppliers: supplierRows.length,
+    purchaseOrders: purchasing.orders.length,
     ledgerEntries: ledgerRows.length,
     orders: drafts.length,
     refunds: refunds.length,

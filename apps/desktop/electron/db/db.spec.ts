@@ -158,6 +158,28 @@ describe('seedDatabase', () => {
     expect(handle.db.$client.pragma('foreign_key_check')).toEqual([]);
   });
 
+  it('seeds suppliers and purchase orders that add up: totals, payments, receipts and stock', () => {
+    const summary = seedDatabase(db, { orders: 60, days: 30 });
+    expect(summary.suppliers).toBe(4);
+    expect(summary.purchaseOrders).toBe(10);
+    const pos = listPurchases(db);
+    expect(pos).toHaveLength(10);
+    expect(new Set(pos.map((p) => p.number)).size).toBe(10);
+    for (const po of pos) {
+      const detail = getPurchase(db, po.id)!;
+      expect(detail.lines.reduce((sum, l) => sum + l.total, 0), po.number).toBe(po.total);
+      expect(po.paid, po.number).toBeLessThanOrEqual(po.total);
+      if (po.status === 'cancelled') expect(po.paid).toBe(0);
+      if (po.status === 'received') expect(po.receivedAt).not.toBeNull();
+      else expect(po.receivedAt).toBeNull();
+    }
+    expect(pos.some((p) => p.status === 'received')).toBe(true);
+    expect(pos.some((p) => p.owed > 0)).toBe(true);
+    // Receiving never takes a batch below zero.
+    expect(listBatches(db, { includeEmpty: true }).every((b) => b.onHandMilli >= 0)).toBe(true);
+    expect(handle.db.$client.pragma('foreign_key_check')).toEqual([]);
+  });
+
   it('produces consistent, constraint-valid dummy data', () => {
     const summary = seedDatabase(db, { orders: 60, days: 14 });
     expect(summary.employees).toBeGreaterThanOrEqual(3);
