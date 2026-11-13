@@ -39,11 +39,13 @@ const purchase = (id: string, number: string, supplierName: string, over: Partia
   partlyReceived: false,
   total: 100_000,
   paid: 0,
+  credited: 0,
   owed: 100_000,
   note: null,
   employeeName: 'Register',
   lines: [{ id: `${id}-l1`, productId: 'p1', productName: 'Rice 25kg', productCode: '111', unit: 'each', tracking: 'quantity', quantityMilli: 10_000, receivedMilli: 0, unitCost: 10_000, total: 100_000 }],
   payments: [],
+  returns: [],
   ...over,
 });
 
@@ -469,5 +471,22 @@ describe('PurchasesPage', () => {
   it('has no concerns button when nothing needs attention', async () => {
     await open();
     expect(el.querySelector('button[title="Purchase concerns"]')).toBeNull();
+  });
+
+  it('shows what was sent back to the supplier on the order, and what was refunded', async () => {
+    const order = purchase('r', 'PO-1009', 'Metro', {
+      credited: 30_000,
+      owed: 70_000,
+      returns: [{ id: 'x1', at: Date.UTC(2026, 10, 12, 9), supplierName: 'Metro', purchaseNumber: 'PO-1009', productId: 'p1', productName: 'Bread', unit: 'each', batchNumber: 'L7', quantityMilli: 4_000, refundAmount: 30_000, creditedAmount: 30_000, note: 'Stale', employeeName: 'Admin' }],
+    });
+    await open([order], '/purchases?view-purchase=r');
+    await settle();
+    const box = document.querySelector('hlm-dialog-content, [role="dialog"]')!;
+    expect(box.textContent).toContain('Refunded');
+    const returns = box.querySelector('[aria-label="Returns"]')!;
+    expect(returns.textContent).toContain('Returned · Bread · L7');
+    expect(returns.textContent).toContain('4');
+    expect(returns.textContent).toContain('₱300.00');
+    expect(returns.textContent).toContain('Stale');
   });
 });

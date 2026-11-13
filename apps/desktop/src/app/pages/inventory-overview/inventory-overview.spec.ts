@@ -19,6 +19,10 @@ const batch = (id: string, name: string, over: Partial<BatchRecord> = {}): Batch
   unitPrice: 429,
   receivedMilli: 10_000,
   onHandMilli: 6_000,
+  purchaseId: null,
+  purchaseNumber: null,
+  supplierId: null,
+  supplierName: null,
   ...over,
 });
 

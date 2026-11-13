@@ -18,6 +18,7 @@ const MOVEMENT_LABELS: Record<string, string> = {
   expired: 'Expired',
   repack_out: 'Repackaged out',
   repack_in: 'Repackaged in',
+  supplier_return: 'Returned to supplier',
 };
 
 /** Items > Overview: what is in stock, what is about to expire or already has, and what moved lately. */

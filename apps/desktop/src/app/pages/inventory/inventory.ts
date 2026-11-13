@@ -6,7 +6,7 @@ import { filter, take } from 'rxjs';
 import { RECEIVE_ORDER_PARAM } from '../../core/receive-order-param';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2 } from '@ng-icons/lucide';
-import { type BatchRecord, expiryState, type ExpiryState, formatQuantity } from '@micropos/core';
+import { type BatchRecord, expiryState, type ExpiryState, formatQuantity, type SupplierReturnRecord } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -20,11 +20,13 @@ import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { BannerService } from '../../core/banner';
 import { InventoryService } from '../../core/data/inventory.service';
 import { ProductsService } from '../../core/data/products.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { MoneyPipe } from '../../core/money.pipe';
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
 import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { AdjustStockForm, type AdjustStockContext } from './adjust-stock-form';
+import { ReturnToSupplierForm, type ReturnToSupplierContext } from './return-to-supplier-form';
 import { ReceiveStockForm, type ReceiveStockContext } from './receive-stock-form';
 import { rowTarget } from '../../core/row-target';
 import { RowSelection } from '../../core/ui/row-selection';
@@ -258,6 +260,8 @@ export class InventoryPage {
   /** The batch a dialog is open for: highlighted, not selected. */
   protected readonly target = rowTarget();
 
+  protected readonly auth = inject(AuthService);
+  private readonly money = new MoneyPipe();
   /** What needs attention in stock: the same number as the badge on Inventory in the nav rail. */
   private readonly badges = inject(NavBadges);
   protected readonly concerns = computed(() => this.badges.count('inventory'));
@@ -291,6 +295,23 @@ export class InventoryPage {
     }).closed$.subscribe((saved) => {
       if (saved) this.banner.success('Stock updated', { key: 'inventory-saved' });
     });
+  }
+
+  /** Sends a batch back to its supplier (expired bread, a damaged delivery) for a refund; needs the right to manage purchasing. */
+  protected returnToSupplier(batch: BatchRecord): void {
+    this.target.set(batch.id);
+    this.dialogs
+      .open<SupplierReturnRecord | undefined, ReturnToSupplierContext>(ReturnToSupplierForm, {
+        id: 'return-to-supplier',
+        contentClass: 'w-[min(30rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
+        context: { batch },
+      })
+      .closed$.subscribe((saved) => {
+        if (!saved) return;
+        const credit = saved.creditedAmount > 0 ? `, ${this.money.transform(saved.creditedAmount)} off ${saved.purchaseNumber}` : '';
+        const refund = saved.refundAmount > saved.creditedAmount ? `, ${this.money.transform(saved.refundAmount - saved.creditedAmount)} refunded` : '';
+        this.banner.success(`Returned to ${saved.supplierName}${credit}${refund}`, { key: 'inventory-saved', duration: 'long' });
+      });
   }
 
   protected toggleEmpty(on: boolean): void {

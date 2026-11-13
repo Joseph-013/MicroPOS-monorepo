@@ -92,6 +92,10 @@ export interface PurchaseDetailContext {
         <dd class="text-right">{{ purchase().total | money }}</dd>
         <dt class="text-muted-foreground">Paid</dt>
         <dd class="text-right">{{ purchase().paid | money }}</dd>
+        @if (purchase().credited > 0) {
+          <dt class="text-muted-foreground">Refunded</dt>
+          <dd class="text-right">{{ purchase().credited | money }}</dd>
+        }
         <dt>Owed</dt>
         <dd class="font-heading text-right text-2xl" [class.text-destructive]="purchase().owed > 0">{{ purchase().owed | money }}</dd>
       </dl>
@@ -140,6 +144,20 @@ export interface PurchaseDetailContext {
             <button hlmBtn type="submit" class="px-5" [disabled]="saving()">Record payment</button>
           </div>
         </form>
+      }
+
+      @if (purchase().returns.length) {
+        <ul class="divide-border flex flex-col divide-y border-y" aria-label="Returns">
+          @for (item of purchase().returns; track item.id) {
+            <li class="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 py-2">
+              <div class="min-w-0">
+                <p class="truncate">Returned · {{ item.productName }}{{ item.batchNumber ? ' · ' + item.batchNumber : '' }}</p>
+                <p class="text-muted-foreground text-xs">{{ quantityText(item) }} · {{ item.at | date: 'MMM d, y, h:mm a' }}@if (item.employeeName) { · {{ item.employeeName }} }@if (item.note) { · <span class="select-text">{{ item.note }}</span> }</p>
+              </div>
+              <p class="text-right">{{ item.refundAmount | money }}</p>
+            </li>
+          }
+        </ul>
       }
 
       @if (purchase().payments.length) {
@@ -211,6 +229,9 @@ export class PurchaseDetailForm {
   /** Nothing has arrived yet: it can still be changed or (unpaid) cancelled. */
   protected readonly editable = computed(() => this.awaiting() && !this.purchase().partlyReceived);
   protected readonly cancellable = computed(() => this.editable() && this.purchase().paid === 0);
+  protected quantityText(item: { quantityMilli: number; unit: string }): string {
+    return `${formatQuantity(item.quantityMilli)}${item.unit === 'each' ? '' : ' ' + item.unit}`;
+  }
   protected readonly payable = computed(() => this.purchase().status !== 'cancelled' && this.purchase().owed > 0);
 
   protected readonly paying = signal(false);

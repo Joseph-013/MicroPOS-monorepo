@@ -1,5 +1,5 @@
 import { inject, Service, signal } from '@angular/core';
-import type { AdjustStockInput, BatchRecord,  InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from '@micropos/core';
+import type { ReturnToSupplierInput, ReturnToSupplierResult, AdjustStockInput, BatchRecord,  InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
 import { refreshOnChange } from './refresh-on-change';
 import type { LoadStatus } from './catalog.service';
@@ -58,6 +58,20 @@ export class InventoryService {
 
   receive(input: ReceiveStockInput): Promise<StockResult> {
     return this.run(() => this.api!.inventory.receive(input), 'Could not receive the stock');
+  }
+
+  /** Sends stock back to a supplier, for a refund. Refreshes the batches like the other changes. */
+  async returnToSupplier(input: ReturnToSupplierInput): Promise<ReturnToSupplierResult> {
+    if (!this.api) return { ok: false, field: null, error: 'Not connected to the database' };
+    let result: ReturnToSupplierResult;
+    try {
+      result = await this.api.inventory.returnToSupplier(input);
+    } catch (error) {
+      console.error('Could not return the stock', error);
+      return { ok: false, field: null, error: 'Could not return the stock' };
+    }
+    if (result.ok) await this.load();
+    return result;
   }
 
   adjust(input: AdjustStockInput): Promise<StockResult> {

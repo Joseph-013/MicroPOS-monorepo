@@ -10,8 +10,10 @@ import {
   type ReceiveStockInput,
   type RepackageDraft,
   type RepackageInput,
+  type ReturnToSupplierInput,
   type StockConcern,
 } from '@micropos/core';
+import { BannerService } from '../../core/banner';
 import { NavBadges } from '../../core/nav-badges';
 import { ProductViewer } from '../../core/product-viewer';
 import { DESKTOP_API } from '../../core/api/desktop-api';
@@ -45,6 +47,10 @@ const batch = (id: string, name: string, over: Partial<BatchRecord> = {}): Batch
   unitPrice: 429,
   receivedMilli: 10_000,
   onHandMilli: 6_000,
+  purchaseId: null,
+  purchaseNumber: null,
+  supplierId: null,
+  supplierName: null,
   ...over,
 });
 
@@ -74,7 +80,7 @@ let concernRows: StockConcern[] = [];
 function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = [], orders: PurchaseDetail[] = []) {
   const rows = [...initial];
   const drafts = { saved: null as RepackageDraft | null };
-  const calls = { adjust: [] as AdjustStockInput[], receive: [] as ReceiveStockInput[], repackage: [] as RepackageInput[] };
+  const calls = { returned: [] as ReturnToSupplierInput[], adjust: [] as AdjustStockInput[], receive: [] as ReceiveStockInput[], repackage: [] as RepackageInput[] };
   const api = {
     platform: 'linux',
     version: () => Promise.resolve(DESKTOP_API_VERSION),
@@ -123,6 +129,16 @@ function fakeApi(initial: BatchRecord[], catalog: ProductRecord[] = [], orders: 
       repackage: (input: RepackageInput) => {
         calls.repackage.push(input);
         return Promise.resolve({ ok: true as const, repackageId: 'rp-1' });
+      },
+      returnToSupplier: (input: ReturnToSupplierInput) => {
+        calls.returned.push(input);
+        const row = rows.find((b) => b.id === input.batchId)!;
+        if (input.refundAmount > 1_000) return Promise.resolve({ ok: false as const, field: 'refundAmount' as const, error: 'More than the cost of what goes back' });
+        row.onHandMilli -= input.quantityMilli;
+        return Promise.resolve({
+          ok: true as const,
+          return: { id: 'r1', at: 1, supplierName: row.supplierName ?? 'Corner', purchaseNumber: row.purchaseNumber, productId: row.productId, productName: row.productName, unit: row.unit, batchNumber: row.batchNumber, quantityMilli: input.quantityMilli, refundAmount: input.refundAmount, creditedAmount: row.purchaseNumber ? input.refundAmount : 0, note: input.note, employeeName: null },
+        });
       },
       adjust: (input: AdjustStockInput) => {
         calls.adjust.push(input);
@@ -243,6 +259,52 @@ describe('InventoryPage', () => {
     expect(calls.adjust).toEqual([{ batchId: '1', type: 'waste', quantityMilli: 2000, note: null }]);
     expect(document.querySelector('hlm-dialog-content')).toBeNull();
     expect(cells(bodyRows()[0]!)[5]).toContain('4'); // 6 - 2
+  });
+
+  describe('returning stock to a supplier', () => {
+    const open_ = async (over: Partial<BatchRecord>): Promise<void> => {
+      await open([batch('1', 'Bread', { onHandMilli: 10_000, ...over })]);
+      (fixture.componentInstance as unknown as { returnToSupplier(b: BatchRecord): void }).returnToSupplier(batchOf());
+      await settle();
+    };
+    const batchOf = (): BatchRecord => (fixture.componentInstance as unknown as { service: { batches(): BatchRecord[] } }).service.batches()[0]!;
+
+    it('takes the whole lot back by default, naming the order and supplier it came on, and reports what came off what is owed', async () => {
+      await open_({ purchaseId: 'po1', purchaseNumber: 'PO-1003', supplierId: 's1', supplierName: 'Metro' });
+      expect(dialog().textContent).toContain('Return to supplier');
+      expect(dialog().textContent).toContain('Metro');
+      expect(dialog().textContent).toContain('PO-1003');
+      expect((dialog().querySelector('#r-qty') as HTMLInputElement).value).toBe('10');
+      await type(dialog(), '#r-qty', '4');
+      await type(dialog(), '#r-refund', '8');
+      await type(dialog(), '#r-note', 'Stale');
+      buttonByText(dialog(), 'Return').click();
+      await settle();
+      expect(calls.returned).toEqual([{ batchId: '1', quantityMilli: 4_000, supplierId: null, refundAmount: 800, note: 'Stale' }]);
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Returned to Metro, ₱8.00 off PO-1003');
+      expect(document.querySelector('hlm-dialog-content')).toBeNull();
+    });
+
+    it('shows a refused refund and keeps the form, and refunds nothing when the field is left empty', async () => {
+      await open_({});
+      await type(dialog(), '#r-refund', '50');
+      buttonByText(dialog(), 'Return').click();
+      await settle();
+      expect(dialog().textContent).toContain('More than the cost of what goes back');
+      await type(dialog(), '#r-refund', '');
+      buttonByText(dialog(), 'Return').click();
+      await settle();
+      expect(calls.returned.map((c) => [c.supplierId, c.refundAmount])).toEqual([[null, 5_000], [null, 0]]);
+    });
+
+    it('refuses a quantity that is not a number without asking the main process', async () => {
+      await open_({ purchaseId: 'po1', purchaseNumber: 'PO-1003', supplierId: 's1', supplierName: 'Metro' });
+      await type(dialog(), '#r-qty', 'abc');
+      buttonByText(dialog(), 'Return').click();
+      await settle();
+      expect(dialog().textContent).toContain('Enter a valid quantity');
+      expect(calls.returned).toEqual([]);
+    });
   });
 
   it('writes off a selection only after a confirmation, taking the whole remaining quantity', async () => {
@@ -370,7 +432,7 @@ describe('InventoryPage', () => {
     const line = (id: string, productId: string, productName: string, quantityMilli: number, unitCost: number): PurchaseDetail['lines'][number] => ({ id, productId, productName, productCode: null, unit: 'each', tracking: 'quantity', quantityMilli, receivedMilli: 0, unitCost, total: 0 });
     const order = {
       id: 'o1', number: 'PO-1001', supplierId: 's', supplierName: 'Metro', status: 'ordered', orderedAt: 1, expectedAt: null, dueAt: null, receivedAt: null, reference: null, lineCount: 2,
-      partlyReceived: false, total: 0, paid: 0, owed: 0, note: null, employeeName: null, payments: [],
+      partlyReceived: false, total: 0, paid: 0, credited: 0, owed: 0, note: null, employeeName: null, payments: [], returns: [],
       lines: [line('l1', '1', 'Milk', 10_000, 4_000), line('l2', '2', 'Eggs', 3_000, 900)],
     } as PurchaseDetail;
     await open([], [product('1', 'Milk', { tracking: 'quantity' }), product('2', 'Eggs', { tracking: 'quantity' }), product('3', 'Tea', { tracking: 'quantity' })], [order]);
@@ -406,7 +468,7 @@ describe('InventoryPage', () => {
   it('?receive-order=<id> opens Receive stock with that order chosen, then drops the parameter', async () => {
     const order = {
       id: 'o1', number: 'PO-1001', supplierId: 's', supplierName: 'Metro', status: 'ordered', orderedAt: 1, expectedAt: null, dueAt: null, receivedAt: null, reference: null, lineCount: 1,
-      partlyReceived: false, total: 0, paid: 0, owed: 0, note: null, employeeName: null, payments: [],
+      partlyReceived: false, total: 0, paid: 0, credited: 0, owed: 0, note: null, employeeName: null, payments: [], returns: [],
       lines: [{ id: 'l1', productId: '1', productName: 'Milk', productCode: null, unit: 'each', tracking: 'quantity', quantityMilli: 5_000, receivedMilli: 0, unitCost: 4_000, total: 0 }],
     } as PurchaseDetail;
     await open([], [product('1', 'Milk', { tracking: 'quantity' })], [order], '/?receive-order=o1');
@@ -419,7 +481,7 @@ describe('InventoryPage', () => {
   it('an order of products that track no stock still lists them, marked not tracked, instead of an empty list', async () => {
     const order = {
       id: 'o1', number: 'PO-1001', supplierId: 's', supplierName: 'Metro', status: 'ordered', orderedAt: 1, expectedAt: null, dueAt: null, receivedAt: null, reference: null, lineCount: 1,
-      partlyReceived: false, total: 0, paid: 0, owed: 0, note: null, employeeName: null, payments: [],
+      partlyReceived: false, total: 0, paid: 0, credited: 0, owed: 0, note: null, employeeName: null, payments: [], returns: [],
       lines: [{ id: 'l1', productId: '1', productName: 'Tea', productCode: null, unit: 'each', tracking: 'none', quantityMilli: 5_000, receivedMilli: 0, unitCost: 400, total: 0 }],
     } as PurchaseDetail;
     await open([], [product('1', 'Tea', { tracking: 'none' }), product('2', 'Milk', { tracking: 'quantity' })], [order], '/?receive-order=o1');

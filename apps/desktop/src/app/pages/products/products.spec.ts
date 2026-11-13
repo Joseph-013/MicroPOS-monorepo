@@ -77,6 +77,7 @@ function fakeApi(initial: ProductRecord[]) {
       restore: () => Promise.resolve({ restored: 0, conflicts: [] }),
     },
     inventory: {
+      returnToSupplier: () => Promise.reject(new Error('unused')),
       listBatches: () => Promise.resolve([]),
       concerns: () => Promise.resolve([]),
       overview: () => Promise.reject(new Error('unused')),
