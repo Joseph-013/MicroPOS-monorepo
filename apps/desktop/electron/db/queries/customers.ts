@@ -4,6 +4,9 @@ import {
   type CustomerField,
   type CustomerInput,
   type CustomerRecord,
+  INTEREST_MODES,
+  type InterestMode,
+  isRateBp,
   type LedgerEntryRecord,
   ORDER_PAYMENT_METHODS,
   type OrderPaymentMethod,
@@ -41,7 +44,11 @@ export function sanitizeCustomerInput(value: unknown): CustomerInput | Invalid {
   if (limit !== null && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 0 || limit > MAX_CENTS)) {
     return { field: 'creditLimit', error: 'Enter a valid credit limit' };
   }
-  return { name, phone, note, creditLimit: limit as number | null };
+  const mode = v['interestMode'] ?? null;
+  if (mode !== null && !INTEREST_MODES.includes(mode as InterestMode)) return { field: 'interest', error: 'Choose how interest is charged' };
+  const rate = v['interestRateBp'] ?? null;
+  if (mode !== null && !isRateBp(rate)) return { field: 'interest', error: 'Enter a rate between 0.01% and 100%' };
+  return { name, phone, note, creditLimit: limit as number | null, interestMode: mode as InterestMode | null, interestRateBp: mode === null ? null : (rate as number) };
 }
 
 const isInvalid = (r: CustomerInput | Invalid): r is Invalid => 'error' in r;
@@ -52,6 +59,9 @@ interface Row {
   phone: string | null;
   note: string | null;
   creditLimit: number | null;
+  interestMode: InterestMode | null;
+  interestRateBp: number | null;
+  interestStartedAt: number | null;
   createdAt: number;
   deletedAt: number | null;
   balance: number;
@@ -62,6 +72,7 @@ function selectRecords(db: AppDatabase, where: string, params: unknown[] = []): 
   return db.$client
     .prepare(
       `SELECT c.id AS id, c.name AS name, c.phone AS phone, c.note AS note, c.credit_limit AS creditLimit,
+              c.interest_mode AS interestMode, c.interest_rate_bp AS interestRateBp, c.interest_started_at AS interestStartedAt,
               c.created_at AS createdAt, c.deleted_at AS deletedAt,
               COALESCE((SELECT SUM(amount) FROM customer_ledger l WHERE l.customer_id = c.id), 0) AS balance,
               (SELECT MAX(at) FROM customer_ledger l WHERE l.customer_id = c.id) AS lastActivityAt
@@ -79,24 +90,26 @@ function record(db: AppDatabase, id: string): CustomerRecord | undefined {
   return selectRecords(db, 'WHERE c.id = ?', [id])[0];
 }
 
-function save(db: AppDatabase, id: string | null, raw: unknown): SaveCustomerResult {
+function save(db: AppDatabase, id: string | null, raw: unknown, now: number): SaveCustomerResult {
   const input = sanitizeCustomerInput(raw);
   if (isInvalid(input)) return { ok: false, ...input };
   let savedId: string;
   if (id === null) {
-    savedId = db.insert(customers).values(input).returning({ id: customers.id }).get().id;
+    savedId = db.insert(customers).values({ ...input, interestStartedAt: input.interestMode ? now : null }).returning({ id: customers.id }).get().id;
   } else {
-    const [existing] = db.select({ id: customers.id }).from(customers).where(and(eq(customers.id, id), isNull(customers.deletedAt))).all();
+    const [existing] = db.select({ id: customers.id, interestMode: customers.interestMode, interestStartedAt: customers.interestStartedAt }).from(customers).where(and(eq(customers.id, id), isNull(customers.deletedAt))).all();
     if (!existing) return { ok: false, field: null, error: 'Customer not found' };
-    db.update(customers).set(input).where(eq(customers.id, id)).run();
+    // Interest is only charged from when it was switched on; a different kind starts afresh, a new rate keeps the start.
+    const interestStartedAt = input.interestMode === null ? null : input.interestMode === existing.interestMode ? existing.interestStartedAt : now;
+    db.update(customers).set({ ...input, interestStartedAt }).where(eq(customers.id, id)).run();
     savedId = id;
   }
   return { ok: true, customer: record(db, savedId)! };
 }
 
-export const createCustomer = (db: AppDatabase, raw: unknown): SaveCustomerResult => save(db, null, raw);
-export const updateCustomer = (db: AppDatabase, id: unknown, raw: unknown): SaveCustomerResult =>
-  typeof id === 'string' ? save(db, id, raw) : { ok: false, field: null, error: 'Customer not found' };
+export const createCustomer = (db: AppDatabase, raw: unknown, now = Date.now()): SaveCustomerResult => save(db, null, raw, now);
+export const updateCustomer = (db: AppDatabase, id: unknown, raw: unknown, now = Date.now()): SaveCustomerResult =>
+  typeof id === 'string' ? save(db, id, raw, now) : { ok: false, field: null, error: 'Customer not found' };
 
 const idList = (ids: unknown): string[] =>
   Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string').slice(0, MAX_BULK) : [];

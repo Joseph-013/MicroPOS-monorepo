@@ -102,6 +102,8 @@ const api: DesktopApi = {
     restore: (ids) => ipcRenderer.invoke(CHANNELS.customers.restore, ids),
     account: (id) => ipcRenderer.invoke(CHANNELS.customers.account, id),
     receivePayment: (input) => ipcRenderer.invoke(CHANNELS.customers.receivePayment, input),
+    interestDefaults: () => ipcRenderer.invoke(CHANNELS.customers.interestDefaults),
+    saveInterestDefaults: (input) => ipcRenderer.invoke(CHANNELS.customers.saveInterestDefaults, input),
   },
   orders: {
     list: () => ipcRenderer.invoke(CHANNELS.orders.list),

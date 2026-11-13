@@ -17,6 +17,7 @@ import type {
   SupplierRecord,
 } from './purchasing.js';
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
+import type { InterestDefaults } from './credit-interest.js';
 import type { CustomerAccount, CustomerInput, CustomerRecord, ReceivePaymentInput, ReceivePaymentResult, RemoveCustomersResult, SaveCustomerResult } from './customers.js';
 import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
 
@@ -25,7 +26,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 29;
+export const DESKTOP_API_VERSION = 30;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -125,6 +126,10 @@ export interface DesktopApi {
     account(id: string): Promise<CustomerAccount | null>;
     /** Records money received towards what the customer owes (never more than they owe). */
     receivePayment(input: ReceivePaymentInput): Promise<ReceivePaymentResult>;
+    /** The monthly rates a customer's interest starts from when it is switched on. */
+    interestDefaults(): Promise<InterestDefaults>;
+    /** Saves the defaults (new ones only; customers keep their own rate). False when a rate is not valid. */
+    saveInterestDefaults(input: InterestDefaults): Promise<boolean>;
   };
   suppliers: {
     /** Live suppliers with what is owed to each, sorted by name; `includeDeleted` adds deleted ones. */
