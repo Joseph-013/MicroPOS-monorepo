@@ -26,7 +26,7 @@ export class PurchaseViewer extends ParamDialogViewer<PurchaseDetail> {
   protected show(purchase: PurchaseDetail) {
     return this.dialogs.open<unknown, PurchaseDetailContext>(PurchaseDetailForm, {
       id: 'purchase-detail',
-      contentClass: 'w-[min(34rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
+      contentClass: 'w-[min(40rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
       context: { purchase },
     });
   }

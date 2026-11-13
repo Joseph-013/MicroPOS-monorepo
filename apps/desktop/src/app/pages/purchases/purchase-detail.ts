@@ -150,14 +150,14 @@ export interface PurchaseDetailContext {
       }
     </div>
 
-    <hlm-dialog-footer class="sm:justify-between">
-      <div class="flex gap-2">
+    <hlm-dialog-footer class="sm:flex-wrap sm:justify-between">
+      <div class="flex flex-wrap gap-2">
         @if (editable()) {
           <button hlmBtn variant="outline" type="button" class="px-5" (click)="edit()">Edit</button>
         }
         @if (cancellable()) {
           <hlm-alert-dialog>
-            <button hlmAlertDialogTrigger hlmBtn variant="destructive" type="button" class="px-5">Cancel order</button>
+            <button hlmAlertDialogTrigger hlmBtn variant="destructive" type="button" class="px-4">Cancel order</button>
             <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
               <hlm-alert-dialog-header>
                 <h3 hlmAlertDialogTitle>Cancel {{ purchase().number }}?</h3>
@@ -171,14 +171,14 @@ export interface PurchaseDetailContext {
           </hlm-alert-dialog>
         }
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap justify-end gap-2">
         @if (payable() && !paying()) {
           <button hlmBtn variant="outline" type="button" class="px-4" (click)="startPaying()">Record payment</button>
         }
         @if (editable()) {
           <button hlmBtn type="button" class="px-4" (click)="receive()">Receive stock</button>
         }
-        <button hlmBtn hlmDialogClose variant="outline" type="button" class="px-6">Close</button>
+        <button hlmBtn hlmDialogClose variant="outline" type="button" class="px-4">Close</button>
       </div>
     </hlm-dialog-footer>
   `,
