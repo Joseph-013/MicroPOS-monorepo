@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, session } from 'electron';
+import { app, BrowserWindow, Menu, screen, session } from 'electron';
 import path from 'node:path';
 import { createDatabase } from './db';
 import { registerIpcHandlers } from './ipc';
@@ -11,11 +11,18 @@ const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
 /** Default window size; shrunk to fit small screens. */
 const DEFAULT_SIZE = { width: 1600, height: 960 };
 
+/** The app icon: shipped as a resource when packaged (the window shows it on Linux), read from `assets/` in development. */
+function iconFile(): string {
+  return app.isPackaged ? path.join(process.resourcesPath, 'icon.png') : path.join(app.getAppPath(), 'assets', 'icon.png');
+}
+
 function createWindow(): void {
   const { workAreaSize } = screen.getPrimaryDisplay();
   const win = new BrowserWindow({
     width: Math.min(DEFAULT_SIZE.width, workAreaSize.width),
     height: Math.min(DEFAULT_SIZE.height, workAreaSize.height),
+    icon: iconFile(),
+    title: 'MicroPOS',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -74,6 +81,8 @@ function claimUserData(): boolean {
 if (handleSquirrelEvent(process.argv, process.execPath)) {
   app.quit(); // installing, updating or uninstalling: shortcuts are made or removed and the app exits
 } else {
+  // The installed app has no menu bar (File, Edit, View, Window); development keeps it for the DevTools entries.
+  if (app.isPackaged) Menu.setApplicationMenu(null);
   const purged = claimUserData();
   void app.whenReady().then(async () => {
     // Browser storage (the old page's local storage, caches) is held by Chromium: clear it through its own API too.
