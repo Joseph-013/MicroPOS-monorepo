@@ -98,6 +98,8 @@ export class CheckoutPage {
     if (!this.customerId() || text === '') return this.total();
     return parseCents(text);
   });
+  /** The whole sale goes on a customer's account: there is no payment to describe (no method, tendered cash or reference). */
+  protected readonly nothingPaid = computed(() => this.customerId() !== null && this.payNow() === 0);
   protected readonly onAccount = computed(() => Math.max(0, this.total() - (this.payNow() ?? this.total())));
   /** True when putting the rest on account would take the customer past their credit limit. */
   protected readonly overLimit = computed(() => {
@@ -358,12 +360,13 @@ export class CheckoutPage {
     if (!this.canComplete()) return;
     this.completing.set(true);
     try {
-      const method = this.paymentMethod();
+      const nothingPaid = this.nothingPaid();
+      const method = nothingPaid ? 'cash' : this.paymentMethod();
       const result = await this.draft.completeOrder({
         lines: this.lines().map((l) => ({ productId: l.productId, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice })),
         discount: this.discount(),
         ...(this.customerId() ? { customerId: this.customerId()!, amountPaid: this.payNow()! } : {}),
-        payment: { method, tendered: method === 'cash' && this.payNow() !== 0 ? (this.tendered() ?? undefined) : undefined, reference: this.reference().trim() || undefined },
+        payment: { method, tendered: method === 'cash' && this.payNow() !== 0 ? (this.tendered() ?? undefined) : undefined, reference: nothingPaid ? undefined : this.reference().trim() || undefined },
       });
       if (!result.ok) {
         this.applyProblems(result.lines);

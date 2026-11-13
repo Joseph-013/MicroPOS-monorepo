@@ -543,10 +543,19 @@ describe('CheckoutPage', () => {
       it('paying nothing now puts the whole sale on account and needs no cash', async () => {
         await chooseCustomer('a');
         await type('#pay-now', '0');
+        expect(el.textContent).not.toContain('Payment method'); // nothing is paid, so there is no method to pick
+        expect(el.querySelector('#tendered')).toBeNull();
         expect(complete().disabled).toBe(false);
         complete().click();
         await fixture.whenStable();
         expect(store.orders[0]).toMatchObject({ customerId: 'a', amountPaid: 0, payment: { method: 'cash', tendered: undefined } });
+      });
+
+      it('shows the payment method again once something is paid now', async () => {
+        await chooseCustomer('a');
+        await type('#pay-now', '0');
+        await type('#pay-now', '100');
+        expect(el.textContent).toContain('Payment method');
       });
 
       it('Exact fills what is paid now, not the total', async () => {
