@@ -223,11 +223,14 @@ export class ReceiveStockForm {
   /** The chosen order with its lines (loaded again after every receipt). */
   private readonly order = signal<PurchaseDetail | null>(null);
   protected readonly orderName = (id: string | null): string => this.openOrders().find((o) => o.id === id)?.number ?? '';
-  /** What can be picked: every live product, or with an order chosen only its products that still have stock to come. */
+  /**
+   * What can be picked: every live product, or with an order chosen only its products that still have something to
+   * come. Products that track no stock are included (they show as not tracked, with Edit product to change that).
+   */
   protected readonly choosable = computed(() => {
     const order = this.order();
     if (!order) return this.liveProducts();
-    const open = new Set(order.lines.filter((l) => l.tracking !== 'none' && l.receivedMilli < l.quantityMilli).map((l) => l.productId));
+    const open = new Set(order.lines.filter((l) => l.receivedMilli < l.quantityMilli).map((l) => l.productId));
     return this.liveProducts().filter((p) => open.has(p.id));
   });
   /** The order line of the chosen product, with how much of it has arrived. */

@@ -1,7 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
+import { filter, take } from 'rxjs';
 import { RECEIVE_ORDER_PARAM } from '../../core/receive-order-param';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2 } from '@ng-icons/lucide';
@@ -296,7 +297,16 @@ export class InventoryPage {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const order = params.get(RECEIVE_ORDER_PARAM);
       if (!order) return;
-      void this.router.navigate([], { queryParams: { [RECEIVE_ORDER_PARAM]: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      // Removed once the navigation that brought it has finished: navigating from inside it would cancel it.
+      const strip = (): void => void this.router.navigate([], { queryParams: { [RECEIVE_ORDER_PARAM]: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      if (this.router.currentNavigation()) {
+        this.router.events
+          .pipe(
+            filter((event) => event instanceof NavigationEnd),
+            take(1),
+          )
+          .subscribe(strip);
+      } else strip();
       this.receive(order);
     });
     // Badges are measured against the moment the list was loaded.

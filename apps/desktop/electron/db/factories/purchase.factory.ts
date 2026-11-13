@@ -61,12 +61,18 @@ export function buildPurchases(
   const out: SeededPurchases = { orders: [], lines: [], payments: [], movements: [] };
   // Received orders only use products whose stock sits in one unnamed batch (or is not tracked), so no batch is invented.
   const simple = products.filter((p) => p.tracking === 'none' || p.tracking === 'quantity');
+  // Orders mostly hold products whose stock is counted (the point of receiving them); a few track nothing.
+  const counted = simple.filter((p) => p.tracking === 'quantity');
+  const pick = (): PurchasableProduct[] => [
+    ...faker.helpers.arrayElements(counted, { min: 2, max: Math.min(4, counted.length) }),
+    ...(faker.datatype.boolean(0.3) ? faker.helpers.arrayElements(simple.filter((p) => p.tracking === 'none'), 1) : []),
+  ];
   const unnamed = new Map(batches.filter((b) => b.batchNumber == null).map((b) => [b.productId, b.id!]));
   const times = Array.from({ length: count }, () => faker.number.int({ min: start, max: now - 12 * HOUR })).sort((a, b) => a - b);
 
   times.forEach((orderedAt, i) => {
     const supplier = faker.helpers.arrayElement(suppliers);
-    const chosen = faker.helpers.arrayElements(simple, { min: 2, max: 5 });
+    const chosen = counted.length >= 2 ? pick() : faker.helpers.arrayElements(simple, { min: 2, max: 5 });
     const id = uuid7(orderedAt);
     const expectedAt = orderedAt + faker.number.int({ min: 2, max: 7 }) * DAY;
     const wanted = faker.helpers.weightedArrayElement([

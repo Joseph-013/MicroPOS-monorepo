@@ -404,6 +404,24 @@ describe('InventoryPage', () => {
     expect(TestBed.inject(Router).url).toBe('/');
   });
 
+  it('an order of products that track no stock still lists them, marked not tracked, instead of an empty list', async () => {
+    const order = {
+      id: 'o1', number: 'PO-1001', supplierId: 's', supplierName: 'Metro', status: 'ordered', orderedAt: 1, expectedAt: null, dueAt: null, receivedAt: null, reference: null, lineCount: 1,
+      partlyReceived: false, total: 0, paid: 0, owed: 0, note: null, employeeName: null, payments: [],
+      lines: [{ id: 'l1', productId: '1', productName: 'Tea', productCode: null, unit: 'each', tracking: 'none', quantityMilli: 5_000, receivedMilli: 0, unitCost: 400, total: 0 }],
+    } as PurchaseDetail;
+    await open([], [product('1', 'Tea', { tracking: 'none' })], [order], '/?receive-order=o1');
+    await settle();
+    const input = dialog().querySelector('input#r-product, #r-product input') as HTMLInputElement;
+    input.focus();
+    (input.closest('hlm-combobox')!.querySelector('button[data-slot="input-group-button"]') as HTMLElement).click();
+    await settle();
+    const items = [...document.querySelectorAll('hlm-combobox-item')].map((i) => i.textContent!.replace(/\s+/g, ' ').trim());
+    expect(items).toHaveLength(1);
+    expect(items[0]).toContain('Tea');
+    expect(items[0]).toContain('Not tracked');
+  });
+
   it('takes an expiry given as a month only, as the last day of that month', async () => {
     await open([], [product('1', 'Milk', { shelfLifeDays: null })]);
     buttonByText(el, 'Receive stock').click();
