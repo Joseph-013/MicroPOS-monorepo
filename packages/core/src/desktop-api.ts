@@ -28,7 +28,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 33;
+export const DESKTOP_API_VERSION = 34;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -70,6 +70,11 @@ export interface DesktopApi {
     remove(ids: string[]): Promise<void>;
     /** Puts deleted categories back; one whose name is taken meanwhile is skipped and reported. */
     restore(ids: string[]): Promise<RestoreCategoriesResult>;
+  };
+  shell: {
+    /** Whether closing the window hides it (the app keeps running, with an icon in the tray) instead of quitting. */
+    getCloseToTray(): Promise<boolean>;
+    setCloseToTray(value: boolean): Promise<boolean>;
   };
   data: {
     /**

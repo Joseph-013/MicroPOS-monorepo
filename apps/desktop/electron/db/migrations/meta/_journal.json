@@ -57,6 +57,13 @@
       "when": 1794597461963,
       "tag": "0007_organic_zarda",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794598998678,
+      "tag": "0008_grant_settings_manage",
+      "breakpoints": true
     }
   ]
 }

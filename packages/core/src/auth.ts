@@ -23,6 +23,7 @@ export const PERMISSIONS = [
   { id: 'catalog.manage', group: 'Items', label: 'Change products and categories', description: 'Add, edit, delete and restore products and categories.' },
   { id: 'inventory.manage', group: 'Items', label: 'Manage stock', description: 'Receive, adjust and repackage stock.' },
   { id: 'purchasing.manage', group: 'Purchasing', label: 'Manage purchasing', description: 'Suppliers, purchase orders, receiving and paying suppliers.' },
+  { id: 'settings.manage', group: 'Staff', label: 'Change shop settings', description: 'Settings that affect the whole till, such as whether the app keeps running when its window is closed.' },
   { id: 'users.manage', group: 'Staff', label: 'Manage users', description: 'Add users, change what they may do, reset PINs and see sign-ins.' },
 ] as const satisfies readonly PermissionInfo[];
 
@@ -34,7 +35,7 @@ export const isPermission = (value: unknown): value is Permission => (ALL_PERMIS
 /** Starting points for a new user: picking one fills in the switches, which can then be adjusted one by one. */
 export const ROLE_PRESETS: Record<UserRole, readonly Permission[]> = {
   admin: ALL_PERMISSIONS,
-  manager: ALL_PERMISSIONS.filter((p) => p !== 'users.manage'),
+  manager: ALL_PERMISSIONS.filter((p) => p !== 'users.manage' && p !== 'settings.manage'),
   cashier: ['checkout.sell', 'customers.view', 'customers.payments'],
 };
 
