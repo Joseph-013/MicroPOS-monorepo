@@ -7,6 +7,7 @@ import { CustomerViewer } from './core/customer-viewer';
 import { KioskFocusService } from './core/kiosk/kiosk-focus.service';
 import { NavRail } from './core/nav-rail';
 import { ProductViewer } from './core/product-viewer';
+import { PurchaseViewer } from './core/purchase-viewer';
 import { SalesOrderViewer } from './core/sales-order-viewer';
 import { ScannerService } from './core/scanner';
 import { TooSmallOverlay } from './core/viewport/too-small-overlay';
@@ -28,6 +29,8 @@ export class App {
   private readonly productViewer = inject(ProductViewer);
   /** Opens `?view-customer=<id>` in a customer account dialog over any page. */
   private readonly customerViewer = inject(CustomerViewer);
+  /** Opens `?view-purchase=<id>` in a purchase order dialog over any page. */
+  private readonly purchaseViewer = inject(PurchaseViewer);
   /** Height of the banner strip (`h-9`); pages and the nav rail read it as `--banner-offset`. */
   protected readonly bannerOffset = inject(BannerService).reserveSpace;
 

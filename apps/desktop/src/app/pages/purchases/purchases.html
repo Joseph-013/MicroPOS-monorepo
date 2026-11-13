@@ -1,0 +1,112 @@
+<section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
+  <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
+    <h1 class="text-2xl">Purchases</h1>
+    <div class="flex items-center gap-4">
+      @if (owedTotal() > 0) {
+        <span class="text-sm"><span class="text-muted-foreground">Owed</span> <span class="text-destructive ml-1">{{ owedTotal() | money }}</span></span>
+      }
+      <button hlmBtn type="button" class="px-4" (click)="add()">New purchase</button>
+    </div>
+  </header>
+
+  <div class="min-h-0 flex-1 overflow-auto">
+    <div role="table" aria-label="Purchases" class="min-w-[60rem] text-sm" [style.--cols]="columnsTemplate">
+      <div role="rowgroup" class="bg-background sticky top-0 z-10">
+        <!-- Row 1: column titles, click to sort -->
+        <div role="row" class="grid grid-cols-(--cols) border-b">
+          @for (column of columns; track column.key) {
+            <div role="columnheader" [attr.aria-sort]="ariaSort(column.key)">
+              <button
+                type="button"
+                class="hover:bg-muted flex h-(--control-height) w-full items-center gap-1.5 px-3 font-medium {{ column.right ? 'justify-end' : '' }}"
+                (click)="sortBy(column.key)"
+              >
+                {{ column.label }}
+                <ng-icon
+                  size="14"
+                  [name]="sortKey() !== column.key ? 'lucideChevronsUpDown' : sortDirection() === 'asc' ? 'lucideArrowUp' : 'lucideArrowDown'"
+                  [class.opacity-40]="sortKey() !== column.key"
+                />
+              </button>
+            </div>
+          }
+        </div>
+        <!-- Row 2: the filter for each column -->
+        <div role="row" class="grid grid-cols-(--cols) items-center border-b [--control-height:var(--control-height-sm)]">
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="numberFilter" placeholder="Order or reference" label="Filter order number or reference" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-filter-input [(value)]="supplierFilter" placeholder="Supplier" label="Filter supplier" />
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <app-date-range-filter label="Ordered" [(from)]="orderedFrom" [(to)]="orderedTo" />
+          </div>
+          <div role="columnheader"></div>
+          <div role="columnheader" class="px-3 py-2">
+            <hlm-select [(value)]="statusFilter" [itemToString]="statusFilterLabel" class="block">
+              <hlm-select-trigger size="sm" class="w-full" aria-label="Filter status">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (f of statusFilters; track f) {
+                  <hlm-select-item [value]="f">{{ statusFilterLabel(f) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+          <div role="columnheader" class="flex items-center justify-end px-3">
+            <button hlmBtn variant="outline" size="icon" type="button" aria-label="Reset filters" title="Reset filters" [disabled]="!filtered()" (click)="resetFilters()">
+              <ng-icon name="lucideFilterX" size="18" />
+            </button>
+          </div>
+          <div role="columnheader" class="px-3 py-2">
+            <hlm-select [(value)]="owedFilter" [itemToString]="owedFilterLabel" class="block">
+              <hlm-select-trigger size="sm" class="w-full" aria-label="Filter owed">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (f of owedFilters; track f) {
+                  <hlm-select-item [value]="f">{{ owedFilterLabel(f) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+        </div>
+      </div>
+
+      <div role="rowgroup">
+        @for (purchase of pager.rows(); track purchase.id) {
+          <div class="border-b" [attr.data-row-id]="purchase.id" [animate.enter]="animateRows() ? 'row-enter' : ''" animate.leave="row-leave">
+            <div
+              role="row"
+              [class.row-target]="target() === purchase.id"
+              class="hover:bg-muted/40 grid min-h-(--control-height) cursor-pointer grid-cols-(--cols) items-center {{ purchase.status === 'cancelled' ? 'opacity-60' : '' }}"
+              tabindex="0"
+              (click)="view(purchase)"
+              (keydown.enter)="onRowEnter($event, purchase)"
+            >
+              <div role="cell" class="truncate px-3 text-base">{{ purchase.number }}</div>
+              <div role="cell" class="truncate px-3">{{ purchase.supplierName }}</div>
+              <div role="cell" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ purchase.orderedAt | date: 'MMM d, y, h:mm a' }}</div>
+              <div role="cell" class="px-3 text-sm whitespace-nowrap {{ isOverdue(purchase) ? 'text-destructive' : 'text-muted-foreground' }}">
+                {{ purchase.dueAt === null ? '-' : (purchase.dueAt | date: 'MMM d, y') }}
+              </div>
+              <div role="cell" class="px-3"><span hlmBadge [variant]="statusVariant(purchase.status)">{{ statusLabels[purchase.status] }}</span></div>
+              <div role="cell" class="px-3 text-right">{{ purchase.total | money }}</div>
+              <div role="cell" class="px-3 text-right {{ purchase.owed > 0 ? 'text-destructive' : 'text-muted-foreground' }}">
+                {{ purchase.owed === 0 ? '-' : (purchase.owed | money) }}
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+    @if (!visible().length) {
+      <p class="text-muted-foreground py-8 text-center text-sm">
+        {{ service.status() === 'error' ? 'Purchases could not be loaded' : service.status() === 'loading' ? 'Loading purchases' : 'No purchases found' }}
+      </p>
+    }
+  </div>
+  <app-pager [pager]="pager" />
+</section>

@@ -18,6 +18,7 @@ import {
   lucideSettings,
   lucideShoppingCart,
   lucideSun,
+  lucideTruck,
 } from '@ng-icons/lucide';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { Logo } from './logo';
@@ -48,6 +49,7 @@ export interface NavItem {
       lucidePackage,
       lucideReceipt,
       lucideUsers,
+      lucideTruck,
       lucideSettings,
       lucideLogOut,
       lucideLayoutGrid,
@@ -84,6 +86,15 @@ export class NavRail {
     },
     { id: 'orders', path: '/orders', label: 'Sales Orders', icon: 'lucideReceipt' },
     { id: 'customers', path: '/customers', label: 'Customers', icon: 'lucideUsers' },
+    {
+      id: 'purchasing',
+      label: 'Purchasing',
+      icon: 'lucideTruck',
+      children: [
+        { id: 'purchasing-purchases', path: '/purchases', label: 'Purchases' },
+        { id: 'purchasing-suppliers', path: '/suppliers', label: 'Suppliers' },
+      ],
+    },
     { id: 'components', path: '/components', label: 'Components', icon: 'lucideLayoutGrid' },
   ];
 
