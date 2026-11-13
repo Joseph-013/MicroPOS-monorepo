@@ -1,5 +1,5 @@
 import { DestroyRef, inject, Service } from '@angular/core';
-import { NavigationEnd, Router, UrlTree } from '@angular/router';
+import { NavigationEnd, NavigationError, Router, UrlTree } from '@angular/router';
 import { StorageService } from './storage/storage.service';
 
 const KEY = 'lastUrl';
@@ -26,6 +26,11 @@ export class LastRoute {
   track(): void {
     const subscription = this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd && this.isRestorable(event.urlAfterRedirects)) this.storage.set(KEY, event.urlAfterRedirects);
+      // The saved page can be stale (a route removed or renamed by an update): forget it and open Checkout instead of a blank page.
+      else if (event instanceof NavigationError && event.url === this.storage.get(KEY, '', isString)) {
+        this.storage.remove(KEY);
+        void this.router.navigateByUrl('/checkout', { replaceUrl: true });
+      }
     });
     this.destroyRef.onDestroy(() => subscription.unsubscribe());
   }

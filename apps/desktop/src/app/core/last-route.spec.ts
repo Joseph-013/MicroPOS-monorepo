@@ -40,6 +40,17 @@ describe('LastRoute', () => {
     expect(storage.get('lastUrl', '')).toBe('/orders');
   });
 
+  it('forgets a saved page that no longer matches a route and opens Checkout', async () => {
+    const { router, storage, last } = setup('/orders/removed');
+    router.resetConfig([...router.config, { path: 'checkout', component: Blank }]);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    last.track();
+    await router.navigateByUrl('/orders/removed').catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(router.url).toBe('/checkout');
+    expect(storage.get('lastUrl', 'gone')).toBe('/checkout');
+  });
+
   it('starts on the saved page, or the fallback when there is none or it no longer exists', () => {
     expect(setup('/orders?view-sales-order=a1').last.startUrl('/checkout').toString()).toBe('/orders?view-sales-order=a1');
     TestBed.resetTestingModule();
