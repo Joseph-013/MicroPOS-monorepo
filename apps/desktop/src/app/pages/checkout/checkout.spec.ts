@@ -76,6 +76,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       saveDraft: () => Promise.resolve(),
       clearDraft: () => Promise.resolve(),
     },
+    customers: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve(), account: () => Promise.resolve(null), receivePayment: () => Promise.reject(new Error('unused')) },
     orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), void: () => Promise.reject(new Error('unused')), refund: () => Promise.reject(new Error('unused')) },
     checkout: {
       loadDraft: () => Promise.resolve(store.draft),
@@ -92,7 +93,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       nextOrderNumber: () => Promise.resolve(`SO-${1001 + store.orders.length}`),
       completeOrder: (input) => {
         store.orders.push(input);
-        const result = store.result ?? { ok: true as const, orderId: 'o', orderNumber: `SO-${1000 + store.orders.length}`, total: 0, change: 0 };
+        const result = store.result ?? { ok: true as const, orderId: 'o', orderNumber: `SO-${1000 + store.orders.length}`, total: 0, change: 0, onAccount: 0 };
         if (result.ok) store.draft = null;
         return Promise.resolve(result);
       },
@@ -411,7 +412,7 @@ describe('CheckoutPage', () => {
       scan(PRODUCTS[1].barcode!);
       await fixture.whenStable();
       await type('#tendered', '10');
-      store.result = { ok: true, orderId: 'o1', orderNumber: 'SO-1001', total: 858, change: 142 };
+      store.result = { ok: true, orderId: 'o1', orderNumber: 'SO-1001', total: 858, change: 142, onAccount: 0 };
       complete().click();
       await fixture.whenStable();
 

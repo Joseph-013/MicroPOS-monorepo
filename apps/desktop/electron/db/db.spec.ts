@@ -31,6 +31,7 @@ import { createCategory, deleteCategories, listCategoryRecords, restoreCategorie
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from './queries/repackage-draft';
 import { adjustStock, allocateSale, inventoryOverview, listBatches, receiveStock, repackageStock, restockSale } from './queries/inventory';
 import { clearProductDraft, loadProductDraft, sanitizeProductDraft, saveProductDraft } from './queries/product-draft';
+import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from './queries/customers';
 import { completeOrder, getOrder, listOrders, nextOrderNumber, refundOrder, voidOrder } from './queries/orders';
 import { clearDraft, DRAFT_KEY, loadDraft, sanitizeDraft, saveDraft } from './queries/draft';
 import { isScaleBarcode, KNOWN_BARCODES, scalePlu, scaleWeightGrams } from './factories/known-barcodes';
@@ -1122,5 +1123,147 @@ describe('category management', () => {
     expect(listProductRecords(db)[0]?.categories.map((c) => c.name)).toEqual(['Produce']); // the link came back with it
     expect(restoreCategories(db, [a.id])).toEqual({ restored: 0, conflicts: [] }); // already live
     expect(restoreCategories(db, 'not a list')).toEqual({ restored: 0, conflicts: [] });
+  });
+});
+
+describe('customers and credit sales', () => {
+  const item = (price = 1_000) => {
+    const r = createProduct(db, { name: `Item-${Math.random().toString(36).slice(2, 7)}`, unit: 'each', tracking: 'none', shelfLifeDays: null, sku: null, barcode: null, price, cost: null, active: true, categoryIds: [] });
+    if (!r.ok) throw new Error(r.error);
+    return r.product;
+  };
+  const customer = (over: Record<string, unknown> = {}) => {
+    const r = createCustomer(db, { name: 'Aling Nena', phone: '0917 000 0000', note: null, creditLimit: null, ...over });
+    if (!r.ok) throw new Error(r.error);
+    return r.customer;
+  };
+  const credit = (productId: string, over: Record<string, unknown> = {}, price = 1_000) =>
+    completeOrder(db, { lines: [{ productId, quantityMilli: 1_000, unitPrice: price }], discount: 0, payment: { method: 'cash', tendered: 500 }, ...over });
+  const ok = <T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> => {
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    return r as Extract<T, { ok: true }>;
+  };
+  const balance = (id: string): number => listCustomers(db, true).find((c) => c.id === id)!.balance;
+
+  it('validates, saves, lists and removes customers; one with a balance cannot be removed', () => {
+    expect(createCustomer(db, { name: '  ', phone: null, note: null, creditLimit: null })).toMatchObject({ ok: false, field: 'name' });
+    expect(createCustomer(db, { name: 'A', phone: 'x'.repeat(41), note: null, creditLimit: null })).toMatchObject({ ok: false, field: 'phone' });
+    expect(createCustomer(db, { name: 'A', phone: null, note: 'x'.repeat(201), creditLimit: null })).toMatchObject({ ok: false, field: 'note' });
+    expect(createCustomer(db, { name: 'A', phone: null, note: null, creditLimit: -5 })).toMatchObject({ ok: false, field: 'creditLimit' });
+    expect(createCustomer(db, { name: 'A', phone: null, note: null, creditLimit: 1.5 })).toMatchObject({ ok: false, field: 'creditLimit' });
+
+    const a = customer({ name: '  Aling   Nena ', phone: ' ', creditLimit: 5_000 });
+    expect(a).toMatchObject({ name: 'Aling Nena', phone: null, creditLimit: 5_000, balance: 0, lastActivityAt: null, deletedAt: null });
+    const b = customer({ name: 'Bong' });
+    expect(listCustomers(db).map((c) => c.name)).toEqual(['Aling Nena', 'Bong']);
+    expect(updateCustomer(db, a.id, { name: 'Nena', phone: '123', note: 'neighbour', creditLimit: null })).toMatchObject({ ok: true, customer: { name: 'Nena', phone: '123', creditLimit: null } });
+    expect(updateCustomer(db, 'nope', { name: 'X', phone: null, note: null, creditLimit: null })).toMatchObject({ ok: false });
+
+    ok(credit(item().id, { customerId: a.id, amountPaid: 0 }));
+    expect(deleteCustomers(db, [a.id, b.id])).toEqual({ removed: 1, blocked: ['Nena'] });
+    expect(listCustomers(db).map((c) => c.name)).toEqual(['Nena']);
+    restoreCustomers(db, [b.id]);
+    expect(listCustomers(db).map((c) => c.name)).toEqual(['Bong', 'Nena']);
+  });
+
+  it('a credit sale takes part now and puts the rest on the customer\'s account', () => {
+    const c = customer();
+    const result = ok(credit(item().id, { customerId: c.id, amountPaid: 300 }));
+    expect(result).toMatchObject({ total: 1_000, change: 200, onAccount: 700 });
+
+    expect(db.select().from(orders).where(eq(orders.id, result.orderId)).get()).toMatchObject({ customerId: c.id, total: 1_000, status: 'completed' });
+    expect(db.select().from(payments).where(eq(payments.orderId, result.orderId)).all()).toMatchObject([{ method: 'cash', amount: 300, tendered: 500, change: 200 }]);
+    expect(balance(c.id)).toBe(700);
+    expect(getOrder(db, result.orderId)).toMatchObject({ customer: { id: c.id, name: 'Aling Nena' }, onAccount: 700 });
+    expect(listOrders(db)[0]).toMatchObject({ customerName: 'Aling Nena', onAccount: 700 });
+  });
+
+  it('a sale paid nothing now is all on account and needs no money handed over; a sale paid in full touches no ledger', () => {
+    const c = customer();
+    const none = ok(credit(item().id, { customerId: c.id, amountPaid: 0, payment: { method: 'cash' } }));
+    expect(none).toMatchObject({ change: 0, onAccount: 1_000 });
+    expect(db.select().from(payments).where(eq(payments.orderId, none.orderId)).all()).toHaveLength(0);
+    expect(balance(c.id)).toBe(1_000);
+
+    const full = ok(credit(item().id, { customerId: c.id, payment: { method: 'card' } })); // no amountPaid: the whole total
+    expect(full.onAccount).toBe(0);
+    expect(balance(c.id)).toBe(1_000); // unchanged
+    expect(db.select().from(orders).where(eq(orders.id, full.orderId)).get()?.customerId).toBe(c.id); // still linked to the customer
+  });
+
+  it('refuses a credit sale that is not valid, writing nothing', () => {
+    const c = customer({ creditLimit: 1_500 });
+    const gone = customer({ name: 'Gone' });
+    deleteCustomers(db, [gone.id]);
+    const p = item().id;
+    expect(credit(p, { amountPaid: 300 })).toMatchObject({ ok: false, error: 'Choose a customer to put the rest on account' });
+    expect(credit(p, { customerId: c.id, amountPaid: 1_500 })).toMatchObject({ ok: false, error: 'The amount paid is more than the total' });
+    expect(credit(p, { customerId: c.id, amountPaid: -1 })).toMatchObject({ ok: false });
+    expect(credit(p, { customerId: c.id, amountPaid: 1.5 })).toMatchObject({ ok: false });
+    expect(credit(p, { customerId: 'nope', amountPaid: 0 })).toMatchObject({ ok: false, error: 'Customer not found' });
+    expect(credit(p, { customerId: gone.id, amountPaid: 0 })).toMatchObject({ ok: false, error: 'Customer not found' });
+    expect(credit(p, { customerId: c.id, amountPaid: 300, payment: { method: 'cash', tendered: 200 } })).toMatchObject({ ok: false, error: expect.stringContaining('cash') });
+    expect(db.select().from(orders).all()).toHaveLength(0);
+
+    // The credit limit counts what is already owed.
+    ok(credit(p, { customerId: c.id, amountPaid: 500 })); // owes 500 of 1,500
+    ok(credit(p, { customerId: c.id, amountPaid: 0 })); // +1,000 = 1,500: exactly at the limit is fine
+    expect(balance(c.id)).toBe(1_500);
+    expect(credit(p, { customerId: c.id, amountPaid: 500 })).toMatchObject({ ok: false, error: 'Aling Nena would owe more than their credit limit' }); // +500 > limit
+    expect(balance(c.id)).toBe(1_500);
+  });
+
+  it('records payments against the balance, never more than is owed, and shows the account newest first with running balances', () => {
+    const c = customer();
+    const sale = ok(credit(item().id, { customerId: c.id, amountPaid: 0 }, 1_000));
+    expect(receivePayment(db, { customerId: c.id, amount: 0, method: 'cash', reference: null })).toMatchObject({ ok: false, field: 'amount' });
+    expect(receivePayment(db, { customerId: c.id, amount: 1.5, method: 'cash', reference: null })).toMatchObject({ ok: false, field: 'amount' });
+    expect(receivePayment(db, { customerId: c.id, amount: 100, method: 'crypto', reference: null })).toMatchObject({ ok: false, field: 'method' });
+    expect(receivePayment(db, { customerId: c.id, amount: 1_001, method: 'cash', reference: null })).toMatchObject({ ok: false, error: 'That is more than they owe' });
+    expect(receivePayment(db, { customerId: 'nope', amount: 100, method: 'cash', reference: null })).toMatchObject({ ok: false });
+    expect(receivePayment(db, { customerId: c.id, amount: 400, method: 'ewallet', reference: '  GC-1 ' })).toEqual({ ok: true, balance: 600 });
+    expect(receivePayment(db, { customerId: c.id, amount: 600, method: 'cash', reference: null })).toEqual({ ok: true, balance: 0 });
+    expect(receivePayment(db, { customerId: c.id, amount: 100, method: 'cash', reference: null })).toMatchObject({ ok: false, error: 'This customer owes nothing' });
+
+    const account = getCustomerAccount(db, c.id)!;
+    expect(account.customer.balance).toBe(0);
+    expect(account.entries.map((e) => [e.type, e.amount, e.balanceAfter])).toEqual([['payment', -600, 0], ['payment', -400, 600], ['charge', 1_000, 1_000]]);
+    expect(account.entries[1]).toMatchObject({ method: 'ewallet', reference: 'GC-1', employeeName: 'Register' });
+    expect(account.entries[2]).toMatchObject({ orderId: sale.orderId, orderNumber: sale.orderNumber });
+    expect(getCustomerAccount(db, 'nope')).toBeNull();
+  });
+
+  it('voiding a credit sale cancels what it left on account', () => {
+    const c = customer();
+    const sale = ok(credit(item().id, { customerId: c.id, amountPaid: 300 }));
+    expect(balance(c.id)).toBe(700);
+    ok(voidOrder(db, { orderId: sale.orderId, reason: 'Mistake' }));
+    expect(balance(c.id)).toBe(0);
+    expect(getCustomerAccount(db, c.id)!.entries.map((e) => [e.type, e.amount])).toEqual([['void', -700], ['charge', 700]]);
+  });
+
+  it('refunding a credit sale reverses the paid part as money and the rest on account, even after the debt was paid off', () => {
+    const c = customer();
+    const sale = ok(credit(item().id, { customerId: c.id, amountPaid: 300 }));
+    ok(receivePayment(db, { customerId: c.id, amount: 700, method: 'cash', reference: null })); // paid off
+    const refund = ok(refundOrder(db, { orderId: sale.orderId, reason: 'Returned' }));
+
+    expect(db.select().from(payments).where(eq(payments.orderId, refund.refundOrderId!)).all()).toMatchObject([{ amount: -300 }]);
+    expect(db.select().from(orders).where(eq(orders.id, refund.refundOrderId!)).get()).toMatchObject({ customerId: c.id, total: -1_000 });
+    expect(balance(c.id)).toBe(-700); // the store now owes the customer what they had paid towards it
+    expect(getOrder(db, refund.refundOrderId!)).toMatchObject({ onAccount: -700, customer: { name: 'Aling Nena' } });
+    expect(getCustomerAccount(db, c.id)!.entries[0]).toMatchObject({ type: 'refund', amount: -700, orderId: refund.refundOrderId });
+  });
+
+  it('the ledger refuses entries whose sign does not match their type', () => {
+    const c = customer();
+    const insert = (type: string, amount: number) =>
+      db.$client.prepare('INSERT INTO customer_ledger (id, customer_id, type, amount, at) VALUES (?, ?, ?, ?, 1)').run(`l-${type}-${amount}`, c.id, type, amount);
+    expect(() => insert('charge', -5)).toThrow(/CHECK/);
+    expect(() => insert('payment', 5)).toThrow(/CHECK/);
+    expect(() => insert('void', 5)).toThrow(/CHECK/);
+    expect(() => insert('adjustment', 0)).toThrow(/CHECK/);
+    expect(() => insert('adjustment', -5)).not.toThrow();
+    expect(() => insert('forgive', -5)).toThrow(/CHECK/);
   });
 });

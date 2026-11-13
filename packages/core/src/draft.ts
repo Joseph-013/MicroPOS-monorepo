@@ -27,6 +27,10 @@ export interface CompleteOrderInput {
   lines: { productId: string; quantityMilli: number; unitPrice: Money }[];
   /** Order discount in cents. */
   discount: Money;
+  /** A credit sale: the customer whose account takes whatever part of the total is not paid now. */
+  customerId?: string;
+  /** Cents paid now (cash handed over is `tendered`, which may be more). Defaults to the whole total; less than the total needs a `customerId`. */
+  amountPaid?: Money;
   payment: {
     method: OrderPaymentMethod;
     /** Cash only: money handed over, in cents; must cover the total. */
@@ -46,7 +50,7 @@ export interface OrderLineProblem {
 }
 
 export type CompleteOrderResult =
-  | { ok: true; orderId: string; orderNumber: string; total: Money; change: Money }
+  | { ok: true; orderId: string; orderNumber: string; total: Money; change: Money; /** The part put on the customer's account. */ onAccount: Money }
   | { ok: false; error: string; lines: OrderLineProblem[] };
 
 /** A recorded sales order as shown when viewing it. */
@@ -62,6 +66,10 @@ export interface SalesOrderDetail {
   createdAt: number;
   completedAt: number | null;
   lines: { id: string; /** Null when the product was removed for good. */ productId: string | null; name: string; unitPrice: Money; quantityMilli: number; lineTotal: Money; unit: ProductUnit | null }[];
+  /** The customer a credit sale is on account for. */
+  customer: { id: string; name: string } | null;
+  /** Cents of this order that went on the customer's account (negative on a refund order). */
+  onAccount: Money;
   /** On a refund order: the sale it reverses. */
   refundOf: { id: string; orderNumber: string } | null;
   /** On a refunded sale: the refund order that reversed it. */
@@ -77,6 +85,9 @@ export interface SalesOrderSummary {
   employeeName: string;
   total: Money;
   createdAt: number;
+  customerName: string | null;
+  /** Cents on the customer's account (negative on a refund order). */
+  onAccount: Money;
   /** A refund order: negative amounts, reverses another order. */
   isRefund: boolean;
   /** Number of lines. */

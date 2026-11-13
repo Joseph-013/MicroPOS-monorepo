@@ -119,6 +119,7 @@ function fakeApi(initial: ProductRecord[]) {
         return Promise.resolve({ restored: ids.length, conflicts: [] });
       },
     },
+    customers: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve(), account: () => Promise.resolve(null), receivePayment: () => Promise.reject(new Error('unused')) },
     orders: { list: () => Promise.resolve([]), get: () => Promise.resolve(null), void: () => Promise.reject(new Error('unused')), refund: () => Promise.reject(new Error('unused')) },
     checkout: { nextOrderNumber: () => Promise.resolve('SO-1001'), completeOrder: () => Promise.reject(new Error('unused')), loadDraft: () => Promise.resolve(null), saveDraft: () => Promise.resolve(), clearDraft: () => Promise.resolve() },
   };

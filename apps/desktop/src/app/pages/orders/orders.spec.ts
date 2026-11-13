@@ -24,6 +24,8 @@ const order = (id: string, n: number, over: Partial<SalesOrderSummary> = {}): Sa
   total: 1_000 * n,
   createdAt: Date.UTC(2026, 10, n, 12),
   isRefund: false,
+  customerName: null,
+  onAccount: 0,
   itemCount: n,
   methods: ['cash'],
   ...over,
@@ -45,7 +47,7 @@ describe('OrdersPage', () => {
     const api = {
       orders: {
         list: () => Promise.resolve(ORDERS), get: (id: string) =>
-          Promise.resolve({ id, orderNumber: 'SO-3', status: 'voided', employeeName: 'Casey Cashier', subtotal: 0, discountTotal: 0, total: 0, createdAt: 0, completedAt: null, refundOf: null, refundedBy: null, lines: [], payments: [] }),
+          Promise.resolve({ id, orderNumber: 'SO-3', status: 'voided', employeeName: 'Casey Cashier', subtotal: 0, discountTotal: 0, total: 0, createdAt: 0, completedAt: null, customer: null, onAccount: 0, refundOf: null, refundedBy: null, lines: [], payments: [] }),
         void: (input: unknown) => (reversed.push(['void', input]), Promise.resolve({ ok: true as const, orderId: (input as { orderId: string }).orderId, orderNumber: 'SO-X' })),
         refund: (input: unknown) => (reversed.push(['refund', input]), Promise.resolve({ ok: true as const, orderId: (input as { orderId: string }).orderId, orderNumber: 'SO-X', refundOrderId: 'r', refundOrderNumber: 'SO-R' })),
       },
@@ -243,7 +245,7 @@ describe('OrdersPage paging and highlighting', () => {
   let el: HTMLElement;
 
   async function open(url = '/orders'): Promise<void> {
-    const detail = (id: string) => ({ id, orderNumber: `SO-${id.slice(1)}`, status: 'completed', employeeName: 'Casey Cashier', subtotal: 0, discountTotal: 0, total: 0, createdAt: 0, completedAt: null, lines: [], payments: [] });
+    const detail = (id: string) => ({ id, orderNumber: `SO-${id.slice(1)}`, status: 'completed', employeeName: 'Casey Cashier', subtotal: 0, discountTotal: 0, total: 0, createdAt: 0, completedAt: null, customer: null, onAccount: 0, refundOf: null, refundedBy: null, lines: [], payments: [] });
     const api = { orders: { list: () => Promise.resolve(MANY), get: (id: string) => Promise.resolve(detail(id)) } } as unknown as DesktopApi;
     TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
     TestBed.inject(SalesOrderViewer); // started at launch by the app root, before the first navigation

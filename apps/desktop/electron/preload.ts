@@ -47,6 +47,15 @@ const api: DesktopApi = {
     },
     setEnabled: (enabled) => ipcRenderer.invoke(CHANNELS.scanner.setEnabled, enabled),
   },
+  customers: {
+    list: (options) => ipcRenderer.invoke(CHANNELS.customers.list, options),
+    create: (input) => ipcRenderer.invoke(CHANNELS.customers.create, input),
+    update: (id, input) => ipcRenderer.invoke(CHANNELS.customers.update, id, input),
+    remove: (ids) => ipcRenderer.invoke(CHANNELS.customers.remove, ids),
+    restore: (ids) => ipcRenderer.invoke(CHANNELS.customers.restore, ids),
+    account: (id) => ipcRenderer.invoke(CHANNELS.customers.account, id),
+    receivePayment: (input) => ipcRenderer.invoke(CHANNELS.customers.receivePayment, input),
+  },
   orders: {
     list: () => ipcRenderer.invoke(CHANNELS.orders.list),
     get: (id) => ipcRenderer.invoke(CHANNELS.orders.get, id),

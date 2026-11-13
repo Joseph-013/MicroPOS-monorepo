@@ -52,6 +52,19 @@ export type {
   RestoreProductsResult,
   SaveProductResult,
 } from './catalog.js';
+export type {
+  CustomerAccount,
+  CustomerField,
+  CustomerInput,
+  CustomerLedgerType,
+  CustomerRecord,
+  LedgerEntryRecord,
+  ReceivePaymentInput,
+  ReceivePaymentResult,
+  RemoveCustomersResult,
+  SaveCustomerResult,
+} from './customers.js';
+export { CUSTOMER_LEDGER_TYPES } from './customers.js';
 export { DESKTOP_API_VERSION, type DesktopApi } from './desktop-api.js';
 export { canReverseOrder, ORDER_PAYMENT_METHODS } from './draft.js';
 export type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, DraftLine, OrderLineProblem, OrderPaymentMethod, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';

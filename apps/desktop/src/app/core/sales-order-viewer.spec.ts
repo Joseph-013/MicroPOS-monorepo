@@ -31,6 +31,8 @@ const ORDER: SalesOrderDetail = {
     { id: 'l1', productId: 'p1', name: 'Whole Milk', unitPrice: 250, quantityMilli: 2_000, lineTotal: 500, unit: 'each' },
     { id: 'l2', productId: null, name: 'Ground Beef', unitPrice: 1000, quantityMilli: 500, lineTotal: 500, unit: 'kg' },
   ],
+  customer: null,
+  onAccount: 0,
   refundOf: null,
   refundedBy: null,
   payments: [{ method: 'cash', amount: 900, tendered: 1_000, change: 100, reference: null }],

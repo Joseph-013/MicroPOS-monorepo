@@ -4,6 +4,7 @@ import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
 import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from '../db/queries/categories';
 import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock } from '../db/queries/inventory';
+import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
 import { completeOrder, getOrder, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
 import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../db/queries/repackage-draft';
@@ -51,6 +52,16 @@ export function registerIpcHandlers(db: AppDatabase): void {
   ipcMain.handle(CHANNELS.inventory.saveRepackageDraft, (_event, draft: unknown) => saveRepackageDraft(db, draft));
   ipcMain.handle(CHANNELS.inventory.clearRepackageDraft, () => clearRepackageDraft(db));
   ipcMain.handle(CHANNELS.scanner.setEnabled, (_event, on: unknown) => setScannerEnabled(on !== false));
+  // Customer payloads come from the renderer: create/update/receivePayment validate them before writing.
+  ipcMain.handle(CHANNELS.customers.list, (_event, options: unknown) =>
+    listCustomers(db, (options as { includeDeleted?: unknown } | undefined)?.includeDeleted === true),
+  );
+  ipcMain.handle(CHANNELS.customers.create, (_event, input: unknown) => createCustomer(db, input));
+  ipcMain.handle(CHANNELS.customers.update, (_event, id: unknown, input: unknown) => updateCustomer(db, id, input));
+  ipcMain.handle(CHANNELS.customers.remove, (_event, ids: unknown) => deleteCustomers(db, ids));
+  ipcMain.handle(CHANNELS.customers.restore, (_event, ids: unknown) => restoreCustomers(db, ids));
+  ipcMain.handle(CHANNELS.customers.account, (_event, id: unknown) => getCustomerAccount(db, id));
+  ipcMain.handle(CHANNELS.customers.receivePayment, (_event, input: unknown) => receivePayment(db, input));
   ipcMain.handle(CHANNELS.orders.list, () => listOrders(db));
   ipcMain.handle(CHANNELS.orders.get, (_event, id: unknown) => getOrder(db, id));
   // The renderer sends an order id and a reason; voidOrder / refundOrder validate both and decide whether the order may be reversed.

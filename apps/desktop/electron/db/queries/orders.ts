@@ -14,7 +14,7 @@ import {
 import type { AppDatabase } from '../index';
 import { uuid7 } from '../uuid';
 import { asc } from 'drizzle-orm';
-import { auditLog, employees, orderLines, orders, payments, products, settings } from '../schema';
+import { auditLog, customerLedger, customers, employees, orderLines, orders, payments, products, settings } from '../schema';
 import { allocateSale, restockSale } from './inventory';
 import { DRAFT_KEY } from './draft';
 
@@ -38,7 +38,7 @@ export function nextOrderNumber(db: AppDatabase): string {
  * Who rings up sales until sign-in exists: the first active employee, or a "Register" employee made on first use.
  * Its PIN hash is not a valid hash, so nobody can sign in as it.
  */
-function sellingEmployee(tx: Pick<AppDatabase, 'select' | 'insert'>): string {
+export function sellingEmployee(tx: Pick<AppDatabase, 'select' | 'insert'>): string {
   const [existing] = tx
     .select({ id: employees.id, deletedAt: employees.deletedAt, active: employees.active })
     .from(employees)
@@ -51,6 +51,12 @@ function sellingEmployee(tx: Pick<AppDatabase, 'select' | 'insert'>): string {
     .values({ name: 'Register', employeeNumber: '0000', pinHash: '!', role: 'cashier' })
     .returning({ id: employees.id })
     .get().id;
+}
+
+/** What a customer owes right now, read on the open connection (so it sees this transaction's writes). */
+function customerBalanceRaw(db: AppDatabase, customerId: string): number {
+  const row = db.$client.prepare('SELECT COALESCE(SUM(amount), 0) AS total FROM customer_ledger WHERE customer_id = ?').get(customerId) as { total: number };
+  return row.total;
 }
 
 /** Thrown inside the transaction so everything written so far is rolled back. */
@@ -72,12 +78,17 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
   const input = raw as {
     lines?: unknown;
     discount?: unknown;
+    customerId?: unknown;
+    amountPaid?: unknown;
     payment?: { method?: unknown; tendered?: unknown; reference?: unknown };
   } | null;
   if (!Array.isArray(input?.lines) || input.lines.length === 0) return fail('The order has no items');
   if (input.lines.length > MAX_LINES) return fail('The order has too many items');
   const discount = input.discount ?? 0;
   if (!isCents(discount)) return fail('The discount is not valid');
+  const customerId = typeof input.customerId === 'string' ? input.customerId : null;
+  if (input.customerId !== undefined && input.customerId !== null && customerId === null) return fail('The customer is not valid');
+  if (input.amountPaid !== undefined && !isCents(input.amountPaid)) return fail('The amount paid is not valid');
   const method = input.payment?.method as OrderPaymentMethod;
   if (!ORDER_PAYMENT_METHODS.includes(method)) return fail('Choose how the order is paid');
 
@@ -128,9 +139,25 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
       if ((discount as number) > subtotal) throw new Rollback(fail('The discount is more than the order'));
       const total = subtotal - (discount as number);
 
+      // A credit sale pays part now (possibly nothing) and puts the rest on the customer's account.
+      const amountPaid = input.amountPaid === undefined ? total : (input.amountPaid as number);
+      if (amountPaid > total) throw new Rollback(fail('The amount paid is more than the total'));
+      const onAccount = total - amountPaid;
+      if (onAccount > 0 && !customerId) throw new Rollback(fail('Choose a customer to put the rest on account'));
+      if (customerId) {
+        const [customer] = tx.select().from(customers).where(eq(customers.id, customerId)).all();
+        if (!customer || customer.deletedAt !== null) throw new Rollback(fail('Customer not found'));
+        if (onAccount > 0 && customer.creditLimit !== null) {
+          const owed = customerBalanceRaw(db, customerId);
+          if (owed + onAccount > customer.creditLimit) {
+            throw new Rollback(fail(`${customer.name} would owe more than their credit limit`));
+          }
+        }
+      }
+
       const tendered = input.payment?.tendered;
-      if (method === 'cash') {
-        if (!isCents(tendered) || tendered < total) throw new Rollback(fail('The cash handed over does not cover the total'));
+      if (method === 'cash' && amountPaid > 0) {
+        if (!isCents(tendered) || tendered < amountPaid) throw new Rollback(fail('The cash handed over does not cover the amount paid'));
       }
 
       for (const item of planned) {
@@ -162,13 +189,20 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
       if (problems.length) throw new Rollback(fail('Not enough stock for some items', problems));
 
       tx.update(orders).set({ status: 'completed', subtotal, discountTotal: discount as number, total, completedAt: now, updatedAt: now }).where(eq(orders.id, orderId)).run();
-      const change = method === 'cash' ? (tendered as number) - total : 0;
-      tx.insert(payments)
-        .values({ orderId, method, amount: total, tendered: method === 'cash' ? (tendered as number) : null, change: method === 'cash' ? change : null, reference, createdAt: now })
-        .run();
+      const cashIn = method === 'cash' && amountPaid > 0;
+      const change = cashIn ? (tendered as number) - amountPaid : 0;
+      if (amountPaid > 0) {
+        tx.insert(payments)
+          .values({ orderId, method, amount: amountPaid, tendered: cashIn ? (tendered as number) : null, change: cashIn ? change : null, reference, createdAt: now })
+          .run();
+      }
+      if (customerId) tx.update(orders).set({ customerId }).where(eq(orders.id, orderId)).run();
+      if (onAccount > 0) {
+        tx.insert(customerLedger).values({ customerId: customerId!, type: 'charge', amount: onAccount, orderId, employeeId, at: now }).run();
+      }
       tx.delete(settings).where(eq(settings.key, DRAFT_KEY)).run();
 
-      return { ok: true as const, orderId, orderNumber, total, change };
+      return { ok: true as const, orderId, orderNumber, total, change, onAccount };
     });
   } catch (error) {
     if (error instanceof Rollback) return error.result;
@@ -199,6 +233,8 @@ export function getOrder(db: AppDatabase, id: unknown): SalesOrderDetail | null 
     ? db.select({ id: orders.id, orderNumber: orders.orderNumber }).from(orders).where(eq(orders.id, o.refundOfOrderId)).get()
     : undefined;
   const refundedBy = db.select({ id: orders.id, orderNumber: orders.orderNumber }).from(orders).where(eq(orders.refundOfOrderId, id)).get();
+  const customer = o.customerId ? db.select({ id: customers.id, name: customers.name }).from(customers).where(eq(customers.id, o.customerId)).get() : undefined;
+  const onAccount = (db.$client.prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM customer_ledger WHERE order_id = ? AND type IN ('charge', 'refund')").get(id) as { total: number }).total;
   return {
     id: o.id,
     orderNumber: o.orderNumber,
@@ -209,6 +245,8 @@ export function getOrder(db: AppDatabase, id: unknown): SalesOrderDetail | null 
     total: o.total,
     createdAt: o.createdAt,
     completedAt: o.completedAt,
+    customer: customer ?? null,
+    onAccount,
     refundOf: refundOf ?? null,
     refundedBy: refundedBy ?? null,
     lines: lines.map(({ line, unit }) => ({ id: line.id, productId: line.productId, name: line.name, unitPrice: line.unitPrice, quantityMilli: line.quantityMilli, lineTotal: line.lineTotal, unit })),
@@ -221,10 +259,11 @@ export function listOrders(db: AppDatabase): SalesOrderSummary[] {
   const rows = db.$client
     .prepare(
       `SELECT o.id AS id, o.order_number AS orderNumber, o.status AS status, e.name AS employeeName, o.total AS total,
-              o.created_at AS createdAt, o.refund_of_order_id IS NOT NULL AS isRefund,
+              o.created_at AS createdAt, o.refund_of_order_id IS NOT NULL AS isRefund, c.name AS customerName,
+              COALESCE((SELECT SUM(amount) FROM customer_ledger cl WHERE cl.order_id = o.id AND cl.type IN ('charge', 'refund')), 0) AS onAccount,
               (SELECT COUNT(*) FROM order_lines l WHERE l.order_id = o.id) AS itemCount,
               (SELECT GROUP_CONCAT(method) FROM (SELECT method FROM payments p WHERE p.order_id = o.id ORDER BY p.created_at, p.id)) AS methods
-         FROM orders o JOIN employees e ON e.id = o.employee_id
+         FROM orders o JOIN employees e ON e.id = o.employee_id LEFT JOIN customers c ON c.id = o.customer_id
         ORDER BY o.created_at DESC, o.order_number DESC`,
     )
     .all() as (Omit<SalesOrderSummary, 'methods' | 'isRefund'> & { methods: string | null; isRefund: number })[];
@@ -271,6 +310,7 @@ function reverseOrder(db: AppDatabase, kind: ReverseKind, raw: unknown, now: num
             orderNumber: refund.orderNumber,
             employeeId,
             refundOfOrderId: orderId,
+            customerId: order.customerId,
             status: 'completed',
             subtotal: -order.subtotal,
             discountTotal: -order.discountTotal,
@@ -287,6 +327,15 @@ function reverseOrder(db: AppDatabase, kind: ReverseKind, raw: unknown, now: num
         }
         for (const payment of tx.select().from(payments).where(eq(payments.orderId, orderId)).all()) {
           tx.insert(payments).values({ orderId: refund.id, method: payment.method, amount: -payment.amount, tendered: null, change: null, reference: payment.reference, createdAt: now }).run();
+        }
+      }
+      // What the sale left on the customer's account comes off it again: a void or refund cancels the debt.
+      if (order.customerId) {
+        const charged = (db.$client.prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM customer_ledger WHERE order_id = ? AND type = 'charge'").get(orderId) as { total: number }).total;
+        if (charged > 0) {
+          tx.insert(customerLedger)
+            .values({ customerId: order.customerId, type: kind, amount: -charged, orderId: refund?.id ?? orderId, employeeId, at: now })
+            .run();
         }
       }
       tx.update(orders).set({ status: kind === 'void' ? 'voided' : 'refunded', updatedAt: now }).where(eq(orders.id, orderId)).run();

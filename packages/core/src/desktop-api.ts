@@ -1,5 +1,6 @@
 import type { AdjustStockInput, BatchRecord, InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from './inventory.js';
 import type { CatalogCategory, CatalogProduct, CategoryInput, CategoryRecord, RestoreCategoriesResult, SaveCategoryResult, ProductDraft, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from './catalog.js';
+import type { CustomerAccount, CustomerInput, CustomerRecord, ReceivePaymentInput, ReceivePaymentResult, RemoveCustomersResult, SaveCustomerResult } from './customers.js';
 import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
 
 /**
@@ -7,7 +8,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 20;
+export const DESKTOP_API_VERSION = 21;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -74,6 +75,19 @@ export interface DesktopApi {
     onScan(listener: (scan: { code: string }) => void): () => void;
     /** Turn scan detection on or off; off lets scanner keys through as ordinary typing. */
     setEnabled(enabled: boolean): Promise<void>;
+  };
+  customers: {
+    /** Live customers with what each owes, sorted by name; `includeDeleted` adds deleted ones. */
+    list(options?: { includeDeleted?: boolean }): Promise<CustomerRecord[]>;
+    create(input: CustomerInput): Promise<SaveCustomerResult>;
+    update(id: string, input: CustomerInput): Promise<SaveCustomerResult>;
+    /** Removes customers; one who still owes (or is owed) money is left alone and reported. */
+    remove(ids: string[]): Promise<RemoveCustomersResult>;
+    restore(ids: string[]): Promise<void>;
+    /** The customer with their ledger, newest entry first; null when there is no such customer. */
+    account(id: string): Promise<CustomerAccount | null>;
+    /** Records money received towards what the customer owes (never more than they owe). */
+    receivePayment(input: ReceivePaymentInput): Promise<ReceivePaymentResult>;
   };
   orders: {
     /** Every recorded order, newest first. */
