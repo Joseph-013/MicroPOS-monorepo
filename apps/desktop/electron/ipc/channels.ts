@@ -3,7 +3,7 @@
  * Convention: `<area>:<action>`. Every channel is a request/response (`invoke`/`handle`).
  */
 /** Must equal `DESKTOP_API_VERSION` in @micropos/core (a test checks); bump both when the contract changes. */
-export const API_VERSION = 21;
+export const API_VERSION = 22;
 
 export const CHANNELS = {
   app: {
@@ -45,6 +45,22 @@ export const CHANNELS = {
     /** Main to renderer: a barcode scan was detected. */
     scan: 'scanner:scan',
     setEnabled: 'scanner:setEnabled',
+  },
+  suppliers: {
+    list: 'suppliers:list',
+    create: 'suppliers:create',
+    update: 'suppliers:update',
+    remove: 'suppliers:remove',
+    restore: 'suppliers:restore',
+  },
+  purchases: {
+    list: 'purchases:list',
+    get: 'purchases:get',
+    create: 'purchases:create',
+    update: 'purchases:update',
+    receive: 'purchases:receive',
+    pay: 'purchases:pay',
+    cancel: 'purchases:cancel',
   },
   customers: {
     list: 'customers:list',

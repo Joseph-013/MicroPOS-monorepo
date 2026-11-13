@@ -24,6 +24,7 @@ import {
   PRODUCT_UNITS,
   products,
   settings,
+  stockMovements,
 } from './schema';
 import { listCategories, listProducts } from './queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from './queries/products';
@@ -31,6 +32,20 @@ import { createCategory, deleteCategories, listCategoryRecords, restoreCategorie
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from './queries/repackage-draft';
 import { adjustStock, allocateSale, inventoryOverview, listBatches, receiveStock, repackageStock, restockSale } from './queries/inventory';
 import { clearProductDraft, loadProductDraft, sanitizeProductDraft, saveProductDraft } from './queries/product-draft';
+import {
+  cancelPurchase,
+  createPurchase,
+  createSupplier,
+  deleteSuppliers,
+  getPurchase,
+  listPurchases,
+  listSuppliers,
+  payPurchase,
+  receivePurchase,
+  restoreSuppliers,
+  updatePurchase,
+  updateSupplier,
+} from './queries/purchases';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from './queries/customers';
 import { completeOrder, getOrder, listOrders, nextOrderNumber, refundOrder, voidOrder } from './queries/orders';
 import { clearDraft, DRAFT_KEY, loadDraft, sanitizeDraft, saveDraft } from './queries/draft';
@@ -80,7 +95,7 @@ describe('migrations', () => {
       .map((r) => tables((r as { name: string }).name))
       .sort();
     expect(names).toEqual(
-      ['audit_log', 'categories', 'customer_ledger', 'customers', 'employees', 'login_sessions', 'order_lines', 'orders', 'payments', 'product_batches', 'product_categories', 'products', 'settings', 'stock_movements'].sort(),
+      ['audit_log', 'categories', 'customer_ledger', 'customers', 'employees', 'login_sessions', 'order_lines', 'orders', 'payments', 'product_batches', 'product_categories', 'products', 'purchase_order_lines', 'purchase_orders', 'purchase_payments', 'settings', 'stock_movements', 'suppliers'].sort(),
     );
     // Opening the same file again must not re-apply or fail.
     expect(() => createDatabase(path.join(dir, 'test.db'), { migrationsFolder: SOURCE_MIGRATIONS_FOLDER }).close()).not.toThrow();
@@ -1287,5 +1302,158 @@ describe('customers and credit sales', () => {
     expect(() => insert('adjustment', 0)).toThrow(/CHECK/);
     expect(() => insert('adjustment', -5)).not.toThrow();
     expect(() => insert('forgive', -5)).toThrow(/CHECK/);
+  });
+});
+
+describe('purchases from suppliers', () => {
+  const product = (over: Record<string, unknown> = {}) => {
+    const r = createProduct(db, { name: `Item-${Math.random().toString(36).slice(2, 7)}`, unit: 'each', tracking: 'quantity', shelfLifeDays: null, sku: null, barcode: null, price: 2_000, cost: null, active: true, categoryIds: [], ...over });
+    if (!r.ok) throw new Error(r.error);
+    return r.product;
+  };
+  const supplier = (name = 'Metro Wholesale') => {
+    const r = createSupplier(db, { name, phone: null, note: null });
+    if (!r.ok) throw new Error(r.error);
+    return r.supplier;
+  };
+  const ok = <T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> => {
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    return r as Extract<T, { ok: true }>;
+  };
+  /** An order for 10 of `p` at 1,000 each (total 10,000). */
+  const order = (supplierId: string, p: { id: string }, over: Record<string, unknown> = {}) =>
+    ok(createPurchase(db, { supplierId, expectedAt: null, dueAt: null, reference: null, note: null, lines: [{ productId: p.id, quantityMilli: 10_000, unitCost: 1_000 }], ...over })).purchase;
+  const onHand = (productId: string): number => listBatches(db).filter((b) => b.productId === productId).reduce((sum, b) => sum + b.onHandMilli, 0);
+
+  it('validates, saves, lists and removes suppliers; one that is owed money cannot be removed', () => {
+    expect(createSupplier(db, { name: ' ', phone: null, note: null })).toMatchObject({ ok: false, field: 'name' });
+    expect(createSupplier(db, { name: 'A', phone: 'x'.repeat(41), note: null })).toMatchObject({ ok: false, field: 'phone' });
+    expect(createSupplier(db, { name: 'A', phone: null, note: 'x'.repeat(201) })).toMatchObject({ ok: false, field: 'note' });
+    const a = supplier('  Metro   Wholesale ');
+    expect(a).toMatchObject({ name: 'Metro Wholesale', owed: 0, openOrders: 0 });
+    const b = supplier('Bakery');
+    expect(listSuppliers(db).map((s) => s.name)).toEqual(['Bakery', 'Metro Wholesale']);
+    expect(updateSupplier(db, a.id, { name: 'Metro', phone: '123', note: null })).toMatchObject({ ok: true, supplier: { name: 'Metro', phone: '123' } });
+    expect(updateSupplier(db, 'nope', { name: 'X', phone: null, note: null })).toMatchObject({ ok: false });
+
+    order(a.id, product());
+    expect(listSuppliers(db).find((s) => s.id === a.id)).toMatchObject({ owed: 10_000, openOrders: 1 });
+    expect(deleteSuppliers(db, [a.id, b.id])).toEqual({ removed: 1, blocked: ['Metro'] });
+    expect(listSuppliers(db).map((s) => s.name)).toEqual(['Metro']);
+    restoreSuppliers(db, [b.id]);
+    expect(listSuppliers(db).map((s) => s.name)).toEqual(['Bakery', 'Metro']);
+  });
+
+  it('places an order: numbered, totalled, nothing received or paid yet', () => {
+    const s = supplier();
+    const a = product();
+    const b = product({ unit: 'kg' });
+    const first = ok(createPurchase(db, { supplierId: s.id, expectedAt: 1_900_000_000_000, dueAt: 1_900_100_000_000, reference: ' INV-77 ', note: 'bulk', lines: [{ productId: a.id, quantityMilli: 10_000, unitCost: 1_000 }, { productId: b.id, quantityMilli: 2_500, unitCost: 4_000 }] })).purchase;
+    expect(first).toMatchObject({ number: 'PO-1001', status: 'ordered', total: 20_000, paid: 0, owed: 20_000, lineCount: 2, reference: 'INV-77', note: 'bulk', receivedAt: null, supplierName: 'Metro Wholesale' });
+    expect(first.lines.map((l) => [l.productName === a.name, l.quantityMilli, l.unitCost, l.total])).toEqual([[true, 10_000, 1_000, 10_000], [false, 2_500, 4_000, 10_000]]);
+    expect(order(s.id, a).number).toBe('PO-1002');
+    expect(listPurchases(db).map((p) => p.number)).toEqual(['PO-1002', 'PO-1001']);
+    expect(onHand(a.id)).toBe(0);
+  });
+
+  it('refuses a bad order', () => {
+    const s = supplier();
+    const a = product();
+    const base = { supplierId: s.id, expectedAt: null, dueAt: null, reference: null, note: null, lines: [{ productId: a.id, quantityMilli: 1_000, unitCost: 100 }] };
+    expect(createPurchase(db, { ...base, supplierId: 'nope' })).toMatchObject({ ok: false, field: 'supplier' });
+    expect(createPurchase(db, { ...base, lines: [] })).toMatchObject({ ok: false, field: 'lines' });
+    expect(createPurchase(db, { ...base, lines: [{ productId: a.id, quantityMilli: 0, unitCost: 100 }] })).toMatchObject({ ok: false, field: 'quantity' });
+    expect(createPurchase(db, { ...base, lines: [{ productId: a.id, quantityMilli: 1_000, unitCost: -1 }] })).toMatchObject({ ok: false, field: 'unitCost' });
+    expect(createPurchase(db, { ...base, lines: [{ productId: 'nope', quantityMilli: 1_000, unitCost: 1 }] })).toMatchObject({ ok: false, field: 'product' });
+    expect(createPurchase(db, { ...base, lines: [base.lines[0], base.lines[0]] })).toMatchObject({ ok: false, field: 'product' });
+    expect(createPurchase(db, { ...base, dueAt: -3 })).toMatchObject({ ok: false, field: 'dueAt' });
+    expect(createPurchase(db, { ...base, reference: 'x'.repeat(201) })).toMatchObject({ ok: false, field: 'reference' });
+    expect(listPurchases(db)).toEqual([]);
+  });
+
+  it('pays in parts, never more than is owed, and keeps every payment on record', () => {
+    const s = supplier();
+    const po = order(s.id, product());
+    expect(payPurchase(db, { purchaseId: po.id, amount: 0, method: 'cash', reference: null })).toMatchObject({ ok: false, field: 'amount' });
+    expect(payPurchase(db, { purchaseId: po.id, amount: 100, method: 'barter', reference: null })).toMatchObject({ ok: false, field: 'method' });
+    expect(payPurchase(db, { purchaseId: po.id, amount: 10_001, method: 'cash', reference: null })).toMatchObject({ ok: false, field: 'amount' });
+
+    const deposit = ok(payPurchase(db, { purchaseId: po.id, amount: 4_000, method: 'bank_transfer', reference: ' TX-1 ' })).purchase;
+    expect(deposit).toMatchObject({ paid: 4_000, owed: 6_000 });
+    expect(deposit.payments).toMatchObject([{ amount: 4_000, method: 'bank_transfer', reference: 'TX-1' }]);
+    expect(listSuppliers(db)[0]).toMatchObject({ owed: 6_000 });
+    const settled = ok(payPurchase(db, { purchaseId: po.id, amount: 6_000, method: 'cash', reference: null })).purchase;
+    expect(settled).toMatchObject({ paid: 10_000, owed: 0 });
+    expect(settled.payments).toHaveLength(2);
+    expect(payPurchase(db, { purchaseId: po.id, amount: 1, method: 'cash', reference: null })).toMatchObject({ ok: false, error: 'Nothing is owed on this order' });
+    expect(listSuppliers(db)[0]).toMatchObject({ owed: 0 });
+    expect(() => db.$client.prepare("UPDATE purchase_payments SET amount = 0").run()).toThrow(/CHECK/);
+  });
+
+  it('edits an order that has not arrived, but not below what is paid', () => {
+    const s = supplier();
+    const a = product();
+    const b = product();
+    const po = order(s.id, a);
+    ok(payPurchase(db, { purchaseId: po.id, amount: 6_000, method: 'cash', reference: null }));
+    const lines = (cost: number) => [{ productId: b.id, quantityMilli: 10_000, unitCost: cost }];
+    expect(updatePurchase(db, po.id, { supplierId: s.id, expectedAt: null, dueAt: null, reference: null, note: null, lines: lines(500) })).toMatchObject({ ok: false, field: 'lines', error: 'The total is less than what is already paid' });
+    expect(getPurchase(db, po.id)!.lines[0]!.productId).toBe(a.id); // nothing changed
+    const changed = ok(updatePurchase(db, po.id, { supplierId: s.id, expectedAt: null, dueAt: null, reference: 'INV-9', note: null, lines: lines(1_200) })).purchase;
+    expect(changed).toMatchObject({ total: 12_000, paid: 6_000, owed: 6_000, reference: 'INV-9', number: po.number, lineCount: 1 });
+    expect(changed.lines[0]!.productId).toBe(b.id);
+    expect(updatePurchase(db, 'nope', { supplierId: s.id, lines: lines(1) })).toMatchObject({ ok: false });
+  });
+
+  it('receiving puts the stock into inventory at the ordered cost, and only once', () => {
+    const s = supplier();
+    const a = product();
+    const loose = product({ tracking: 'none' });
+    const po = ok(createPurchase(db, { supplierId: s.id, expectedAt: null, dueAt: null, reference: null, note: null, lines: [{ productId: a.id, quantityMilli: 10_000, unitCost: 1_000 }, { productId: loose.id, quantityMilli: 1_000, unitCost: 50 }] })).purchase;
+    const received = ok(receivePurchase(db, { purchaseId: po.id, lines: [] }), ).purchase;
+    expect(received).toMatchObject({ status: 'received', owed: 10_050 });
+    expect(received.receivedAt).not.toBeNull();
+    expect(listBatches(db).filter((b) => b.productId === a.id)).toMatchObject([{ onHandMilli: 10_000, unitCost: 1_000 }]);
+    expect(onHand(loose.id)).toBe(0); // stock is not tracked for it
+    const movement = db.select().from(stockMovements).where(eq(stockMovements.productId, a.id)).get();
+    expect(movement).toMatchObject({ type: 'receive', quantityMilli: 10_000, note: `Received on ${po.number}` });
+    expect(receivePurchase(db, { purchaseId: po.id, lines: [] })).toMatchObject({ ok: false });
+    expect(updatePurchase(db, po.id, { supplierId: s.id, expectedAt: null, dueAt: null, reference: null, note: null, lines: [{ productId: a.id, quantityMilli: 1_000, unitCost: 1 }] })).toMatchObject({ ok: false });
+    expect(cancelPurchase(db, po.id)).toMatchObject({ ok: false });
+    // It can still be paid after it arrives.
+    expect(ok(payPurchase(db, { purchaseId: po.id, amount: 10_050, method: 'cash', reference: null })).purchase.owed).toBe(0);
+  });
+
+  it('a product that tracks lots and expiry needs them, and one refused line receives nothing', () => {
+    const s = supplier();
+    const plain = product();
+    const dated = product({ tracking: 'expiry' });
+    const po = ok(createPurchase(db, { supplierId: s.id, expectedAt: null, dueAt: null, reference: null, note: null, lines: [{ productId: plain.id, quantityMilli: 5_000, unitCost: 100 }, { productId: dated.id, quantityMilli: 5_000, unitCost: 100 }] })).purchase;
+    const datedLine = po.lines.find((l) => l.productId === dated.id)!;
+    const refused = receivePurchase(db, { purchaseId: po.id, lines: [] });
+    expect(refused).toMatchObject({ ok: false, lineId: datedLine.id, field: 'batchNumber' });
+    expect(onHand(plain.id)).toBe(0); // the first line was rolled back with it
+    expect(getPurchase(db, po.id)!.status).toBe('ordered');
+    expect(receivePurchase(db, { purchaseId: po.id, lines: [{ lineId: datedLine.id, batchNumber: 'L1', expiresAt: null }] })).toMatchObject({ ok: false, lineId: datedLine.id, field: 'expiresAt' });
+
+    const expiresAt = Date.now() + 30 * 86_400_000;
+    ok(receivePurchase(db, { purchaseId: po.id, lines: [{ lineId: datedLine.id, batchNumber: 'L1', expiresAt }] }));
+    expect(listBatches(db).filter((b) => b.productId === dated.id)).toMatchObject([{ batchNumber: 'L1', expiresAt, onHandMilli: 5_000 }]);
+    expect(onHand(plain.id)).toBe(5_000);
+  });
+
+  it('cancels an order only before it arrives and before anything is paid; a cancelled order owes nothing', () => {
+    const s = supplier();
+    const paid = order(s.id, product());
+    ok(payPurchase(db, { purchaseId: paid.id, amount: 100, method: 'cash', reference: null }));
+    expect(cancelPurchase(db, paid.id)).toMatchObject({ ok: false });
+
+    const po = order(s.id, product());
+    expect(listSuppliers(db)[0]).toMatchObject({ owed: 19_900, openOrders: 2 });
+    expect(ok(cancelPurchase(db, po.id)).purchase).toMatchObject({ status: 'cancelled', owed: 0 });
+    expect(listSuppliers(db)[0]).toMatchObject({ owed: 9_900, openOrders: 1 });
+    expect(payPurchase(db, { purchaseId: po.id, amount: 1, method: 'cash', reference: null })).toMatchObject({ ok: false, error: 'This order is cancelled' });
+    expect(receivePurchase(db, { purchaseId: po.id, lines: [] })).toMatchObject({ ok: false });
+    expect(cancelPurchase(db, 'nope')).toMatchObject({ ok: false });
   });
 });

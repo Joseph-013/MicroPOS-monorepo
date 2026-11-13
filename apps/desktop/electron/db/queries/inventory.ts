@@ -101,12 +101,16 @@ export function stockSummary(
 const isMilli = (v: unknown): v is number =>
   typeof v === 'number' && Number.isInteger(v) && v > 0 && v <= MAX_MILLI;
 
-/** Adds stock: a new batch, or more of an existing one (the unnamed batch of a quantity-only product, or the same lot). */
+/**
+ * Adds stock: a new batch, or more of an existing one (the unnamed batch of a quantity-only product, or the same lot).
+ * Pass `outer` (an open transaction) to make the receipt part of a larger one; otherwise it has a transaction of its own.
+ */
 export function receiveStock(
   db: AppDatabase,
   raw: unknown,
   employeeId: string | null = null,
   now = Date.now(),
+  outer?: Pick<AppDatabase, 'select' | 'insert' | 'update'>,
 ): StockResult {
   const input = (raw ?? {}) as Partial<ReceiveStockInput>;
   if (typeof input.productId !== 'string') return problem('product', 'Choose a product');
@@ -155,7 +159,7 @@ export function receiveStock(
       ? input.note.trim().slice(0, MAX_NOTE)
       : null;
 
-  const batchId = db.transaction((tx): string | Problem => {
+  const write = (tx: Pick<AppDatabase, 'select' | 'insert' | 'update'>): string | Problem => {
     const sameBatch = tx
       .select()
       .from(productBatches)
@@ -197,7 +201,8 @@ export function receiveStock(
       })
       .run();
     return id;
-  });
+  };
+  const batchId = outer ? write(outer) : db.transaction(write);
   if (typeof batchId !== 'string') return batchId;
   return { ok: true, batch: listBatches(db, { includeEmpty: true, batchId })[0]! };
 }

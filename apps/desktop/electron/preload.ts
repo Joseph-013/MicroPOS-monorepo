@@ -47,6 +47,22 @@ const api: DesktopApi = {
     },
     setEnabled: (enabled) => ipcRenderer.invoke(CHANNELS.scanner.setEnabled, enabled),
   },
+  suppliers: {
+    list: (options) => ipcRenderer.invoke(CHANNELS.suppliers.list, options),
+    create: (input) => ipcRenderer.invoke(CHANNELS.suppliers.create, input),
+    update: (id, input) => ipcRenderer.invoke(CHANNELS.suppliers.update, id, input),
+    remove: (ids) => ipcRenderer.invoke(CHANNELS.suppliers.remove, ids),
+    restore: (ids) => ipcRenderer.invoke(CHANNELS.suppliers.restore, ids),
+  },
+  purchases: {
+    list: () => ipcRenderer.invoke(CHANNELS.purchases.list),
+    get: (id) => ipcRenderer.invoke(CHANNELS.purchases.get, id),
+    create: (input) => ipcRenderer.invoke(CHANNELS.purchases.create, input),
+    update: (id, input) => ipcRenderer.invoke(CHANNELS.purchases.update, id, input),
+    receive: (input) => ipcRenderer.invoke(CHANNELS.purchases.receive, input),
+    pay: (input) => ipcRenderer.invoke(CHANNELS.purchases.pay, input),
+    cancel: (id) => ipcRenderer.invoke(CHANNELS.purchases.cancel, id),
+  },
   customers: {
     list: (options) => ipcRenderer.invoke(CHANNELS.customers.list, options),
     create: (input) => ipcRenderer.invoke(CHANNELS.customers.create, input),

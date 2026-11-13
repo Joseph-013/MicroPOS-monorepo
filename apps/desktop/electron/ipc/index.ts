@@ -4,6 +4,7 @@ import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
 import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from '../db/queries/categories';
 import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock } from '../db/queries/inventory';
+import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
 import { completeOrder, getOrder, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
 import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
@@ -53,6 +54,20 @@ export function registerIpcHandlers(db: AppDatabase): void {
   ipcMain.handle(CHANNELS.inventory.clearRepackageDraft, () => clearRepackageDraft(db));
   ipcMain.handle(CHANNELS.scanner.setEnabled, (_event, on: unknown) => setScannerEnabled(on !== false));
   // Customer payloads come from the renderer: create/update/receivePayment validate them before writing.
+  ipcMain.handle(CHANNELS.suppliers.list, (_event, options: unknown) =>
+    listSuppliers(db, (options as { includeDeleted?: unknown } | undefined)?.includeDeleted === true),
+  );
+  ipcMain.handle(CHANNELS.suppliers.create, (_event, input: unknown) => createSupplier(db, input));
+  ipcMain.handle(CHANNELS.suppliers.update, (_event, id: unknown, input: unknown) => updateSupplier(db, id, input));
+  ipcMain.handle(CHANNELS.suppliers.remove, (_event, ids: unknown) => deleteSuppliers(db, ids));
+  ipcMain.handle(CHANNELS.suppliers.restore, (_event, ids: unknown) => restoreSuppliers(db, ids));
+  ipcMain.handle(CHANNELS.purchases.list, () => listPurchases(db));
+  ipcMain.handle(CHANNELS.purchases.get, (_event, id: unknown) => getPurchase(db, id));
+  ipcMain.handle(CHANNELS.purchases.create, (_event, input: unknown) => createPurchase(db, input));
+  ipcMain.handle(CHANNELS.purchases.update, (_event, id: unknown, input: unknown) => updatePurchase(db, id, input));
+  ipcMain.handle(CHANNELS.purchases.receive, (_event, input: unknown) => receivePurchase(db, input));
+  ipcMain.handle(CHANNELS.purchases.pay, (_event, input: unknown) => payPurchase(db, input));
+  ipcMain.handle(CHANNELS.purchases.cancel, (_event, id: unknown) => cancelPurchase(db, id));
   ipcMain.handle(CHANNELS.customers.list, (_event, options: unknown) =>
     listCustomers(db, (options as { includeDeleted?: unknown } | undefined)?.includeDeleted === true),
   );

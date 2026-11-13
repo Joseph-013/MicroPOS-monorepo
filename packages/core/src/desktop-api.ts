@@ -1,5 +1,20 @@
 import type { AdjustStockInput, BatchRecord, InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from './inventory.js';
 import type { CatalogCategory, CatalogProduct, CategoryInput, CategoryRecord, RestoreCategoriesResult, SaveCategoryResult, ProductDraft, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from './catalog.js';
+import type {
+  CancelPurchaseResult,
+  PayPurchaseInput,
+  PayPurchaseResult,
+  PurchaseDetail,
+  PurchaseInput,
+  PurchaseSummary,
+  ReceivePurchaseInput,
+  ReceivePurchaseResult,
+  RemoveSuppliersResult,
+  SavePurchaseResult,
+  SaveSupplierResult,
+  SupplierInput,
+  SupplierRecord,
+} from './purchasing.js';
 import type { CustomerAccount, CustomerInput, CustomerRecord, ReceivePaymentInput, ReceivePaymentResult, RemoveCustomersResult, SaveCustomerResult } from './customers.js';
 import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
 
@@ -8,7 +23,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 21;
+export const DESKTOP_API_VERSION = 22;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -88,6 +103,31 @@ export interface DesktopApi {
     account(id: string): Promise<CustomerAccount | null>;
     /** Records money received towards what the customer owes (never more than they owe). */
     receivePayment(input: ReceivePaymentInput): Promise<ReceivePaymentResult>;
+  };
+  suppliers: {
+    /** Live suppliers with what is owed to each, sorted by name; `includeDeleted` adds deleted ones. */
+    list(options?: { includeDeleted?: boolean }): Promise<SupplierRecord[]>;
+    create(input: SupplierInput): Promise<SaveSupplierResult>;
+    update(id: string, input: SupplierInput): Promise<SaveSupplierResult>;
+    /** Removes suppliers; one still owed money, or with orders on the way, is left alone and reported. */
+    remove(ids: string[]): Promise<RemoveSuppliersResult>;
+    restore(ids: string[]): Promise<void>;
+  };
+  purchases: {
+    /** Every purchase order, newest first. */
+    list(): Promise<PurchaseSummary[]>;
+    /** One purchase order with its lines and payments, or null when there is no such order. */
+    get(id: string): Promise<PurchaseDetail | null>;
+    /** Places an order with a supplier. Nothing is received or paid yet. */
+    create(input: PurchaseInput): Promise<SavePurchaseResult>;
+    /** Changes an order that has not arrived yet (its lines are replaced); never below what is already paid. */
+    update(id: string, input: PurchaseInput): Promise<SavePurchaseResult>;
+    /** The whole order arrived: its products go into inventory as new stock at the ordered cost. All or nothing. */
+    receive(input: ReceivePurchaseInput): Promise<ReceivePurchaseResult>;
+    /** Records money paid to the supplier towards the order (never more than is owed). */
+    pay(input: PayPurchaseInput): Promise<PayPurchaseResult>;
+    /** Calls off an order that has not arrived and has nothing paid on it. */
+    cancel(id: string): Promise<CancelPurchaseResult>;
   };
   orders: {
     /** Every recorded order, newest first. */

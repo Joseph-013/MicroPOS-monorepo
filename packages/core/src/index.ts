@@ -65,6 +65,29 @@ export type {
   SaveCustomerResult,
 } from './customers.js';
 export { CUSTOMER_LEDGER_TYPES } from './customers.js';
+export type {
+  CancelPurchaseResult,
+  PayPurchaseInput,
+  PayPurchaseResult,
+  PurchaseDetail,
+  PurchaseField,
+  PurchaseInput,
+  PurchaseLineInput,
+  PurchaseLineRecord,
+  PurchasePaymentRecord,
+  PurchaseStatus,
+  PurchaseSummary,
+  ReceiveLineInput,
+  ReceivePurchaseInput,
+  ReceivePurchaseResult,
+  RemoveSuppliersResult,
+  SavePurchaseResult,
+  SaveSupplierResult,
+  SupplierField,
+  SupplierInput,
+  SupplierRecord,
+} from './purchasing.js';
+export { PURCHASE_STATUSES } from './purchasing.js';
 export { DESKTOP_API_VERSION, type DesktopApi } from './desktop-api.js';
 export { canReverseOrder, ORDER_PAYMENT_METHODS } from './draft.js';
 export type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, DraftLine, OrderLineProblem, OrderPaymentMethod, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
