@@ -67,10 +67,9 @@ const LINUX_MAKERS = [
   { name: '@electron-forge/maker-rpm', config: { options: { name: 'micropos', productName: 'MicroPOS', genericName: 'Point of sale', icon: path.join(__dirname, 'assets', 'icon.png'), bin: 'micropos', specTemplate: path.join(__dirname, 'rpm-spec.ejs') } } },
 ];
 
-// Not used until Windows builds are wanted. Same Squirrel id and executable name as the first MicroPOS (`micropos`,
+// Used when building on Windows. Same Squirrel id and executable name as the first MicroPOS (`micropos`,
 // micropos.exe), so Setup installs over it as an upgrade instead of beside it. `name` is set because the package name
 // is scoped and not a valid id.
-// eslint-disable-next-line no-unused-vars
 const WINDOWS_MAKERS = [{ name: '@electron-forge/maker-squirrel', config: { name: 'micropos', setupIcon: path.join(__dirname, 'assets', 'icon.ico') } }];
 
 /** @type {import('@electron-forge/shared-types').ForgeConfig} */
@@ -98,9 +97,9 @@ module.exports = {
       },
     ],
   },
-  // Linux only for now. Add WINDOWS_MAKERS when building the Windows installer (on Windows). The deb maker is left out
-  // because it needs `dpkg`, which Fedora and other rpm systems do not have; add it where `dpkg` exists.
-  makers: LINUX_MAKERS,
+  // The Squirrel installer on Windows, a zip and an rpm on Linux. The deb maker is left out because it needs `dpkg`,
+  // which Fedora and other rpm systems do not have; add it where `dpkg` exists.
+  makers: process.platform === 'win32' ? WINDOWS_MAKERS : LINUX_MAKERS,
   plugins: [
     { name: '@electron-forge/plugin-auto-unpack-natives', config: {} },
     new FusesPlugin({

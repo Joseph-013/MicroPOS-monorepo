@@ -1,5 +1,5 @@
 import type { DataDomain } from '@micropos/core';
-import { app, BrowserWindow, Menu, powerMonitor, screen, session } from 'electron';
+import { app, BrowserWindow, Menu, powerMonitor, screen } from 'electron';
 import path from 'node:path';
 import { ensureOwner, signOut } from './auth/auth';
 import { accrueInterest } from './db/queries/credit-interest';
@@ -15,7 +15,6 @@ import { applyPendingImport, autoBackup } from './backup/backup';
 import { BackupService } from './backup/service';
 import { closeCustomerDisplay, registerCustomerDisplay } from './display';
 import { initLogging, log } from './logging';
-import { purgeLegacyData } from './legacy-data';
 import { attachScanner } from './scanner';
 import { handleSquirrelEvent } from './squirrel';
 
@@ -147,27 +146,12 @@ function migrationsFolder(): string {
 // MicroPOS happens to be installed on the machine.
 if (!app.isPackaged) app.setDesktopName('micropos-dev.desktop');
 
-/**
- * A packaged app starts on a folder an earlier MicroPOS may have used (same name, other schema): make it this app's
- * own before anything opens it. Not in development, where the data lives in the project.
- */
-function claimUserData(): boolean {
-  if (!app.isPackaged) return false;
-  const result = purgeLegacyData(app.getPath('userData'));
-  if (result.state === 'purged') {
-    console.log(`Removed data of an earlier install: ${result.removed.join(', ')}${result.failed.length ? ` (could not remove: ${result.failed.join(', ')})` : ''}`);
-  }
-  return result.state === 'purged';
-}
-
 if (handleSquirrelEvent(process.argv, process.execPath)) {
   app.quit(); // installing, updating or uninstalling: shortcuts are made or removed and the app exits
 } else {
   // The installed app has no menu bar (File, Edit, View, Window); development keeps it for the DevTools entries.
   if (app.isPackaged) Menu.setApplicationMenu(null);
-  const purged = claimUserData();
-  // Logs go in a `logs` folder: the system's log folder when installed, `local-data/logs` in development. Started after
-  // claimUserData, which may clear an earlier install's files from the user data folder.
+  // Logs go in a `logs` folder: the system's log folder when installed, `local-data/logs` in development.
   initLogging(app.isPackaged ? app.getPath('logs') : path.join(app.getAppPath(), 'local-data', 'logs'), !app.isPackaged);
   log.info('app', `MicroPOS ${app.getVersion()} started (${process.platform}, Electron ${process.versions.electron})`);
   process.on('uncaughtException', (error) => log.error('main', 'Uncaught exception', error));
@@ -179,8 +163,6 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
   app.on('second-instance', () => showMainWindow());
   if (!gotLock) app.quit();
   else void app.whenReady().then(async () => {
-    // Browser storage (the old page's local storage, caches) is held by Chromium: clear it through its own API too.
-    if (purged) await session.defaultSession.clearStorageData();
     // A database chosen in Settings > Backup (import or restore) is put in place before anything opens the file.
     try {
       if (applyPendingImport(databaseFile())) log.info('backup', 'Imported database put in place');

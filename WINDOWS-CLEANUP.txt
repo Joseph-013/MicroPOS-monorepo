@@ -40,11 +40,8 @@ BEFORE YOU START
       HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\micropos
 
 
-YOU MAY NOT NEED ALL THIS
-  If you are about to install the new MicroPOS, skip step 2 and just run its
-  Setup.exe. Squirrel upgrades the old install in place, and the new app wipes the
-  old data once, the first time it starts over an old install (it clears
-  %APPDATA%\micropos unless it finds its own marker file there).
-
-  Do the manual cleanup for a completely fresh start before installing, or when
-  removing MicroPOS for good.
+BEFORE INSTALLING THE NEW MICROPOS
+  Do both steps first. The new app does not touch the old app's files, and it
+  cannot open the old database (same file name, different layout), so it will
+  not start properly while %APPDATA%\micropos\micropos.db is the old one.
+  Copy that file somewhere safe first if you want to keep the old records.
