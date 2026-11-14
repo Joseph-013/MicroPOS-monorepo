@@ -15,7 +15,7 @@ export function buildEmployee(
   return {
     id: uuid7(now),
     name: faker.person.fullName(),
-    employeeNumber: String(faker.number.int({ min: 2000, max: 9999 })),
+    employeeNumber: `EMP-${faker.number.int({ min: 100, max: 999 })}`,
     pinHash: hashPin(pin),
     role: 'cashier' satisfies EmployeeRole,
     active: true,

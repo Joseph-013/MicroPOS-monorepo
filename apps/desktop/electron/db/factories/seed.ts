@@ -86,10 +86,10 @@ export function seedDatabase(db: AppDatabase, options: SeedOptions = {}): SeedSu
   // The admin is the baseline account every fresh database has; reuse it (or create it).
   const admin = seedAdmin(db);
   const staff = [
-    buildEmployee({ name: 'Morgan Manager', employeeNumber: '1002', role: 'manager' }, start - DAY),
-    buildEmployee({ name: 'Casey Cashier', employeeNumber: '1003', role: 'cashier' }, start - DAY),
+    buildEmployee({ name: 'Morgan Manager', employeeNumber: 'EMP-002', role: 'manager' }, start - DAY),
+    buildEmployee({ name: 'Casey Cashier', employeeNumber: 'EMP-003', role: 'cashier' }, start - DAY),
     ...Array.from({ length: options.extraCashiers ?? 2 }, (_, i) =>
-      buildEmployee({ employeeNumber: String(1004 + i), role: 'cashier' }, start - DAY),
+      buildEmployee({ employeeNumber: `EMP-${String(4 + i).padStart(3, '0')}`, role: 'cashier' }, start - DAY),
     ),
   ];
   const [manager] = staff;

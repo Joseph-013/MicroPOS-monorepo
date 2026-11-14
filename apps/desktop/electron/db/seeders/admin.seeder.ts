@@ -6,7 +6,7 @@ import { employees } from '../schema';
 /** PIN used for dummy and bootstrap accounts. Development tooling only; change it in real use. */
 export const DEFAULT_PIN = '1234';
 
-export const DEFAULT_ADMIN = { employeeNumber: '1001', name: 'Admin' } as const;
+export const DEFAULT_ADMIN = { employeeNumber: 'EMP-001', name: 'Admin' } as const;
 
 export interface AdminAccount {
   id: string;

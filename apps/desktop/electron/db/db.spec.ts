@@ -216,7 +216,7 @@ describe('seedDatabase', () => {
 
   it('creates sign-ins that work with the documented PIN, and sessions for staff', () => {
     seedDatabase(db, { orders: 20, days: 7 });
-    const [admin] = db.select().from(employees).where(and(eq(employees.employeeNumber, '1001'), isNull(employees.deletedAt))).all();
+    const [admin] = db.select().from(employees).where(and(eq(employees.employeeNumber, 'EMP-001'), isNull(employees.deletedAt))).all();
     expect(admin.role).toBe('admin');
     expect(verifyPin(DUMMY_PIN, admin.pinHash)).toBe(true);
     expect(db.select().from(loginSessions).all().some((s) => s.loggedOutAt === null)).toBe(true);
@@ -324,7 +324,7 @@ describe('db:migrate command', () => {
 
     const result = runMigrate({ file: file(), fresh: true });
     expect(result.applied).toBeGreaterThan(0);
-    expect(result.admin).toMatchObject({ employeeNumber: '1001', created: true });
+    expect(result.admin).toMatchObject({ employeeNumber: 'EMP-001', created: true });
     expect(count('employees')).toBe(1);
     expect(query<{ role: string }>('SELECT role FROM employees').role).toBe('admin');
     expect(count('products')).toBe(0); // old data is gone
@@ -342,7 +342,7 @@ describe('db:migrate command', () => {
     expect(count('orders')).toBeGreaterThan(0);
     expect(query<{ n: number }>("SELECT COUNT(*) AS n FROM employees WHERE role = 'admin'").n).toBe(1);
     expect(count('employees')).toBe(result.seeded!.employees);
-    expect(result.seeded!.credentials[0]).toMatchObject({ employeeNumber: '1001', role: 'admin', pin: result.admin!.pin });
+    expect(result.seeded!.credentials[0]).toMatchObject({ employeeNumber: 'EMP-001', role: 'admin', pin: result.admin!.pin });
   });
 
   it('--seed alone seeds an empty database but refuses one that already has data', () => {
