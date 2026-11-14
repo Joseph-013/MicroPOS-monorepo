@@ -16,6 +16,8 @@ export class DevicesService {
   readonly status = signal<LoadStatus>('idle');
   /** The QR code being shown, if any. */
   readonly pairing = signal<LanPairing | null>(null);
+  /** The devices that were paired when the QR code was made: one that appears after is the one that scanned it. */
+  private pairedBefore = new Set<string>();
 
   constructor() {
     refreshOnChange(['devices'], () => this.status() !== 'idle', () => this.load());
@@ -29,6 +31,7 @@ export class DevicesService {
       this.state.set(state);
       this.devices.set(devices);
       this.status.set('ready');
+      this.hideUsedPairing(devices);
     } catch (error) {
       console.error('Failed to load the devices', error);
       this.status.set('error');
@@ -49,12 +52,22 @@ export class DevicesService {
   async newPairing(): Promise<void> {
     try {
       const pairing = await this.api!.lan.newPairing();
+      this.pairedBefore = new Set(this.devices().map((d) => d.id));
       this.pairing.set(pairing);
       if (!pairing) this.banner.error('The server is not running', { key: 'lan-pairing' });
     } catch (error) {
       console.error('Failed to make a pairing code', error);
       this.banner.error('Could not make a QR code', { key: 'lan-pairing' });
     }
+  }
+
+  /** A code works once: when a new device shows up, the QR code that paired it comes off the page. */
+  private hideUsedPairing(devices: LanDevice[]): void {
+    if (!this.pairing()) return;
+    const added = devices.find((d) => !this.pairedBefore.has(d.id));
+    if (!added) return;
+    this.pairing.set(null);
+    this.banner.success(`${added.name} paired`, { key: 'lan-paired' });
   }
 
   async revoke(device: LanDevice): Promise<void> {

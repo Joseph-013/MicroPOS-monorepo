@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import type { DesktopApi, LanDevice, LanPairing, LanState } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
+import { DevicesService } from '../../core/data/devices.service';
 import { DevicesPage } from './devices';
 
 // jsdom has no ResizeObserver (overlays watch element sizes).
@@ -18,6 +19,7 @@ function setup(initial: { state?: Partial<LanState>; devices?: LanDevice[]; pair
   const calls = { enabled: [] as boolean[], pairings: 0, revoked: [] as string[] };
   let state: LanState = { enabled: true, running: true, port: 8734, addresses: ['192.168.1.20'], error: null, ...initial.state };
   let devices = initial.devices ?? [device()];
+  const pairWith = (d: LanDevice): void => void (devices = [...devices, d]);
   const api = {
     lan: {
       state: () => Promise.resolve(state),
@@ -29,7 +31,7 @@ function setup(initial: { state?: Partial<LanState>; devices?: LanDevice[]; pair
   } as unknown as DesktopApi;
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
-  return calls;
+  return Object.assign(calls, { pairWith });
 }
 async function render() {
   const fixture = TestBed.createComponent(DevicesPage);
@@ -86,6 +88,21 @@ describe('DevicesPage', () => {
     await wait();
     expect(again.el.querySelector('[data-expired]')).not.toBeNull();
     expect(again.el.querySelector('app-qr-code')).toBeNull();
+  });
+
+  it('takes the QR code off the page once a device has paired with it', async () => {
+    const calls = setup();
+    const { fixture, el } = await render();
+    [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Pair a device')!.click();
+    await fixture.whenStable();
+    await wait();
+    expect(el.querySelector('app-qr-code')).not.toBeNull();
+    calls.pairWith(device({ id: 'd2', name: 'Android phone', lastSeenAt: null, online: false, user: null }));
+    await TestBed.inject(DevicesService).load(); // what the "devices changed" announcement triggers
+    await fixture.whenStable();
+    expect(el.querySelector('app-qr-code')).toBeNull();
+    expect(text(el)).toContain('Android phone');
+    expect(TestBed.inject(BannerService).current()?.text).toBe('Android phone paired');
   });
 
   it('unpairs a device after asking', async () => {
