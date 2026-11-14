@@ -17,6 +17,7 @@ import {
 import type { AppDatabase } from '../db';
 import { auditLog, type Employee, employees, loginSessions } from '../db/schema';
 import { setActor } from './actor';
+import { sessionState } from './context';
 import { hashPin, verifyPin } from './pin';
 
 /** Employees whose PIN hash is a real one can sign in; the "Register" stand-in used before sign-in existed cannot. */
@@ -32,11 +33,9 @@ export function toSessionUser(employee: Employee): SessionUser {
   return { id: employee.id, name: employee.name, role: employee.role, permissions: permissionsOf(employee), pinChangeRequired: employee.pinChangeRequired };
 }
 
-/** The signed-in person (and their open sign-in row). Module-level: one person at a time at this till. */
-let session: { employeeId: string; loginSessionId: string } | null = null;
-
 /** Who is signed in now, read fresh so a change to their permissions, or deactivating them, applies at once. */
 export function currentUser(db: AppDatabase): SessionUser | null {
+  const session = sessionState().session;
   if (!session) return null;
   const [employee] = db.select().from(employees).where(eq(employees.id, session.employeeId)).all();
   if (!employee || !canSignIn(employee)) {
@@ -86,7 +85,7 @@ export function signIn(db: AppDatabase, input: unknown, now = Date.now()): SignI
   db.update(employees).set({ failedAttempts: 0, lockedUntil: null }).where(eq(employees.id, employee.id)).run();
   endSession(db, now);
   const loginSessionId = db.insert(loginSessions).values({ employeeId: employee.id, loggedInAt: now }).returning({ id: loginSessions.id }).get().id;
-  session = { employeeId: employee.id, loginSessionId };
+  sessionState().session = { employeeId: employee.id, loginSessionId };
   setActor(employee.id);
   return { ok: true, user: toSessionUser(employee) };
 }
@@ -95,10 +94,12 @@ export function signOut(db: AppDatabase): void {
   endSession(db);
 }
 
-function endSession(db: AppDatabase, now = Date.now()): void {
+export function endSession(db: AppDatabase, now = Date.now()): void {
+  const state = sessionState();
+  const session = state.session;
   if (!session) return;
   db.update(loginSessions).set({ loggedOutAt: now }).where(and(eq(loginSessions.id, session.loginSessionId), isNull(loginSessions.loggedOutAt))).run();
-  session = null;
+  state.session = null;
   setActor(null);
 }
 

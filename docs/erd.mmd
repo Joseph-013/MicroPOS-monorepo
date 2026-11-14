@@ -127,6 +127,14 @@ erDiagram
         int created_at
         int updated_at
     }
+    lan_devices {
+        text id PK
+        text name
+        text token_hash UK "SHA-256 of the device token"
+        int paired_at
+        int last_seen_at
+        int revoked_at "set when unpaired"
+    }
     customers {
         text id PK
         text name

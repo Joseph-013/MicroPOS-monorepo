@@ -1,6 +1,6 @@
 {
   "name": "@micropos/desktop",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "productName": "MicroPOS",
   "desktopName": "micropos.desktop",
   "scripts": {
@@ -54,6 +54,7 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/luxon": "^3.7.6",
     "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "drizzle-kit": "^0.31.11",
@@ -81,6 +82,7 @@
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",
     "qrcode-generator": "^2.0.4",
-    "usb": "^3.3.0"
+    "usb": "^3.3.0",
+    "ws": "^8.23.0"
   }
 }

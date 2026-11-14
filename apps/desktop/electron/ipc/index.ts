@@ -30,15 +30,28 @@ import { shopLogos } from '../printing/logo';
 import { loadPrinterSettings, savePrinterSettings } from '../printing/settings';
 import { listUsbPrinters } from '../printing/transports/usb';
 import { API_VERSION, CHANNELS } from './channels';
+import type { LanService } from '../lan';
+import type { RpcHandler } from '../lan/server';
 import { givesDiscount } from './discount-gate';
 import { emitDataChanged, WRITES, wroteNothing } from './changes';
+
+/**
+ * Every call the page can make, by channel: registered with Electron for the till's own window, and kept here so the
+ * server for paired devices (`lan/`) runs the very same handlers, with the same permission checks, for a phone.
+ */
+export const rpcHandlers = new Map<string, RpcHandler>();
+
+function handle(channel: string, handler: (event: IpcMainInvokeEvent, ...args: any[]) => unknown): void {
+  ipcMain.handle(channel, handler);
+  rpcHandlers.set(channel, handler as RpcHandler);
+}
 
 /**
  * Registers a handler that runs only while someone is signed in who holds one of `needed` (an empty list: anyone
  * signed in). This is the real gate: the pages hide what a user may not do, but only this keeps them out.
  */
 function guarded(db: AppDatabase, channel: string, needed: Permission | readonly Permission[], listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown): void {
-  ipcMain.handle(channel, (event, ...args) => {
+  handle(channel, (event, ...args) => {
     if (!isAllowed(db, typeof needed === 'string' ? [needed] : needed)) {
       log.warn(`ipc:${channel}`, 'Not allowed');
       throw new Error('Not allowed');
@@ -65,12 +78,12 @@ function guarded(db: AppDatabase, channel: string, needed: Permission | readonly
  * Registers every IPC handler. The renderer only ever reaches the database through these;
  * keep handlers thin (validate input, call a query function, return plain data).
  */
-export function registerIpcHandlers(db: AppDatabase): void {
-  ipcMain.handle(CHANNELS.app.version, () => API_VERSION);
+export function registerIpcHandlers(db: AppDatabase, lan?: LanService): void {
+  handle(CHANNELS.app.version, () => API_VERSION);
   const printer = createPrinterService(db);
   // The page reports its errors here. Open to every window (an error can happen before sign-in), so it is bounded: a few entries a minute, short fields.
   let reported: number[] = [];
-  ipcMain.handle(CHANNELS.log.write, (_event, entry: unknown) => {
+  handle(CHANNELS.log.write, (_event, entry: unknown) => {
     const e = (entry ?? {}) as Record<string, unknown>;
     const now = Date.now();
     reported = reported.filter((t) => now - t < 60_000);
@@ -204,9 +217,9 @@ export function registerIpcHandlers(db: AppDatabase): void {
     return completeOrder(db, input);
   });
   // Signing in and out: the sign-in screen can ask who may sign in and try a PIN before anyone is signed in.
-  ipcMain.handle(CHANNELS.auth.status, () => currentUser(db));
-  ipcMain.handle(CHANNELS.auth.choices, () => signInChoices(db));
-  ipcMain.handle(CHANNELS.auth.signIn, (_event, input: unknown) => signIn(db, input));
+  handle(CHANNELS.auth.status, () => currentUser(db));
+  handle(CHANNELS.auth.choices, () => signInChoices(db));
+  handle(CHANNELS.auth.signIn, (_event, input: unknown) => signIn(db, input));
   guarded(db, CHANNELS.auth.signOut, [], () => signOut(db));
   guarded(db, CHANNELS.auth.changePin, [], (_event, input: unknown) => changePin(db, input));
   guarded(db, CHANNELS.shell.getCloseToTray, 'settings.manage', () => getCloseToTray(db));
@@ -216,4 +229,12 @@ export function registerIpcHandlers(db: AppDatabase): void {
   guarded(db, CHANNELS.users.update, ['users.manage'], (_event, id: unknown, input: unknown) => updateUser(db, id, input));
   guarded(db, CHANNELS.users.resetPin, ['users.manage'], (_event, id: unknown, pin: unknown) => resetPin(db, id, pin));
   guarded(db, CHANNELS.users.signInLog, ['users.manage'], () => signInLog(db));
+  // Connecting other devices (admins only; the till's own window: a paired device cannot reach these).
+  if (lan) {
+    guarded(db, CHANNELS.lan.state, 'settings.manage', () => lan.state());
+    guarded(db, CHANNELS.lan.setEnabled, 'settings.manage', (_event, enabled: unknown) => lan.setEnabled(enabled));
+    guarded(db, CHANNELS.lan.devices, 'settings.manage', () => lan.devices());
+    guarded(db, CHANNELS.lan.newPairing, 'settings.manage', () => lan.newPairing());
+    guarded(db, CHANNELS.lan.revokeDevice, 'settings.manage', (_event, id: unknown) => lan.revoke(id));
+  }
 }

@@ -18,3 +18,4 @@ export * from './settings';
 export * from './stock-movements';
 export * from './supplier-returns';
 export * from './suppliers';
+export * from './lan-devices';

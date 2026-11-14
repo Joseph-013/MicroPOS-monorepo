@@ -39,6 +39,13 @@ const api: DesktopApi = {
     testPrint: () => ipcRenderer.invoke(CHANNELS.printer.testPrint),
     printOrder: (orderId) => ipcRenderer.invoke(CHANNELS.printer.printOrder, orderId),
   },
+  lan: {
+    state: () => ipcRenderer.invoke(CHANNELS.lan.state),
+    setEnabled: (enabled) => ipcRenderer.invoke(CHANNELS.lan.setEnabled, enabled),
+    devices: () => ipcRenderer.invoke(CHANNELS.lan.devices),
+    newPairing: () => ipcRenderer.invoke(CHANNELS.lan.newPairing),
+    revokeDevice: (id) => ipcRenderer.invoke(CHANNELS.lan.revokeDevice, id),
+  },
   dashboard: {
     get: () => ipcRenderer.invoke(CHANNELS.dashboard.get),
   },

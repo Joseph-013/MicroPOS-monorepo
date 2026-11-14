@@ -9,7 +9,8 @@ import { startConcernsClock } from './concerns-clock';
 import { TrayIcon } from './tray';
 import { CHANNELS } from './ipc/channels';
 import { emitDataChanged, onDataChanged } from './ipc/changes';
-import { registerIpcHandlers } from './ipc';
+import { registerIpcHandlers, rpcHandlers } from './ipc';
+import { LanService } from './lan';
 import { closeCustomerDisplay, registerCustomerDisplay } from './display';
 import { initLogging, log } from './logging';
 import { purgeLegacyData } from './legacy-data';
@@ -114,6 +115,7 @@ function createWindow(): void {
 let database: ReturnType<typeof createDatabase> | undefined;
 let interestTimer: ReturnType<typeof setInterval> | undefined;
 let concernsClock: ReturnType<typeof startConcernsClock> | undefined;
+let lanService: LanService | undefined;
 
 /**
  * Packaged: the per-user data folder. Development: apps/desktop/local-data/micropos-dev.db, the same file
@@ -193,10 +195,21 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
     };
     accrue();
     interestTimer = setInterval(accrue, 60 * 60 * 1000);
-    registerIpcHandlers(database.db);
+    // The server for phones and tablets on the network (off until an admin turns it on in Devices).
+    lanService = new LanService({
+      db: database.db,
+      handlers: rpcHandlers,
+      dataFolder: app.getPath('userData'),
+      rendererDir: devServerUrl ? null : path.join(__dirname, '../renderer'),
+      devServerUrl: devServerUrl ?? null,
+      announce: (domains) => emitDataChanged(domains),
+    });
+    registerIpcHandlers(database.db, lanService);
+    void lanService.startIfEnabled();
     // Every window hears when data changes; the clock adds the moments when time alone makes something a concern.
     const broadcast = (domains: readonly DataDomain[]): void => {
       for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(CHANNELS.data.changed, domains);
+      lanService?.broadcast(domains); // and every paired device
     };
     onDataChanged(broadcast);
     concernsClock = startConcernsClock(database.db, broadcast);
@@ -211,6 +224,7 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
 
 app.on('before-quit', () => {
   log.info('app', 'Quitting');
+  void lanService?.stop();
   quitting = true; // when an updater is added: also set this on autoUpdater's 'before-quit-for-update', which closes windows first
 });
 

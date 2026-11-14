@@ -26,7 +26,7 @@ export const PERMISSIONS = [
   { id: 'inventory.manage', group: 'Items', label: 'Manage stock', description: 'Receive, adjust and repackage stock.' },
   { id: 'reports.view', group: 'Sales', label: 'View reports', description: 'The sales summary: sales, refunds, voids, what was taken by each payment method, and items sold.' },
   { id: 'purchasing.manage', group: 'Purchasing', label: 'Manage purchasing', description: 'Suppliers, purchase orders, receiving and paying suppliers.' },
-  { id: 'settings.manage', group: 'Staff', label: 'Change shop settings', description: 'Settings that affect the whole till, such as whether the app keeps running when its window is closed.' },
+  { id: 'settings.manage', group: 'Staff', label: 'Change shop settings', description: 'Settings that affect the whole till, such as whether the app keeps running when its window is closed, and which phones and tablets are paired with the till.' },
   { id: 'users.manage', group: 'Staff', label: 'Manage users', description: 'Add users, change what they may do, reset PINs and see sign-ins.' },
 ] as const satisfies readonly PermissionInfo[];
 
@@ -63,6 +63,7 @@ export const PAGE_PERMISSIONS: readonly { path: string; permission: Permission }
   { path: '/customers', permission: 'customers.view' },
   { path: '/reports', permission: 'reports.view' },
   { path: '/purchases', permission: 'purchasing.manage' },
+  { path: '/devices', permission: 'settings.manage' },
   { path: '/users', permission: 'users.manage' },
 ];
 

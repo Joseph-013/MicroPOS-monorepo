@@ -232,3 +232,4 @@ export {
 export { isColumnKeys, isTableId, MAX_COLUMNS, MAX_TABLE_ID, orderColumns, type TableColumnOrders } from './table-columns.js';
 export type { DashboardData, PeriodSales } from './dashboard.js';
 export { discountCents, formatDiscount, isDiscountSpec, MAX_DISCOUNT_REASON, MAX_ORDER_NOTE, parseDiscount, type DiscountSpec } from './discount.js';
+export { deviceNameFromAgent, LAN_DEFAULT_PORT, LAN_PAIRING_MS, MAX_DEVICE_NAME, type LanDevice, type LanPairing, type LanState } from './lan.js';

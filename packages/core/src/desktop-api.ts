@@ -21,6 +21,7 @@ import type {
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
 import type { PrinterDebug, PrinterSettings, PrintResult, SaveLogoResult, SavePrinterSettingsResult, UsbPrinterInfo } from './printing.js';
 import type { TableColumnOrders } from './table-columns.js';
+import type { LanDevice, LanPairing, LanState } from './lan.js';
 import type { DashboardData } from './dashboard.js';
 import type { SalesReport } from './reports.js';
 import type { ExportFormat, ExportResult, ReportKind } from './report-document.js';
@@ -35,7 +36,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 45;
+export const DESKTOP_API_VERSION = 46;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -97,6 +98,18 @@ export interface DesktopApi {
   log: {
     /** The page reports an error to the main process, which writes it to the log files. Nothing comes back. */
     write(entry: { level: 'error' | 'warn'; source: string; message: string; details?: string }): Promise<void>;
+  };
+  lan: {
+    /** Whether the till is serving other devices, and where. */
+    state(): Promise<LanState>;
+    /** Turns the server on or off (kept across restarts). */
+    setEnabled(enabled: boolean): Promise<LanState>;
+    /** The paired devices. */
+    devices(): Promise<LanDevice[]>;
+    /** A QR code that pairs one device within a few minutes; null while the server is not running. */
+    newPairing(): Promise<LanPairing | null>;
+    /** Unpairs a device: it is signed out and cannot connect again without a new QR code. */
+    revokeDevice(id: string): Promise<boolean>;
   };
   dashboard: {
     /** The figures for the Dashboard page. */

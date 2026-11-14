@@ -9,7 +9,7 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 // them from the workspace root's node_modules ourselves.
 // The main process also imports values from @micropos/core (pricing, quantities, payment methods), so its compiled
 // dist ships too.
-const RUNTIME_MODULES = ['better-sqlite3', 'drizzle-orm', '@micropos/core'];
+const RUNTIME_MODULES = ['better-sqlite3', 'drizzle-orm', '@micropos/core', 'ws'];
 // Build-only parts of better-sqlite3 that don't need to be shipped.
 const SKIP_IN_MODULE = new Set(['deps', 'src', 'binding.gyp', 'node_modules']);
 
