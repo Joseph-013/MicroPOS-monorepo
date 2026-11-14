@@ -58,7 +58,7 @@ describe('ReportsPage', () => {
     expect(t).toContain('1 refund');
     expect(t).toContain('1 voided');
     expect(t).toContain('Net sales₱135.00');
-    expect(t).toContain('Taken byCash₱60.00Card₱30.00');
+    expect(t).toContain('Taken byPayment methodAmountCash₱60.00Card₱30.00');
     expect(t).toContain('Put on account₱50.00');
     expect(t).toContain('ItemQuantityTotalFeast1₱60.00Cheese1.5 kg₱15.00');
   });

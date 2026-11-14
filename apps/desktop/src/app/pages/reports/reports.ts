@@ -56,26 +56,24 @@ const pesos = new Intl.NumberFormat(DEFAULT_LOCALE, { style: 'currency', currenc
         @for (section of doc.sections; track section.heading) {
           <section hlmCard class="gap-0">
             <header class="px-4 pb-3"><h2 class="text-xl">{{ section.heading }}</h2></header>
-            <div class="overflow-x-auto border-t">
-              <table class="w-full text-sm">
-                @if (section.head) {
-                  <thead>
-                    <tr class="text-muted-foreground">
-                      @for (h of section.head; track $index) {
-                        <th class="px-4 py-2 font-normal" [class.text-right]="section.right[$index]" [class.text-left]="!section.right[$index]">{{ h }}</th>
-                      }
-                    </tr>
-                  </thead>
-                }
-                <tbody class="divide-border divide-y">
+            <div class="overflow-x-auto border-t p-4">
+              <table class="w-full border-collapse border text-sm">
+                <thead>
+                  <tr class="bg-muted/60">
+                    @for (h of section.head; track $index) {
+                      <th class="border px-3 py-2 font-medium" [class.text-right]="section.right[$index]" [class.text-left]="!section.right[$index]">{{ h }}</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
                   @for (row of section.rows; track $index) {
-                    <tr [class.font-medium]="section.strong?.includes($index)">
+                    <tr [class.font-medium]="section.strong?.includes($index)" [class.bg-muted/30]="section.strong?.includes($index)">
                       @for (cell of row; track $index) {
-                        <td class="px-4 py-2 align-top" [class.text-right]="section.right[$index]" [class.whitespace-nowrap]="section.right[$index]" [class.max-w-0]="!section.right[$index]" [class.truncate]="!section.right[$index]">{{ cell }}</td>
+                        <td class="border px-3 py-2 align-top" [class.text-right]="section.right[$index]" [class.whitespace-nowrap]="section.right[$index]">{{ cell }}</td>
                       }
                     </tr>
                   } @empty {
-                    <tr><td class="text-muted-foreground px-4 py-6 text-center" colspan="3">Nothing to show</td></tr>
+                    <tr><td class="text-muted-foreground border px-3 py-6 text-center" [attr.colspan]="section.head.length">Nothing to show</td></tr>
                   }
                 </tbody>
               </table>

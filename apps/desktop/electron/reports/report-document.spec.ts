@@ -35,7 +35,7 @@ describe('report documents', () => {
   it('writes a CSV a spreadsheet reads: plain numbers, quoted text, sections apart, a byte order mark', () => {
     const csv = reportToCsv(buildReportDocument('summary', report, plain));
     expect(csv.startsWith('﻿Sales summary\r\n1 Jun 2026 to 15 Jun 2026\r\n')).toBe(true);
-    expect(csv).toContain('\r\n\r\nTaken by\r\nCash,60.00\r\nBank transfer,30.00\r\n');
+    expect(csv).toContain('\r\n\r\nTaken by\r\nPayment method,Amount\r\nCash,60.00\r\nBank transfer,30.00\r\n');
     expect(csv).toContain('Item,Quantity,Total\r\n"Feast, ""large""",1,60.00\r\nCheese,1.5 kg,15.00\r\n');
   });
 

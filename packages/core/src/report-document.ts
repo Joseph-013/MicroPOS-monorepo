@@ -18,8 +18,8 @@ export type ExportResult = { ok: true; savedTo?: string } | { ok: false; cancele
 /** A report as plain tables of text, so the page, the CSV file and the PDF or printout all show the same thing. */
 export interface ReportSection {
   heading: string;
-  /** Column titles, or null for a list of label and amount rows. */
-  head: string[] | null;
+  /** Column titles. */
+  head: string[];
   /** Which columns are right aligned (numbers). */
   right: boolean[];
   rows: string[][];
@@ -49,18 +49,18 @@ export function buildReportDocument(kind: ReportKind, r: SalesReport, money: (ce
     rows.push(pair('Net sales', money(r.netAfterRefunds)));
     const strong = [rows.length - 1];
     if (r.voids.count) rows.push(pair(`${r.voids.count} voided (not in net sales)`, money(r.voids.total)));
-    return { heading: 'Sales', head: null, right: [false, true], rows, strong };
+    return { heading: 'Sales', head: ['Description', 'Amount'], right: [false, true], rows, strong };
   };
   const payments = (): ReportSection => ({
     heading: 'Taken by',
-    head: null,
+    head: ['Payment method', 'Amount'],
     right: [false, true],
     rows: r.byMethod.length ? r.byMethod.map((m) => pair(methodName(m.method), money(m.amount))) : [pair('Nothing taken', '')],
   });
   const credit = (): ReportSection => {
     const rows = [pair('Put on account', money(r.credit.given)), pair('Interest charged', money(r.credit.interest))];
     for (const m of r.credit.paymentsReceived) rows.push(pair(`Paid back: ${methodName(m.method)}`, money(m.amount)));
-    return { heading: 'Customer credit', head: null, right: [false, true], rows };
+    return { heading: 'Customer credit', head: ['Description', 'Amount'], right: [false, true], rows };
   };
   const items = (): ReportSection => ({
     heading: 'Items sold',
@@ -78,7 +78,7 @@ export function reportToCsv(doc: ReportDocument): string {
   const lines: string[] = [csvCell(doc.title), csvCell(doc.period)];
   for (const s of doc.sections) {
     lines.push('', csvCell(s.heading));
-    if (s.head) lines.push(s.head.map(csvCell).join(','));
+    lines.push(s.head.map(csvCell).join(','));
     for (const row of s.rows) lines.push(row.map(csvCell).join(','));
   }
   return '﻿' + lines.join('\r\n') + '\r\n';
@@ -89,14 +89,14 @@ const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, 
 export function reportToHtml(doc: ReportDocument, shopName = ''): string {
   const body = doc.sections
     .map((s) => {
-      const head = s.head ? `<thead><tr>${s.head.map((h, i) => `<th class="${s.right[i] ? 'r' : ''}">${esc(h)}</th>`).join('')}</tr></thead>` : '';
+      const head = `<thead><tr>${s.head.map((h, i) => `<th class="${s.right[i] ? 'r' : ''}">${esc(h)}</th>`).join('')}</tr></thead>`;
       const rows = s.rows.map((row, n) => `<tr${s.strong?.includes(n) ? ' class="b"' : ''}>${row.map((c, i) => `<td class="${s.right[i] ? 'r' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('');
       return `<h2>${esc(s.heading)}</h2><table>${head}<tbody>${rows}</tbody></table>`;
     })
     .join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(doc.title)}</title><style>
 @page{margin:16mm}body{font:12px/1.4 system-ui,Segoe UI,Arial,sans-serif;color:#111}h1{font-size:20px;margin:0}h2{font-size:14px;margin:18px 0 4px}
-p{margin:2px 0;color:#555}table{width:100%;border-collapse:collapse}td,th{padding:3px 6px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}
-th{font-weight:600;border-bottom:1px solid #888}.r{text-align:right;white-space:nowrap}.b td{font-weight:700;border-bottom:1px solid #888}tr{break-inside:avoid}
+p{margin:2px 0;color:#555}table{width:100%;border-collapse:collapse}td,th{padding:4px 8px;border:1px solid #ccc;text-align:left;vertical-align:top}
+th{font-weight:600;background:#f0f0f0}.r{text-align:right;white-space:nowrap}.b td{font-weight:700}tr{break-inside:avoid}
 </style></head><body>${shopName ? `<p>${esc(shopName)}</p>` : ''}<h1>${esc(doc.title)}</h1><p>${esc(doc.period)}</p>${body}</body></html>`;
 }
