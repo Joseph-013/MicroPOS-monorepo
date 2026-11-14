@@ -213,7 +213,7 @@ export class LanServer {
 
   private stateOf(deviceId: string): SessionState {
     let state = this.sessions.get(deviceId);
-    if (!state) this.sessions.set(deviceId, (state = newSessionState()));
+    if (!state) this.sessions.set(deviceId, (state = newSessionState(deviceId)));
     return state;
   }
 

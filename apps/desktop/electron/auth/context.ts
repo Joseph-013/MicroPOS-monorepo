@@ -6,9 +6,11 @@ export interface SessionState {
   actorId: string | null;
   /** When this connection last reported activity (sign-in, or the page's heartbeat while someone uses it). */
   lastActivityAt: number;
+  /** The paired device this connection is (its id), or null for the till's own window. Each has its own checkout order in progress. */
+  deviceId: string | null;
 }
 
-export const newSessionState = (): SessionState => ({ session: null, actorId: null, lastActivityAt: 0 });
+export const newSessionState = (deviceId: string | null = null): SessionState => ({ session: null, actorId: null, lastActivityAt: 0, deviceId });
 
 /** The till's own window: one person at a time. Calls from the till's window and everything outside a request use it. */
 const tillState = newSessionState();

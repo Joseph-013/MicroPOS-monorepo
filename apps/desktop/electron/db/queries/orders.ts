@@ -19,7 +19,7 @@ import { uuid7 } from '../uuid';
 import { asc } from 'drizzle-orm';
 import { auditLog, customerLedger, customers, employees, orderLines, orders, payments, products, settings } from '../schema';
 import { allocateSale, restockSale } from './inventory';
-import { DRAFT_KEY } from './draft';
+import { draftKey } from './draft';
 
 const MAX_LINES = 500;
 const MAX_MILLI = 99_999_000;
@@ -219,7 +219,7 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
       if (onAccount > 0) {
         tx.insert(customerLedger).values({ customerId: customerId!, type: 'charge', amount: onAccount, orderId, employeeId, at: now }).run();
       }
-      tx.delete(settings).where(eq(settings.key, DRAFT_KEY)).run();
+      tx.delete(settings).where(eq(settings.key, draftKey())).run();
 
       return { ok: true as const, orderId, orderNumber, total, change, onAccount };
     });

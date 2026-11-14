@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { type CheckoutDraft, type DraftLine, isDiscountSpec, MAX_DISCOUNT_REASON, MAX_ORDER_NOTE } from '@micropos/core';
+import { sessionState } from '../../auth/context';
 import type { AppDatabase } from '../index';
 import { PRODUCT_UNITS, type ProductUnit, settings } from '../schema';
 
@@ -8,6 +9,14 @@ import { PRODUCT_UNITS, type ProductUnit, settings } from '../schema';
  * Once employees sign in this should become an `open` order per employee instead.
  */
 export const DRAFT_KEY = 'checkout.draft';
+
+/**
+ * Where the checkout order in progress is kept: one for the till's own window and one for each paired phone, so a phone and
+ * the till (or two phones) never share, overwrite or complete each other's order.
+ */
+export function draftKey(deviceId: string | null = sessionState().deviceId): string {
+  return deviceId ? `${DRAFT_KEY}.${deviceId}` : DRAFT_KEY;
+}
 const MAX_LINES = 500;
 
 /** Thousandths of a unit, up to 99,999 units. */
@@ -37,13 +46,13 @@ export function sanitizeDraft(value: unknown): CheckoutDraft {
 }
 
 export function loadDraft(db: AppDatabase): CheckoutDraft | null {
-  const [row] = db.select().from(settings).where(eq(settings.key, DRAFT_KEY)).all();
+  const [row] = db.select().from(settings).where(eq(settings.key, draftKey())).all();
   const draft = sanitizeDraft(row?.value);
   return draft.lines.length ? draft : null;
 }
 
 export function clearDraft(db: AppDatabase): void {
-  db.delete(settings).where(eq(settings.key, DRAFT_KEY)).run();
+  db.delete(settings).where(eq(settings.key, draftKey())).run();
 }
 
 /** Saves the draft (an empty one removes it). */
@@ -56,7 +65,7 @@ export function saveDraft(db: AppDatabase, input: unknown): void {
   }
   if (!draft.lines.length) return clearDraft(db);
   db.insert(settings)
-    .values({ key: DRAFT_KEY, value: draft })
+    .values({ key: draftKey(), value: draft })
     .onConflictDoUpdate({ target: settings.key, set: { value: draft, updatedAt: Date.now() } })
     .run();
 }
