@@ -231,3 +231,4 @@ export {
 } from './report-document.js';
 export { isColumnKeys, isTableId, MAX_COLUMNS, MAX_TABLE_ID, orderColumns, type TableColumnOrders } from './table-columns.js';
 export type { DashboardData, PeriodSales } from './dashboard.js';
+export { discountCents, formatDiscount, isDiscountSpec, MAX_DISCOUNT_REASON, MAX_ORDER_NOTE, parseDiscount, type DiscountSpec } from './discount.js';

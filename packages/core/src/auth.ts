@@ -19,6 +19,7 @@ export const PERMISSIONS = [
   { id: 'customers.view', group: 'Customers', label: 'View customers', description: 'Open the Customers page and their accounts.' },
   { id: 'customers.manage', group: 'Customers', label: 'Change customers', description: 'Add, edit, delete and restore customers.' },
   { id: 'customers.payments', group: 'Customers', label: 'Receive customer payments', description: 'Record payments against what a customer owes.' },
+  { id: 'discounts.give', group: 'Sales', label: 'Give discounts', description: 'Take an amount or a percent off an item or a whole sale at checkout.' },
   { id: 'dashboard.view', group: 'Sales', label: 'View the dashboard', description: 'Sales, stock, credit and purchasing figures at a glance.' },
   { id: 'catalog.view', group: 'Items', label: 'View items', description: 'Open Products and Categories.' },
   { id: 'catalog.manage', group: 'Items', label: 'Change products and categories', description: 'Add, edit, delete and restore products and categories.' },

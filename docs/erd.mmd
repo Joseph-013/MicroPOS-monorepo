@@ -119,7 +119,9 @@ erDiagram
         text refund_of_order_id FK
         text status
         int subtotal
-        int discount_total
+        int discount_total "line discounts + order discount"
+        text discount_reason "why, if explained"
+        text note "remark on the sale"
         int total
         int completed_at
         int created_at
@@ -158,7 +160,8 @@ erDiagram
         int unit_price
         int unit_cost
         int quantity_milli
-        int line_total
+        int line_total "before the line discount"
+        int discount "cents off this line"
     }
     payments {
         text id PK

@@ -30,6 +30,7 @@ import { shopLogos } from '../printing/logo';
 import { loadPrinterSettings, savePrinterSettings } from '../printing/settings';
 import { listUsbPrinters } from '../printing/transports/usb';
 import { API_VERSION, CHANNELS } from './channels';
+import { givesDiscount } from './discount-gate';
 import { emitDataChanged, WRITES, wroteNothing } from './changes';
 
 /**
@@ -197,7 +198,11 @@ export function registerIpcHandlers(db: AppDatabase): void {
   guarded(db, CHANNELS.checkout.clearDraft, 'checkout.sell', () => clearDraft(db));
   guarded(db, CHANNELS.checkout.nextOrderNumber, 'checkout.sell', () => nextOrderNumber(db));
   // The order comes from the renderer: completeOrder validates it and takes prices and names from the catalog.
-  guarded(db, CHANNELS.checkout.completeOrder, 'checkout.sell', (_event, input: unknown) => completeOrder(db, input));
+  guarded(db, CHANNELS.checkout.completeOrder, 'checkout.sell', (_event, input: unknown) => {
+    // Giving a discount is a permission of its own: a cashier's order that carries one is refused whole.
+    if (givesDiscount(input) && !isAllowed(db, ['discounts.give'])) return { ok: false, error: 'You are not allowed to give discounts', lines: [] } as const;
+    return completeOrder(db, input);
+  });
   // Signing in and out: the sign-in screen can ask who may sign in and try a PIN before anyone is signed in.
   ipcMain.handle(CHANNELS.auth.status, () => currentUser(db));
   ipcMain.handle(CHANNELS.auth.choices, () => signInChoices(db));

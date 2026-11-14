@@ -34,6 +34,10 @@ export const orders = sqliteTable(
     subtotal: integer().notNull().default(0),
     discountTotal: integer().notNull().default(0),
     total: integer().notNull().default(0),
+    /** Why a discount was given (line or order discount); null when none was explained. */
+    discountReason: text(),
+    /** A remark on the sale, written at checkout; null when none. */
+    note: text(),
     completedAt: integer(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

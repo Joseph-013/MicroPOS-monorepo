@@ -3,6 +3,8 @@ import {
   type CompleteOrderResult,
   type OrderActionResult,
   lineTotal,
+  MAX_DISCOUNT_REASON,
+  MAX_ORDER_NOTE,
   MILLI,
   type OrderLineProblem,
   ORDER_PAYMENT_METHODS,
@@ -81,6 +83,8 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
   const input = raw as {
     lines?: unknown;
     discount?: unknown;
+    discountReason?: unknown;
+    note?: unknown;
     customerId?: unknown;
     amountPaid?: unknown;
     payment?: { method?: unknown; tendered?: unknown; reference?: unknown };
@@ -95,20 +99,24 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
   const method = input.payment?.method as OrderPaymentMethod;
   if (!ORDER_PAYMENT_METHODS.includes(method)) return fail('Choose how the order is paid');
 
-  const wanted: { productId: string; quantityMilli: number; unitPrice: number }[] = [];
-  for (const item of input.lines as { productId?: unknown; quantityMilli?: unknown; unitPrice?: unknown }[]) {
+  const wanted: { productId: string; quantityMilli: number; unitPrice: number; discount: number }[] = [];
+  for (const item of input.lines as { productId?: unknown; quantityMilli?: unknown; unitPrice?: unknown; discount?: unknown }[]) {
     const { productId, quantityMilli, unitPrice } = item ?? {};
+    const lineDiscount = item?.discount ?? 0;
     if (
       typeof productId !== 'string' ||
       !Number.isInteger(quantityMilli) ||
       (quantityMilli as number) <= 0 ||
       (quantityMilli as number) > MAX_MILLI ||
-      !isCents(unitPrice)
+      !isCents(unitPrice) ||
+      !isCents(lineDiscount)
     ) {
       return fail('An item on the order is not valid');
     }
-    wanted.push({ productId, quantityMilli: quantityMilli as number, unitPrice });
+    wanted.push({ productId, quantityMilli: quantityMilli as number, unitPrice, discount: lineDiscount });
   }
+  const discountReason = typeof input.discountReason === 'string' ? input.discountReason.trim().slice(0, MAX_DISCOUNT_REASON) || null : null;
+  const note = typeof input.note === 'string' ? input.note.trim().slice(0, MAX_ORDER_NOTE) || null : null;
   const reference = typeof input.payment?.reference === 'string' ? input.payment.reference.trim().slice(0, MAX_REFERENCE) || null : null;
 
   try {
@@ -119,6 +127,7 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
 
       const problems: OrderLineProblem[] = [];
       let subtotal = 0;
+      let lineDiscounts = 0;
       const planned: { line: (typeof wanted)[number]; name: string; unit: ProductUnit; lineId: string }[] = [];
       for (const line of wanted) {
         const [product] = tx.select().from(products).where(eq(products.id, line.productId)).all();
@@ -135,12 +144,18 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
           });
           continue;
         }
+        const gross = lineTotal(product.price, line.quantityMilli);
+        if (line.discount > gross) {
+          throw new Rollback(fail(`The discount on ${product.name} is more than the item`));
+        }
         planned.push({ line, name: product.name, unit: product.unit, lineId: '' });
-        subtotal += lineTotal(product.price, line.quantityMilli);
+        subtotal += gross;
+        lineDiscounts += line.discount;
       }
       if (problems.length) throw new Rollback(fail('Some items on the order have changed', problems));
-      if ((discount as number) > subtotal) throw new Rollback(fail('The discount is more than the order'));
-      const total = subtotal - (discount as number);
+      if ((discount as number) > subtotal - lineDiscounts) throw new Rollback(fail('The discount is more than the order'));
+      const discountTotal = lineDiscounts + (discount as number);
+      const total = subtotal - discountTotal;
 
       // A credit sale pays part now (possibly nothing) and puts the rest on the customer's account.
       const amountPaid = input.amountPaid === undefined ? total : (input.amountPaid as number);
@@ -173,6 +188,7 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
             unitPrice: item.line.unitPrice,
             quantityMilli: item.line.quantityMilli,
             lineTotal: lineTotal(item.line.unitPrice, item.line.quantityMilli),
+            discount: item.line.discount,
           })
           .returning({ id: orderLines.id })
           .get().id;
@@ -191,7 +207,7 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
       }
       if (problems.length) throw new Rollback(fail('Not enough stock for some items', problems));
 
-      tx.update(orders).set({ status: 'completed', subtotal, discountTotal: discount as number, total, completedAt: now, updatedAt: now }).where(eq(orders.id, orderId)).run();
+      tx.update(orders).set({ status: 'completed', subtotal, discountTotal, total, discountReason: discountTotal > 0 ? discountReason : null, note, completedAt: now, updatedAt: now }).where(eq(orders.id, orderId)).run();
       const cashIn = method === 'cash' && amountPaid > 0;
       const change = cashIn ? (tendered as number) - amountPaid : 0;
       if (amountPaid > 0) {
@@ -252,13 +268,15 @@ export function getOrder(db: AppDatabase, id: unknown): SalesOrderDetail | null 
     subtotal: o.subtotal,
     discountTotal: o.discountTotal,
     total: o.total,
+    discountReason: o.discountReason,
+    note: o.note,
     createdAt: o.createdAt,
     completedAt: o.completedAt,
     customer: customer ?? null,
     onAccount,
     refundOf: refundOf ?? null,
     refundedBy: refundedBy ?? null,
-    lines: lines.map(({ line, unit }) => ({ id: line.id, productId: line.productId, name: line.name, unitPrice: line.unitPrice, quantityMilli: line.quantityMilli, lineTotal: line.lineTotal, unit })),
+    lines: lines.map(({ line, unit }) => ({ id: line.id, productId: line.productId, name: line.name, unitPrice: line.unitPrice, quantityMilli: line.quantityMilli, lineTotal: line.lineTotal, discount: line.discount, unit })),
     payments: paid.map((p) => ({ method: p.method, amount: p.amount, tendered: p.tendered, change: p.change, reference: p.reference })),
   };
 }
@@ -323,6 +341,7 @@ function reverseOrder(db: AppDatabase, kind: ReverseKind, raw: unknown, now: num
             status: 'completed',
             subtotal: -order.subtotal,
             discountTotal: -order.discountTotal,
+            discountReason: order.discountReason,
             total: -order.total,
             completedAt: now,
             createdAt: now,
@@ -331,7 +350,7 @@ function reverseOrder(db: AppDatabase, kind: ReverseKind, raw: unknown, now: num
           .run();
         for (const line of lines) {
           tx.insert(orderLines)
-            .values({ orderId: refund.id, productId: line.productId, name: line.name, unitPrice: line.unitPrice, unitCost: line.unitCost, quantityMilli: -line.quantityMilli, lineTotal: -line.lineTotal })
+            .values({ orderId: refund.id, productId: line.productId, name: line.name, unitPrice: line.unitPrice, unitCost: line.unitCost, quantityMilli: -line.quantityMilli, lineTotal: -line.lineTotal, discount: -line.discount })
             .run();
         }
         for (const payment of tx.select().from(payments).where(eq(payments.orderId, orderId)).all()) {

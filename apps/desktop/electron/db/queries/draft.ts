@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { CheckoutDraft, DraftLine } from '@micropos/core';
+import { type CheckoutDraft, type DraftLine, isDiscountSpec } from '@micropos/core';
 import type { AppDatabase } from '../index';
 import { PRODUCT_UNITS, type ProductUnit, settings } from '../schema';
 
@@ -26,7 +26,7 @@ export function sanitizeDraft(value: unknown): CheckoutDraft {
     if (l && typeof l.productId === 'string' && typeof l.name === 'string' && isQuantity(quantityMilli) && isCents(l.unitPrice)) {
       // Drafts saved before units existed have none: they were all counted items.
       const unit = PRODUCT_UNITS.includes(l.unit as ProductUnit) ? (l.unit as ProductUnit) : 'each';
-      lines.push({ productId: l.productId, name: l.name.slice(0, 200), quantityMilli, unitPrice: l.unitPrice, unit });
+      lines.push({ productId: l.productId, name: l.name.slice(0, 200), quantityMilli, unitPrice: l.unitPrice, unit, ...(isDiscountSpec(l.discount) ? { discount: { mode: l.discount.mode, value: l.discount.value } } : {}) });
     }
   }
   return { lines };

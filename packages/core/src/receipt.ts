@@ -134,6 +134,7 @@ export function buildSaleReceipt(order: SalesOrderDetail, shop: ReceiptShop, col
     const weighed = line.unit !== null && line.unit !== 'each';
     const quantity = `${formatQuantity(line.quantityMilli)}${weighed ? ` ${line.unit}` : ''} x ${formatReceiptMoney(line.unitPrice)}`;
     lines.push(pair(`  ${quantity}`, formatReceiptMoney(line.lineTotal), columns));
+    if (line.discount) lines.push(pair('  Discount', formatReceiptMoney(-Math.abs(line.discount)), columns));
   }
   lines.push({ kind: 'rule', style: 'dash' });
 
@@ -150,6 +151,10 @@ export function buildSaleReceipt(order: SalesOrderDetail, shop: ReceiptShop, col
     if (payment.reference) wrapText(`  Ref ${payment.reference}`, columns).forEach((l) => text(l));
   }
   if (order.onAccount !== 0) lines.push(pair('On account', formatReceiptMoney(order.onAccount), columns, true));
+  if (order.note) {
+    lines.push({ kind: 'rule', style: 'dash' });
+    wrapText(`Note: ${order.note}`, columns).forEach((l) => text(l));
+  }
 
   if (shop.footer.trim()) {
     lines.push({ kind: 'rule', style: 'dash' });

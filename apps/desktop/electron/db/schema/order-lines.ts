@@ -21,8 +21,10 @@ export const orderLines = sqliteTable(
     unitCost: integer(),
     /** Thousandths of a unit: 1000 = 1, 1250 = 1.25 kg. Negative on refund lines. */
     quantityMilli: integer().notNull(),
-    /** round(unitPrice * quantityMilli / 1000), in cents. */
+    /** round(unitPrice * quantityMilli / 1000), in cents (before the line's discount). */
     lineTotal: integer().notNull(),
+    /** Cents taken off this line (counted in the order's `discount_total`); negative on refund lines. */
+    discount: integer().notNull().default(0),
   },
   (t) => [
     index('order_lines_order_id_idx').on(t.orderId),
