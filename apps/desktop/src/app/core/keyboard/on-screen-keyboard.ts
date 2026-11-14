@@ -12,11 +12,16 @@ const SYMBOL_ROW = [...'!@#$%^&*()'];
 const ROW_1 = [...'qwertyuiop'];
 const ROW_2 = [...'asdfghjkl'];
 const ROW_3 = [...'zxcvbnm', ',', '.'];
+/** The symbols page (the bottom-left key): in place of the three letter rows. */
+const SYMBOLS_1 = [...'@#$_&-+()/'];
+const SYMBOLS_2 = [...'*"\':;!?=%'];
+const SYMBOLS_3 = ['\\', '|', '[', ']', '{', '}', '<', '>', '₱'];
 const NUMPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3'];
 
 /**
  * A QWERTY on-screen keyboard with a row of numbers on top, shift (one-shot, also turns the number row into
- * symbols) and, optionally, a numpad on the right. It only reports key presses; `OnScreenKeyboardService` places it
+ * symbols), a symbols page (the bottom-left key swaps the letter rows for punctuation and brackets, and back) and,
+ * optionally, a numpad on the right. It only reports key presses; `OnScreenKeyboardService` places it
  * next to the focused field and applies them. Pressing a key never takes focus away from the field.
  */
 @Component({
@@ -71,6 +76,7 @@ const NUMPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3'];
             type="button"
             class="min-w-0 flex-[1.6] px-0"
             aria-label="Shift"
+            [disabled]="symbols()"
             [attr.aria-pressed]="shift()"
             (click)="shift.set(!shift())"
           >
@@ -81,7 +87,17 @@ const NUMPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3'];
           }
         </div>
         <div class="flex gap-1.5">
-          <button hlmBtn variant="outline" type="button" class="min-w-0 flex-1 px-0" aria-label="@" (click)="type('@')">@</button>
+          <button
+            hlmBtn
+            [variant]="symbols() ? 'default' : 'outline'"
+            type="button"
+            class="min-w-0 flex-1 px-0 text-sm"
+            [attr.aria-label]="symbols() ? 'Letters' : 'Symbols'"
+            [attr.aria-pressed]="symbols()"
+            (click)="toggleSymbols()"
+          >
+            {{ symbols() ? 'abc' : '#+=' }}
+          </button>
           <button hlmBtn variant="outline" type="button" class="min-w-0 flex-[6] px-0" aria-label="Space" (click)="type(' ')"></button>
           <button hlmBtn variant="outline" type="button" class="min-w-0 flex-1 px-0" aria-label="-" (click)="type('-')">-</button>
           <button hlmBtn type="button" class="min-w-0 flex-[2] px-0" aria-label="Done" (click)="pressed.emit('Done')">Done</button>
@@ -107,13 +123,20 @@ export class OnScreenKeyboard {
 
   protected readonly numpad = NUMPAD;
   protected readonly shift = signal(false);
+  /** The symbols page is showing instead of the letters. */
+  protected readonly symbols = signal(false);
 
   protected readonly numberRow = computed(() => (this.shift() ? SYMBOL_ROW : NUMBER_ROW));
-  protected readonly row1 = computed(() => this.cased(ROW_1));
-  protected readonly row2 = computed(() => this.cased(ROW_2));
-  protected readonly row3 = computed(() => this.cased(ROW_3));
+  protected readonly row1 = computed(() => (this.symbols() ? SYMBOLS_1 : this.cased(ROW_1)));
+  protected readonly row2 = computed(() => (this.symbols() ? SYMBOLS_2 : this.cased(ROW_2)));
+  protected readonly row3 = computed(() => (this.symbols() ? SYMBOLS_3 : this.cased(ROW_3)));
 
-  /** Sends a character; shift applies to one key only. */
+  protected toggleSymbols(): void {
+    this.symbols.update((on) => !on);
+    this.shift.set(false);
+  }
+
+  /** Sends a character; shift applies to one key only (the symbols page stays until the key is pressed again). */
   protected type(key: string): void {
     this.pressed.emit(key);
     this.shift.set(false);

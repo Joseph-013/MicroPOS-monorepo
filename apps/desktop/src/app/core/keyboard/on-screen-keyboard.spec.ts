@@ -58,8 +58,24 @@ describe('OnScreenKeyboard', () => {
     expect(btn('q')).toBeTruthy();
 
     await click('Shift');
-    await click('@'); // there are two @ keys (symbol row and bottom row); either sends the same thing
+    await click('@'); // the shifted number row
     expect(pressed).toEqual(['@']);
+  });
+
+  it('the bottom-left key swaps the letters for symbols and back, and symbols can be typed one after another', async () => {
+    expect(btn('Symbols')).toBeTruthy();
+    expect(btn('@')).toBeNull(); // not on the letters page (until shift)
+    await click('Symbols');
+    expect(btn('Letters')!.getAttribute('aria-pressed')).toBe('true');
+    expect(btn('q')).toBeNull();
+    expect(btn('Shift')!.disabled).toBe(true);
+    for (const k of ['@', '#', '[', '₱', '%']) await click(k);
+    expect(pressed).toEqual(['@', '#', '[', '₱', '%']); // the page stays while symbols are typed
+    expect(btn('Letters')).toBeTruthy();
+    await click('Letters');
+    expect(btn('q')).toBeTruthy();
+    expect(btn('Symbols')).toBeTruthy();
+    for (const special of ['Space', 'Done', '-']) expect(btn(special), special).toBeTruthy(); // the bottom row stays
   });
 
   it('has no numpad by default, and shows one on the right when asked', async () => {
