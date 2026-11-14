@@ -207,7 +207,7 @@ export class UserForm {
     if (!user || this.saving()) return;
     this.problem.set(null);
     this.saving.set(true);
-    const result = await this.users.save(user.id, { name: user.name, employeeNumber: user.employeeNumber, role: user.role, permissions: user.permissions, active });
+    const result = await this.users.setActive(user, active);
     this.saving.set(false);
     if (result.ok) this.ref.close(true);
     else {

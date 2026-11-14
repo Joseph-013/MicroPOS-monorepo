@@ -2,6 +2,9 @@ import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ROLE_PRESETS, type DesktopApi, type UserInput, type UserRecord } from '@micropos/core';
+import { BannerService } from '../../core/banner';
+import { AuthService } from '../../core/auth/auth.service';
+import { sessionUser } from '../../core/auth/testing';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { UsersPage } from './users';
 
@@ -200,6 +203,57 @@ describe('UsersPage', () => {
     await settle();
     expect(form.textContent).toContain('You cannot deactivate yourself');
     expect(document.querySelector('#user-form')).not.toBeNull();
+  });
+
+  describe('the row menu (right-click or long-press)', () => {
+    const openMenu = async (id: string): Promise<void> => {
+      (el.querySelector(`[data-row-id="${id}"]`) as HTMLElement).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 }));
+      await settle();
+    };
+    const items = (): string[] => [...document.querySelectorAll('[hlmDropdownMenuItem]')].map((b) => b.textContent!.trim());
+    const item = (label: string): HTMLButtonElement => [...document.querySelectorAll('[hlmDropdownMenuItem]')].find((b) => b.textContent?.trim() === label) as HTMLButtonElement;
+
+    it('offers Edit and Deactivate user on an active user, and asks before deactivating', async () => {
+      await open([user('a', 'Ana')]);
+      fake.setUpdate({ ok: true, user: user('a', 'Ana') });
+      await openMenu('a');
+      expect(items()).toEqual(['Edit', 'Deactivate user']);
+      item('Deactivate user').click();
+      await settle();
+      expect(document.body.textContent).toContain('Deactivate Ana?');
+      expect(fake.calls.updated).toEqual([]);
+      (document.querySelector('[hlmAlertDialogAction]') as HTMLButtonElement).click();
+      await settle();
+      expect(fake.calls.updated[0]![1]).toMatchObject({ name: 'Ana', active: false });
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Ana deactivated');
+    });
+
+    it('offers Reactivate user on an inactive one, which needs no question', async () => {
+      await open([user('a', 'Ana', { active: false })]);
+      fake.setUpdate({ ok: true, user: user('a', 'Ana') });
+      await openMenu('a');
+      expect(items()).toEqual(['Edit', 'Reactivate user']);
+      item('Reactivate user').click();
+      await settle();
+      expect(fake.calls.updated[0]![1]).toMatchObject({ active: true });
+      expect(TestBed.inject(BannerService).current()?.text).toBe('Ana reactivated');
+    });
+
+    it('does not offer to deactivate yourself, and says why when a change is refused', async () => {
+      await open([user('a', 'Ana'), user('b', 'Ben')]);
+      TestBed.inject(AuthService).user.set(sessionUser([], { id: 'a', name: 'Ana' }));
+      await settle();
+      await openMenu('a');
+      expect(items()).toEqual(['Edit']); // not Deactivate: you cannot deactivate yourself
+      document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
+      fake.setUpdate({ ok: false, field: 'active', error: 'Someone must be able to manage users: this is the only one who can' });
+      await openMenu('b');
+      item('Deactivate user').click();
+      await settle();
+      (document.querySelector('[hlmAlertDialogAction]') as HTMLButtonElement).click();
+      await settle();
+      expect(TestBed.inject(BannerService).current()?.text).toContain('Someone must be able to manage users');
+    });
   });
 
   it('shows the reason when a change is refused', async () => {

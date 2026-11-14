@@ -29,6 +29,11 @@ export class UsersService {
     }
   }
 
+  /** Deactivates or reactivates a person: saves them as last saved with only `active` changed. The last person who can manage users, and yourself, are refused (`ok: false`). */
+  setActive(user: UserRecord, active: boolean): Promise<SaveUserResult> {
+    return this.save(user.id, { name: user.name, employeeNumber: user.employeeNumber, role: user.role, permissions: user.permissions, active });
+  }
+
   /** Creates (no `id`) or updates a user and refreshes the lists. A rule violation comes back as `ok: false`. */
   async save(id: string | null, input: UserInput): Promise<SaveUserResult> {
     if (!this.api) return { ok: false, field: null, error: 'Not connected to the database' };
