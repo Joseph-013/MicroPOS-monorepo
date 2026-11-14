@@ -1,7 +1,5 @@
 import {
-  buildDailyReceipt,
   buildSaleReceipt,
-  type DailyReport,
   buildTestReceipt,
   columnsFor,
   dotsFor,
@@ -57,12 +55,6 @@ export class PrinterService {
   printSale(order: SalesOrderDetail): Promise<PrintResult> {
     const { printer, shop } = this.deps.settings();
     return this.print(buildSaleReceipt(order, this.shop(shop, printer.paperWidthMm), columnsFor(printer.paperWidthMm)), order.orderNumber);
-  }
-
-  /** The daily sales report of a day, with the shop's name at the top. */
-  printDaily(report: DailyReport): Promise<PrintResult> {
-    const { printer, shop } = this.deps.settings();
-    return this.print(buildDailyReceipt(report, this.shop(shop, printer.paperWidthMm), columnsFor(printer.paperWidthMm)), `report ${report.day}`);
   }
 
   /** A short page to check the printer and its paper width. */

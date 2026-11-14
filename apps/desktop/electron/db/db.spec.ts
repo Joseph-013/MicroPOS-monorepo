@@ -95,7 +95,7 @@ describe('migrations', () => {
       .map((r) => tables((r as { name: string }).name))
       .sort();
     expect(names).toEqual(
-      ['audit_log', 'cash_movements', 'cash_sessions', 'categories', 'customer_ledger', 'customers', 'employees', 'login_sessions', 'order_lines', 'orders', 'payments', 'product_batches', 'product_categories', 'products', 'purchase_order_lines', 'purchase_orders', 'purchase_payments', 'settings', 'stock_movements', 'supplier_returns', 'suppliers'].sort(),
+      ['audit_log', 'categories', 'customer_ledger', 'customers', 'employees', 'login_sessions', 'order_lines', 'orders', 'payments', 'product_batches', 'product_categories', 'products', 'purchase_order_lines', 'purchase_orders', 'purchase_payments', 'settings', 'stock_movements', 'supplier_returns', 'suppliers'].sort(),
     );
     // Opening the same file again must not re-apply or fail.
     expect(() => createDatabase(path.join(dir, 'test.db'), { migrationsFolder: SOURCE_MIGRATIONS_FOLDER }).close()).not.toThrow();
