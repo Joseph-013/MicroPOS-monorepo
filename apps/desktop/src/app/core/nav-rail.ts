@@ -7,6 +7,7 @@ import {
   lucideChevronRight,
   lucideChartColumn,
   lucideLayoutDashboard,
+  lucideSmartphone,
   lucideComputer,
   lucideLayoutGrid,
   lucideLock,
@@ -61,6 +62,7 @@ export interface NavItem {
       lucideSettings,
       lucideChartColumn,
       lucideLayoutDashboard,
+      lucideSmartphone,
       lucideLock,
   lucideUserCog,
   lucideUserRound,
@@ -106,6 +108,7 @@ export class NavRail {
       ],
     },
     { id: 'reports', path: '/reports', label: 'Reports', icon: 'lucideChartColumn', permission: 'reports.view' },
+    { id: 'devices', path: '/devices', label: 'Devices', icon: 'lucideSmartphone', permission: 'settings.manage' },
     { id: 'users', path: '/users', label: 'Users', icon: 'lucideUserCog', permission: 'users.manage' },
     // Developer-only entries (the component gallery): none in production builds.
     ...devNav,

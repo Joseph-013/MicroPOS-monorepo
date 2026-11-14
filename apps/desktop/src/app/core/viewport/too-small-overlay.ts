@@ -1,4 +1,5 @@
 import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { isLanDevice } from '../api/remote-api';
 import { isPopoverOpen, keepOnTop } from './top-layer';
 
 /** Smallest window the layouts are designed for (CSS pixels). */
@@ -33,8 +34,10 @@ export const MIN_WINDOW = { width: 1024, height: 400 } as const;
 export class TooSmallOverlay {
   protected readonly min = MIN_WINDOW;
   protected readonly size = signal(this.measure());
+  /** A phone or tablet paired over the network is small by nature: it gets the app as it is, to scroll, with no warning. */
+  private readonly onLanDevice = isLanDevice();
   protected readonly tooSmall = computed(
-    () => this.size().width < MIN_WINDOW.width || this.size().height < MIN_WINDOW.height,
+    () => !this.onLanDevice && (this.size().width < MIN_WINDOW.width || this.size().height < MIN_WINDOW.height),
   );
   private readonly panel = viewChild.required<ElementRef<HTMLElement>>('panel');
 

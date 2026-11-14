@@ -51,6 +51,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/reports/reports').then((m) => m.ReportsPage),
   },
   {
+    path: 'devices',
+    ...requires('settings.manage'),
+    title: 'Devices',
+    loadComponent: () => import('./pages/devices/devices').then((m) => m.DevicesPage),
+  },
+  {
     path: 'customers',
     ...requires('customers.view'),
     title: 'Customers',

@@ -89,6 +89,7 @@ function fakeApi(initial: ProductRecord[]) {
     },
     data: { onChanged: () => () => undefined },
       shell: { getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true), getLogsFolder: () => Promise.resolve(null), openLogsFolder: () => Promise.resolve(false) },
+      lan: { state: () => Promise.reject(new Error('unused')), setEnabled: () => Promise.reject(new Error('unused')), devices: () => Promise.resolve([]), newPairing: () => Promise.resolve(null), revokeDevice: () => Promise.resolve(false) },
       dashboard: { get: () => Promise.reject(new Error('unused')) },
       tables: { columnOrders: () => Promise.resolve({}), saveColumnOrder: () => Promise.resolve(true) },
       reports: { sales: () => Promise.resolve(null), export: () => Promise.reject(new Error('unused')) },
