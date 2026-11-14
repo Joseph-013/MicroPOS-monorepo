@@ -1,0 +1,50 @@
+REMOVING THE OLD MICROPOS FROM WINDOWS
+======================================
+
+The first MicroPOS (version 1.0.0) and the current one share the same identity
+(Squirrel id "micropos", program "micropos.exe"), so these steps clean up either.
+Not tested on a Windows machine.
+
+BEFORE YOU START
+  To keep the old sales data, copy this file somewhere safe first:
+    %APPDATA%\micropos\micropos.db
+  The new MicroPOS cannot import the old database format.
+
+  If MicroPOS is running, close it (or in PowerShell):
+    Get-Process micropos -ErrorAction SilentlyContinue | Stop-Process
+
+
+1. UNINSTALL THE APP
+  Settings > Apps > Installed apps > "micropos" > Uninstall
+  or run:
+    %LOCALAPPDATA%\micropos\Update.exe --uninstall
+
+  This removes the app files and shortcuts but leaves the data.
+
+
+2. DELETE WHAT IS LEFT OVER
+  In File Explorer, delete these two folders (paste each path into the address bar):
+    %LOCALAPPDATA%\micropos     app files, if the uninstall left the folder behind
+    %APPDATA%\micropos          database, logs, shop logo, browser storage
+
+  Or in PowerShell:
+    Remove-Item -Recurse -Force "$env:LOCALAPPDATA\micropos"
+    Remove-Item -Recurse -Force "$env:APPDATA\micropos"
+
+
+3. SHORTCUTS AND REGISTRY
+  - Delete any "micropos" shortcut left on the Desktop or in
+    %APPDATA%\Microsoft\Windows\Start Menu\Programs
+  - The uninstaller normally removes its own registry entry. If "micropos" is
+    still listed in Installed apps afterwards, delete this key in regedit:
+      HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\micropos
+
+
+YOU MAY NOT NEED ALL THIS
+  If you are about to install the new MicroPOS, skip step 2 and just run its
+  Setup.exe. Squirrel upgrades the old install in place, and the new app wipes the
+  old data once, the first time it starts over an old install (it clears
+  %APPDATA%\micropos unless it finds its own marker file there).
+
+  Do the manual cleanup for a completely fresh start before installing, or when
+  removing MicroPOS for good.
