@@ -19,12 +19,10 @@ import { provideIcons } from '@ng-icons/core';
 import { lucideArchive, lucideFlag, lucidePencil, lucideTrash2 } from '@ng-icons/lucide';
 import { BannerService } from '../core/banner';
 import { ScanInputDirective, ScannerClaimDirective, ScannerService } from '../core/scanner';
-import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../core/ui/swipe-actions';
 
 /** Static style showcase of the themed components (no app logic). */
 @Component({
   imports: [
-    SwipeActions,
     HlmAlertDialogImports,
     HlmBadgeImports,
     HlmButtonImports,
@@ -48,20 +46,6 @@ import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../core/u
   templateUrl: './components.html',
 })
 export class ComponentsPage {
-  // Swipe demo: actions are listed in the order they are reached (the first is nearest the edge).
-  protected readonly swipeLeft: SwipeAction[] = [
-    { id: 'delete', label: 'Delete', icon: 'lucideTrash2', tone: 'destructive' },
-    { id: 'archive', label: 'Archive', icon: 'lucideArchive', tone: 'warning' },
-  ];
-  protected readonly swipeRight: SwipeAction[] = [
-    { id: 'edit', label: 'Edit', icon: 'lucidePencil', tone: 'primary' },
-    { id: 'flag', label: 'Flag', icon: 'lucideFlag', tone: 'success' },
-  ];
-  protected readonly lastSwipe = signal('');
-  protected onSwipe(event: SwipeActionEvent): void {
-    this.lastSwipe.set(`${event.action.label} (swiped ${event.side})`);
-  }
-
   private readonly banner = inject(BannerService);
   protected showTimed(): void {
     this.banner.success('Saved');

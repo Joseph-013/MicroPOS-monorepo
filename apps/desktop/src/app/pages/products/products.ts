@@ -36,7 +36,6 @@ import { MoneyPipe } from '../../core/money.pipe';
 import { claimScanner } from '../../core/scanner';
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
-import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { ReceiveStockForm, type ReceiveStockContext } from '../inventory/receive-stock-form';
 import { ProductForm, type ProductFormContext } from './product-form';
 
@@ -88,7 +87,6 @@ const SORT_VALUES: Record<SortKey, (p: ProductRecord) => string | number | null>
     FilterInput,
     NgIcon,
     MoneyPipe,
-    SwipeActions,
     HlmAlertDialogImports,
     HlmBadgeImports,
     HlmButtonImports,
@@ -265,12 +263,7 @@ export class ProductsPage {
     this.selection.clear();
   }
 
-  // Delete / restore. Every route (button, context menu, swipe) goes through `ask`, which always confirms.
-  protected readonly swipeDelete: SwipeAction[] = [{ id: 'delete', label: 'Delete', icon: 'lucideTrash2', tone: 'destructive' }];
-  protected readonly swipeRestore: SwipeAction[] = [{ id: 'restore', label: 'Restore', icon: 'lucideUndo2', tone: 'success' }];
-  protected swipeFor(product: ProductRecord): SwipeAction[] {
-    return product.deletedAt ? this.swipeRestore : this.swipeDelete;
-  }
+  // Delete / restore. Every route (button, context menu) goes through `ask`, which always confirms.
 
   /** What is being confirmed; `confirmTitle`/`confirmText` are kept after closing so the text does not blank mid-fade. */
   protected readonly pending = signal<{ kind: BulkKind; products: ProductRecord[] } | null>(null);
@@ -292,7 +285,7 @@ export class ProductsPage {
     this.pending.set({ kind, products });
   }
 
-  /** Right-click or swipe on a row: acts on the whole selection when the row is part of one, else on the row. */
+  /** Right-click or long-press on a row: acts on the whole selection when the row is part of one, else on the row. */
   protected targetsFor(row: ProductRecord): ProductRecord[] {
     const group = row.deletedAt ? this.selectedDeleted() : this.selectedLive();
     return this.isSelected(row) && group.length > 1 ? group : [row];
@@ -307,9 +300,6 @@ export class ProductsPage {
     return this.targetsFor(row).some((p) => p.active === active);
   }
 
-  protected onSwipe(event: SwipeActionEvent, row: ProductRecord): void {
-    this.ask(event.action.id === 'restore' ? 'restore' : 'delete', this.targetsFor(row));
-  }
 
   /** Context menu: set every target active or inactive at once (no confirmation: it is easily undone). */
   protected async setActive(targets: ProductRecord[], active: boolean): Promise<void> {

@@ -94,7 +94,6 @@
             [hlmContextMenuTrigger]="rowMenu"
             [hlmContextMenuTriggerData]="{ $implicit: supplier.id }"
           >
-            <app-swipe-actions [swipeLeft]="swipeFor(supplier)" [distance]="56" [step]="56" (action)="onSwipe($event, supplier)">
               <div
                 role="row"
                 [class.row-target]="target() === supplier.id"
@@ -115,7 +114,6 @@
                   {{ supplier.owed === 0 ? '-' : (supplier.owed | money) }}
                 </div>
               </div>
-            </app-swipe-actions>
           </div>
         }
       </div>
@@ -146,7 +144,7 @@
   }
 </ng-template>
 
-<!-- The one confirmation every delete and restore goes through (button, context menu, swipe). -->
+<!-- The one confirmation every delete and restore goes through (button, context menu). -->
 <hlm-alert-dialog [state]="pending() ? 'open' : 'closed'" (closed)="pending.set(null)">
   <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
     <hlm-alert-dialog-header>

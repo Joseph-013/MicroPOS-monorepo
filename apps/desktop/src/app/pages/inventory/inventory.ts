@@ -27,7 +27,6 @@ import { AuthService } from '../../core/auth/auth.service';
 import { MoneyPipe } from '../../core/money.pipe';
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
-import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { AdjustStockForm, type AdjustStockContext } from './adjust-stock-form';
 import { ReturnToSupplierForm, type ReturnToSupplierContext } from './return-to-supplier-form';
 import { ReceiveStockForm, type ReceiveStockContext } from './receive-stock-form';
@@ -83,7 +82,6 @@ const COLUMN_DEFS = [
     FilterInput,
     NgIcon,
     MoneyPipe,
-    SwipeActions,
     HlmAlertDialogImports,
     HlmBadgeImports,
     HlmButtonImports,
@@ -216,7 +214,6 @@ export class InventoryPage {
   }
 
   // Write-off (always confirmed): takes the whole remaining quantity out as expired or waste.
-  protected readonly swipeWriteOff: SwipeAction[] = [{ id: 'writeoff', label: 'Write off', icon: 'lucideTrash2', tone: 'destructive' }];
   protected readonly pending = signal<BatchRecord[] | null>(null);
   protected readonly confirmTitle = signal('');
   /** What the dialog is about to act on. */
@@ -230,12 +227,9 @@ export class InventoryPage {
     this.pending.set(withStock);
   }
 
-  /** Right-click or swipe: acts on the whole selection when the row is part of one, else on the row. */
+  /** Right-click or long-press: acts on the whole selection when the row is part of one, else on the row. */
   protected targetsFor(row: BatchRecord): BatchRecord[] {
     return this.isSelected(row) && this.selectedWithStock().length > 1 ? this.selectedWithStock() : [row];
-  }
-  protected onSwipe(_event: SwipeActionEvent, row: BatchRecord): void {
-    this.askWriteOff(this.targetsFor(row));
   }
   protected batchById(id: string): BatchRecord | undefined {
     return this.service.batches().find((b) => b.id === id);

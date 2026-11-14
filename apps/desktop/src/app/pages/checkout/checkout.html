@@ -138,8 +138,7 @@
               [hlmContextMenuTrigger]="lineMenu"
               [hlmContextMenuTriggerData]="{ $implicit: line }"
             >
-              <app-swipe-actions [swipeLeft]="lineSwipeLeft" (action)="runLineAction($event, line)">
-                <!-- The line added or changed last stays highlighted (the class goes on the row inside the swipe wrapper). -->
+                <!-- The line added or changed last stays highlighted (the class goes on the row). -->
                 <div role="row" class="not-[.row-target]:hover:bg-muted/40 grid grid-cols-(--cols) items-center gap-4 px-3 py-3 transition-colors" [class.row-target]="highlightId() === line.productId">
                   <div role="cell" class="min-w-0">
                     @if (canViewProduct()) {
@@ -222,7 +221,6 @@
                   </div>
                   <span role="cell" class="text-right text-lg">{{ line.net | money }}</span>
                 </div>
-              </app-swipe-actions>
             </div>
           }
           </div>

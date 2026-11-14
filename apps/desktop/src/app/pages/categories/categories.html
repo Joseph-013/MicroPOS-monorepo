@@ -83,7 +83,6 @@
             [hlmContextMenuTrigger]="rowMenu"
             [hlmContextMenuTriggerData]="{ $implicit: category.id }"
           >
-            <app-swipe-actions [swipeLeft]="swipeFor(category)" [distance]="56" [step]="56" (action)="onSwipe($event, category)">
               <div
                 role="row"
                 [class.row-target]="target() === category.id"
@@ -108,7 +107,6 @@
                 <div role="cell" [appCol]="layout.col('order')" class="text-muted-foreground px-3 text-right">{{ category.sortOrder }}</div>
                 <div role="cell" [appCol]="layout.col('created')" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ category.createdAt | date: 'MMM d, y, h:mm a' }}</div>
               </div>
-            </app-swipe-actions>
           </div>
         }
       </div>
@@ -136,7 +134,7 @@
   }
 </ng-template>
 
-<!-- The one confirmation every delete and restore goes through (button, context menu, swipe). -->
+<!-- The one confirmation every delete and restore goes through (button, context menu). -->
 <hlm-alert-dialog [state]="pending() ? 'open' : 'closed'" (closed)="pending.set(null)">
   <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
     <hlm-alert-dialog-header>

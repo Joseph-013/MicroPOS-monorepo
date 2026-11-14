@@ -204,8 +204,7 @@ describe('ProductsPage', () => {
       expect((dialog().querySelector('input') as HTMLInputElement).value).toBe('Eggs');
       expect(TestBed.inject(Router).url).toBe('/items/products');
       // The row being edited is highlighted, not selected.
-      // The highlight sits on the row inside the swipe component: that has an opaque background that would hide a tint on the wrapper.
-      const target = el.querySelector('app-swipe-actions .row-target') as HTMLElement;
+      const target = el.querySelector('[role="row"].row-target') as HTMLElement;
       expect((target.closest('[data-row-id]') as HTMLElement).dataset['rowId']).toBe('2');
       expect(target.getAttribute('aria-selected')).toBe('false');
     });

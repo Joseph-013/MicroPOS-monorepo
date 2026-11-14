@@ -206,7 +206,7 @@ span[data-required]::after {
 
 /*
  * Phone-sized screens: a page table (`.table-cards`, see "Table design" in CLAUDE.md) becomes a list of cards, so nothing
- * scrolls sideways and a swipe on a card is only ever the card's swipe action.
+ * scrolls sideways.
  * - The title row and the filter row are hidden until the "Sort and filter" button (in the page header) opens them: the
  *   titles become sort chips and each filter is stacked under its name.
  * - Each row is a card: the first column (`data-primary`) is its title next to the selection checkbox, and every other cell

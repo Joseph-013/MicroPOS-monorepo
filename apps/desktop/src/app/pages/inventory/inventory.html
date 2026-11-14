@@ -102,7 +102,6 @@
             [hlmContextMenuTrigger]="rowMenu"
             [hlmContextMenuTriggerData]="{ $implicit: batch.id }"
           >
-            <app-swipe-actions [swipeLeft]="batch.onHandMilli > 0 ? swipeWriteOff : []" [distance]="56" [step]="56" (action)="onSwipe($event, batch)">
               <div
                 role="row"
                 [class.row-target]="target() === batch.id"
@@ -136,7 +135,6 @@
                 <div role="cell" [appCol]="layout.col('cost')" class="text-muted-foreground px-3 text-right">{{ batch.unitCost === null ? '-' : (batch.unitCost | money) }}</div>
                 <div role="cell" [appCol]="layout.col('receivedAt')" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ batch.receivedAt | date: 'MMM d, y' }}</div>
               </div>
-            </app-swipe-actions>
           </div>
         }
       </div>
@@ -166,7 +164,7 @@
   }
 </ng-template>
 
-<!-- The one confirmation every write-off goes through (button, context menu, swipe). -->
+<!-- The one confirmation every write-off goes through (button, context menu). -->
 <hlm-alert-dialog [state]="pending() ? 'open' : 'closed'" (closed)="pending.set(null)">
   <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
     <hlm-alert-dialog-header>

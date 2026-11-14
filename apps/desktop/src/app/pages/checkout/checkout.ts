@@ -34,7 +34,6 @@ import { AppSettings } from '../../core/settings/app-settings.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
 import { FocusSelectDirective } from '../../core/ui/focus-select.directive';
 import { HoldRepeatDirective } from '../../core/ui/hold-repeat.directive';
-import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { claimScanner } from '../../core/scanner';
 
 const formatMoney = (cents: number): string => new MoneyPipe().transform(cents);
@@ -52,7 +51,6 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
     FocusSelectDirective,
     OnScreenKeypadDirective,
     HoldRepeatDirective,
-    SwipeActions,
     MoneyPipe,
     HlmAlertDialogImports,
     HlmBadgeImports,
@@ -338,13 +336,6 @@ export class CheckoutPage {
     return Math.min(quantityMilli, MAX_QUANTITY_UNITS * MILLI);
   }
 
-  /** Swipe an order line to the left to remove it (touch). */
-  protected readonly lineSwipeLeft: SwipeAction[] = [{ id: 'remove', label: 'Remove', icon: 'lucideTrash2', tone: 'destructive', exit: true }];
-
-  protected runLineAction(event: SwipeActionEvent, line: DraftLine): void {
-    if (event.action.id === 'remove') this.removeLine(line.productId);
-  }
-
   protected readonly settings = inject(AppSettings);
   private readonly receipts = inject(ReceiptPrinting);
 
@@ -403,7 +394,7 @@ export class CheckoutPage {
     this.lines.update((lines) => lines.map((l) => (l.productId === productId ? { productId: l.productId, name: l.name, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice, unit: l.unit, ...(spec ? { discount: spec } : {}) } : l)));
   }
 
-  /** Takes one line off the order (context menu or swipe). */
+  /** Takes one line off the order (context menu). */
   protected removeLine(productId: string): void {
     this.lines.update((lines) => lines.filter((l) => l.productId !== productId));
   }

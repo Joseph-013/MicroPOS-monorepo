@@ -156,10 +156,15 @@ describe('SuppliersPage', () => {
     expect(names()).not.toContain('Bakery Supply');
   });
 
-  it('a supplier that is owed money offers no delete', async () => {
+  it('a supplier that is owed money offers no delete in its menu, a settled one does', async () => {
     await open();
-    const page = fixture.componentInstance as unknown as { swipeFor(s: SupplierRecord): unknown[] };
-    expect(page.swipeFor(SAMPLE()[0]!)).toEqual([]);
-    expect(page.swipeFor(SAMPLE()[1]!)).toHaveLength(1);
+    const menuItems = async (id: string): Promise<string[]> => {
+      document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
+      (el.querySelector(`[data-row-id="${id}"]`) as HTMLElement).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 40, clientY: 40 }));
+      await settle();
+      return [...document.querySelectorAll('[hlmDropdownMenuItem]')].map((b) => b.textContent!.trim());
+    };
+    expect(await menuItems(SAMPLE()[0]!.id)).not.toContain('Delete');
+    expect(await menuItems(SAMPLE()[1]!.id)).toContain('Delete');
   });
 });

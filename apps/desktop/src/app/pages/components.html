@@ -219,18 +219,6 @@
 
   <section hlmCard class="md:col-span-2">
     <div hlmCardHeader>
-      <h2 hlmCardTitle>Swipe actions</h2>
-    </div>
-    <div hlmCardContent class="flex flex-col gap-2 text-sm">
-      <app-swipe-actions [swipeLeft]="swipeLeft" [swipeRight]="swipeRight" (action)="onSwipe($event)" class="border">
-        <div class="flex h-16 items-center px-4">Swipe me: left for Delete then Archive, right for Edit then Flag</div>
-      </app-swipe-actions>
-      <p>Last action: <span class="select-text font-medium">{{ lastSwipe() || '-' }}</span></p>
-    </div>
-  </section>
-
-  <section hlmCard class="md:col-span-2">
-    <div hlmCardHeader>
       <h2 hlmCardTitle>Banner</h2>
     </div>
     <div hlmCardContent class="flex flex-wrap gap-2">

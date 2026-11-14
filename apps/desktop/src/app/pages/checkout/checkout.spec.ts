@@ -1177,19 +1177,5 @@ describe('CheckoutPage', () => {
       expect(el.textContent).not.toContain('Bananas (bunch)');
       expect(el.textContent).toContain('Whole Milk (1 gal)');
     });
-
-    it('removes a line that is swiped away', async () => {
-      scan(PRODUCTS[0].barcode!);
-      await fixture.whenStable();
-      const row = el.querySelector('app-swipe-actions > div:last-child') as HTMLElement;
-      const pe = (type: string, x: number): Event =>
-        Object.assign(new MouseEvent(type, { clientX: x, clientY: 0, button: 0, bubbles: true }), { pointerId: 3, pointerType: 'touch' });
-      row.dispatchEvent(pe('pointerdown', 500));
-      row.dispatchEvent(pe('pointermove', 400)); // 100 px: past the first distance, so "Remove" is highlighted
-      row.dispatchEvent(pe('pointerup', 400));
-      await new Promise((resolve) => setTimeout(resolve, 250)); // the row slides out, then the action runs
-      await fixture.whenStable();
-      expect(el.textContent).toContain('No items yet');
-    });
   });
 });

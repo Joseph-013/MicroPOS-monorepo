@@ -24,7 +24,6 @@ import { rowTarget } from '../../core/row-target';
 import { RowSelection } from '../../core/ui/row-selection';
 import { ConfirmItems, type ConfirmItem } from '../../core/ui/confirm-items';
 import { AppPager, Pager } from '../../core/ui/pager';
-import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { CategoryForm, type CategoryFormContext } from './category-form';
 
 type SortKey = 'name' | 'products' | 'order' | 'created';
@@ -58,7 +57,6 @@ const COLUMN_DEFS = [
     FilterInput,
     NgIcon,
     RouterLink,
-    SwipeActions,
     HlmAlertDialogImports,
     HlmButtonImports,
     HlmCardImports,
@@ -166,12 +164,7 @@ export class CategoriesPage {
     this.selection.clear();
   }
 
-  // Delete / restore. Every route (button, context menu, swipe) goes through `ask`, which always confirms.
-  protected readonly swipeDelete: SwipeAction[] = [{ id: 'delete', label: 'Delete', icon: 'lucideTrash2', tone: 'destructive' }];
-  protected readonly swipeRestore: SwipeAction[] = [{ id: 'restore', label: 'Restore', icon: 'lucideUndo2', tone: 'success' }];
-  protected swipeFor(category: CategoryRecord): SwipeAction[] {
-    return category.deletedAt ? this.swipeRestore : this.swipeDelete;
-  }
+  // Delete / restore. Every route (button, context menu) goes through `ask`, which always confirms.
 
   protected readonly pending = signal<{ kind: BulkKind; categories: CategoryRecord[] } | null>(null);
   protected readonly confirmTitle = signal('');
@@ -190,13 +183,10 @@ export class CategoriesPage {
     this.pending.set({ kind, categories });
   }
 
-  /** Right-click or swipe on a row: acts on the whole selection when the row is part of one, else on the row. */
+  /** Right-click or long-press on a row: acts on the whole selection when the row is part of one, else on the row. */
   protected targetsFor(row: CategoryRecord): CategoryRecord[] {
     const group = row.deletedAt ? this.selectedDeleted() : this.selectedLive();
     return this.isSelected(row) && group.length > 1 ? group : [row];
-  }
-  protected onSwipe(event: SwipeActionEvent, row: CategoryRecord): void {
-    this.ask(event.action.id === 'restore' ? 'restore' : 'delete', this.targetsFor(row));
   }
   /** The menu is given only a row id (the trigger keeps its first data), so the row is looked up fresh. */
   protected categoryById(id: string): CategoryRecord | undefined {

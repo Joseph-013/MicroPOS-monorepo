@@ -24,7 +24,6 @@ import { ConfirmItems, type ConfirmItem } from '../../core/ui/confirm-items';
 import { FilterInput } from '../../core/ui/filter-input';
 import { AppPager, Pager } from '../../core/ui/pager';
 import { RowSelection } from '../../core/ui/row-selection';
-import { SwipeActions, type SwipeAction, type SwipeActionEvent } from '../../core/ui/swipe-actions';
 import { SupplierForm, type SupplierFormContext } from './supplier-form';
 
 type SortKey = 'name' | 'phone' | 'open' | 'owed';
@@ -58,7 +57,6 @@ const COLUMN_DEFS = [
     FilterInput,
     MoneyPipe,
     NgIcon,
-    SwipeActions,
     HlmAlertDialogImports,
     HlmButtonImports,
     HlmCardImports,
@@ -179,12 +177,7 @@ export class SuppliersPage {
     this.selection.clear();
   }
 
-  // Delete / restore. Every route (button, context menu, swipe) goes through `ask`, which always confirms.
-  protected readonly swipeDelete: SwipeAction[] = [{ id: 'delete', label: 'Delete', icon: 'lucideTrash2', tone: 'destructive' }];
-  protected readonly swipeRestore: SwipeAction[] = [{ id: 'restore', label: 'Restore', icon: 'lucideUndo2', tone: 'success' }];
-  protected swipeFor(supplier: SupplierRecord): SwipeAction[] {
-    return supplier.deletedAt ? this.swipeRestore : supplier.owed === 0 && supplier.openOrders === 0 ? this.swipeDelete : [];
-  }
+  // Delete / restore. Every route (button, context menu) goes through `ask`, which always confirms.
 
   protected readonly pending = signal<{ kind: BulkKind; suppliers: SupplierRecord[] } | null>(null);
   protected readonly confirmTitle = signal('');
@@ -206,13 +199,10 @@ export class SuppliersPage {
     this.pending.set({ kind, suppliers: rows });
   }
 
-  /** Right-click or swipe on a row: acts on the whole selection when the row is part of one, else on the row. */
+  /** Right-click or long-press on a row: acts on the whole selection when the row is part of one, else on the row. */
   protected targetsFor(row: SupplierRecord): SupplierRecord[] {
     const group = row.deletedAt ? this.selectedDeleted() : this.selectedLive();
     return this.isSelected(row) && group.length > 1 ? group : [row];
-  }
-  protected onSwipe(event: SwipeActionEvent, row: SupplierRecord): void {
-    this.ask(event.action.id === 'restore' ? 'restore' : 'delete', this.targetsFor(row));
   }
   /** The menu is given only a row id (the trigger keeps its first data), so the row is looked up fresh. */
   protected supplierById(id: string): SupplierRecord | undefined {
