@@ -32,13 +32,18 @@
 
 .PARAMETER Yes
   Do not ask for confirmation.
+
+.PARAMETER KeepData
+  Only remove the old program, shortcuts and Installed apps entry; leave %APPDATA%\micropos alone. The MicroPOS
+  setup wizard runs the script this way and handles the data on its own Existing data page.
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
   [string]$BackupTo = [Environment]::GetFolderPath('Desktop'),
   [switch]$NoBackup,
   [switch]$Force,
-  [switch]$Yes
+  [switch]$Yes,
+  [switch]$KeepData
 )
 
 $ErrorActionPreference = 'Stop'
@@ -77,14 +82,17 @@ $dataLooksNew = (Test-Path -LiteralPath (Join-Path $DataDir 'backups')) -or (Tes
 $hasOldApp = Test-Path -LiteralPath $AppDir
 $hasData = Test-HasContent $DataDir
 $hasOldKey = Test-Path $OldUninstallKey
-$deleteData = $hasData -and ($Force -or -not ($dataLooksNew -or $newInstalled))
+$deleteData = $hasData -and -not $KeepData -and ($Force -or -not ($dataLooksNew -or $newInstalled))
 
 Write-Host 'Remove the old MicroPOS (1.0.0)' -ForegroundColor White
 Write-Host "  Old app folder   $AppDir  $(if ($hasOldApp) { '(found)' } else { '(not found)' })"
 Write-Host "  Data folder      $DataDir  $(if ($hasData) { '(found)' } else { '(not found)' })"
 Write-Host "  Installed apps   micropos  $(if ($hasOldKey) { '(listed)' } else { '(not listed)' })"
 if ($newInstalled) { Write-Note 'The new MicroPOS is installed on this computer. Its files are not touched.' }
-if ($hasData -and -not $deleteData) {
+if ($hasData -and $KeepData) {
+  Write-Note 'The data folder is left alone (-KeepData).'
+}
+elseif ($hasData -and -not $deleteData) {
   Write-Note 'The data folder looks like the new MicroPOS''s data, so it will be KEPT.'
   Write-Note 'Run again with -Force to delete it anyway (the new app then starts with no data).'
 }
