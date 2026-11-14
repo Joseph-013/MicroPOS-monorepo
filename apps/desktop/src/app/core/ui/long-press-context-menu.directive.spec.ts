@@ -8,6 +8,52 @@ class Host {}
 const pe = (type: string, x = 100, y = 100, pointerType = 'touch', id = 1): Event =>
   Object.assign(new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true, cancelable: true }), { pointerId: id, pointerType });
 
+describe('long press ripple', () => {
+  let row: HTMLElement;
+  let animations: { keyframes: Keyframe[]; options: KeyframeAnimationOptions }[];
+  beforeEach(() => {
+    vi.useFakeTimers();
+    animations = [];
+    (HTMLElement.prototype as unknown as { animate: unknown }).animate = function (keyframes: Keyframe[], options: KeyframeAnimationOptions) {
+      animations.push({ keyframes, options });
+      return {};
+    };
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    row = fixture.nativeElement.querySelector('#row');
+  });
+  afterEach(() => {
+    delete (HTMLElement.prototype as unknown as { animate?: unknown }).animate;
+    document.querySelectorAll('[data-long-press-ripple]').forEach((r) => r.remove());
+    vi.useRealTimers();
+  });
+  const ripple = (): HTMLElement | null => document.querySelector('[data-long-press-ripple]');
+
+  it('grows slowly under the finger for as long as the hold takes, and is gone when the menu opens', () => {
+    row.dispatchEvent(pe('pointerdown', 120, 200));
+    expect(ripple()).not.toBeNull();
+    expect(ripple()!.style.left).toBe('120px');
+    expect(ripple()!.style.top).toBe('200px');
+    expect(ripple()!.style.pointerEvents).toBe('none');
+    expect(animations[0]!.options.duration).toBe(LONG_PRESS_MS); // as slow as the hold
+    vi.advanceTimersByTime(LONG_PRESS_MS + 10);
+    expect(ripple()).toBeNull();
+  });
+
+  it('fades out when the finger lifts or moves early, and a mouse press shows none', () => {
+    row.dispatchEvent(pe('pointerdown'));
+    row.dispatchEvent(pe('pointerup'));
+    vi.advanceTimersByTime(300);
+    expect(ripple()).toBeNull();
+    row.dispatchEvent(pe('pointerdown'));
+    row.dispatchEvent(pe('pointermove', 300, 300));
+    vi.advanceTimersByTime(300);
+    expect(ripple()).toBeNull();
+    row.dispatchEvent(pe('pointerdown', 5, 5, 'mouse'));
+    expect(ripple()).toBeNull();
+  });
+});
+
 describe('long press opens the context menu', () => {
   let row: HTMLElement;
   let menus: MouseEvent[];
