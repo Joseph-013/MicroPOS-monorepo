@@ -113,6 +113,34 @@ export interface UserRecord {
   lastSignInAt: number | null;
 }
 
+/** What a new shop's first employee numbers look like: EMP-001, EMP-002, ... */
+export const EMPLOYEE_NUMBER_PREFIX = 'EMP-';
+
+/**
+ * The next employee number to suggest. Numbers that end in digits are grouped by what comes before the digits (EMP-,
+ * 1 ...); the most used group wins (the highest on a tie) and continues one past its highest, keeping the digits' width
+ * (EMP-009 gives EMP-010, 0099 gives 0100). Nothing to follow gives EMP-001.
+ */
+export function suggestEmployeeNumber(taken: readonly string[]): string {
+  const groups = new Map<string, { count: number; highest: bigint; width: number }>();
+  for (const raw of taken) {
+    const m = /^(.*?)(\d{1,15})$/.exec(raw.trim());
+    if (!m) continue;
+    const prefix = m[1]!;
+    const value = BigInt(m[2]!);
+    const group = groups.get(prefix) ?? { count: 0, highest: -1n, width: 0 };
+    group.count += 1;
+    if (value > group.highest) Object.assign(group, { highest: value, width: m[2]!.length });
+    groups.set(prefix, group);
+  }
+  let best: [string, { count: number; highest: bigint; width: number }] | null = null;
+  for (const entry of groups) {
+    if (!best || entry[1].count > best[1].count || (entry[1].count === best[1].count && entry[1].highest > best[1].highest)) best = entry;
+  }
+  if (!best) return `${EMPLOYEE_NUMBER_PREFIX}001`;
+  return best[0] + (best[1].highest + 1n).toString().padStart(best[1].width, '0');
+}
+
 export interface UserInput {
   name: string;
   employeeNumber: string;

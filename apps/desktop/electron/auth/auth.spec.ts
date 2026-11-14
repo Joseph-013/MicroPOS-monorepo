@@ -28,7 +28,7 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const ownerId = (): string => signInChoices(db).find((c) => c.name === 'Owner')!.id;
+const ownerId = (): string => signInChoices(db).find((c) => c.name === 'Store Owner')!.id;
 const signInAsOwner = (): void => {
   ensureOwner(db);
   const result = signIn(db, { userId: ownerId(), pin: INITIAL_OWNER_PIN });
@@ -48,7 +48,7 @@ describe('the first owner', () => {
   it('is made on a database where nobody can manage users, with a PIN that must be changed', () => {
     ensureOwner(db);
     const [owner] = listUsers(db);
-    expect(owner).toMatchObject({ name: 'Owner', employeeNumber: '1001', role: 'admin', pinChangeRequired: true });
+    expect(owner).toMatchObject({ name: 'Store Owner', employeeNumber: 'EMP-001', role: 'admin', pinChangeRequired: true });
     expect(owner.permissions).toEqual(ALL_PERMISSIONS);
   });
 
@@ -61,20 +61,20 @@ describe('the first owner', () => {
   it('is made when the only employee is the Register stand-in', () => {
     db.insert(employees).values({ name: 'Register', employeeNumber: '0000', pinHash: '!' }).run();
     ensureOwner(db);
-    expect(signInChoices(db).map((c) => c.name)).toEqual(['Owner']);
+    expect(signInChoices(db).map((c) => c.name)).toEqual(['Store Owner']);
   });
 });
 
 describe('signing in', () => {
   it('records the sign-in and out, and names who is signed in', () => {
     signInAsOwner();
-    expect(currentUser(db)?.name).toBe('Owner');
+    expect(currentUser(db)?.name).toBe('Store Owner');
     expect(currentActorId()).toBe(ownerId());
     signOut(db);
     expect(currentUser(db)).toBeNull();
     expect(currentActorId()).toBeNull();
     const [entry] = signInLog(db);
-    expect(entry).toMatchObject({ userName: 'Owner' });
+    expect(entry).toMatchObject({ userName: 'Store Owner' });
     expect(entry.signedOutAt).not.toBeNull();
   });
 
@@ -184,7 +184,7 @@ describe('managing users', () => {
     expect(createUser(db, form({ name: ' ' }))).toMatchObject({ ok: false, field: 'name' });
     expect(createUser(db, form({ employeeNumber: '' }))).toMatchObject({ ok: false, field: 'employeeNumber' });
     expect(createUser(db, form({ pin: '12' }))).toMatchObject({ ok: false, field: 'pin' });
-    expect(createUser(db, form({ employeeNumber: '1001' }))).toMatchObject({ ok: false, field: 'employeeNumber' });
+    expect(createUser(db, form({ employeeNumber: 'EMP-001' }))).toMatchObject({ ok: false, field: 'employeeNumber' });
     expect(createUser(db, 'junk')).toMatchObject({ ok: false });
   });
 
@@ -197,17 +197,17 @@ describe('managing users', () => {
   it('never leaves nobody able to manage users', () => {
     signInAsOwner();
     const id = ownerId();
-    expect(updateUser(db, id, form({ employeeNumber: '1001', name: 'Owner', role: 'admin', permissions: ['checkout.sell'] }))).toMatchObject({ ok: false, field: 'permissions' });
-    expect(updateUser(db, id, form({ employeeNumber: '1001', name: 'Owner', role: 'admin', permissions: [...ALL_PERMISSIONS], active: false }))).toMatchObject({ ok: false, field: 'active' });
+    expect(updateUser(db, id, form({ employeeNumber: 'EMP-001', name: 'Store Owner', role: 'admin', permissions: ['checkout.sell'] }))).toMatchObject({ ok: false, field: 'permissions' });
+    expect(updateUser(db, id, form({ employeeNumber: 'EMP-001', name: 'Store Owner', role: 'admin', permissions: [...ALL_PERMISSIONS], active: false }))).toMatchObject({ ok: false, field: 'active' });
     // With a second manager, the first can step down.
     createUser(db, form({ name: 'Second', employeeNumber: '2002', permissions: [...ALL_PERMISSIONS] }));
-    expect(updateUser(db, id, form({ employeeNumber: '1001', name: 'Owner', role: 'admin', permissions: ['checkout.sell'] }))).toMatchObject({ ok: true });
+    expect(updateUser(db, id, form({ employeeNumber: 'EMP-001', name: 'Store Owner', role: 'admin', permissions: ['checkout.sell'] }))).toMatchObject({ ok: true });
   });
 
   it('does not let you deactivate yourself', () => {
     signInAsOwner();
     createUser(db, form({ name: 'Second', employeeNumber: '2002', permissions: [...ALL_PERMISSIONS] }));
-    expect(updateUser(db, ownerId(), form({ employeeNumber: '1001', name: 'Owner', role: 'admin', permissions: [...ALL_PERMISSIONS], active: false }))).toMatchObject({ ok: false, field: 'active' });
+    expect(updateUser(db, ownerId(), form({ employeeNumber: 'EMP-001', name: 'Store Owner', role: 'admin', permissions: [...ALL_PERMISSIONS], active: false }))).toMatchObject({ ok: false, field: 'active' });
   });
 
   it('resets a PIN (and lifts a pause), which then must be changed', () => {
@@ -242,7 +242,7 @@ describe('session expiry after inactivity', () => {
   it('never expires by default, and the limit is saved only as a whole number of minutes in range', () => {
     expect(getSessionTimeout(db)).toBeNull();
     signInAt(T0);
-    expect(currentUser(db, T0 + 1000 * 60 * MINUTE)?.name).toBe('Owner'); // days later, still signed in
+    expect(currentUser(db, T0 + 1000 * 60 * MINUTE)?.name).toBe('Store Owner'); // days later, still signed in
     for (const bad of [0, -5, 1.5, 1441, '10', undefined, NaN]) expect(setSessionTimeout(db, bad), String(bad)).toBe(false);
     expect(setSessionTimeout(db, 15)).toBe(true);
     expect(getSessionTimeout(db)).toBe(15);
@@ -253,7 +253,7 @@ describe('session expiry after inactivity', () => {
   it('ends a session that has been idle longer than the limit, and records the sign-out at its last activity', () => {
     setSessionTimeout(db, 5);
     signInAt(T0);
-    expect(currentUser(db, T0 + 5 * MINUTE)?.name).toBe('Owner'); // exactly at the limit is still fine
+    expect(currentUser(db, T0 + 5 * MINUTE)?.name).toBe('Store Owner'); // exactly at the limit is still fine
     expect(currentUser(db, T0 + 5 * MINUTE + 1)).toBeNull();
     expect(currentUser(db, T0 + 5 * MINUTE + 2)).toBeNull(); // stays ended
     expect(isAllowed(db, [])).toBe(false);
@@ -263,8 +263,8 @@ describe('session expiry after inactivity', () => {
   it('keeps a session alive while the page reports activity, and tells it when the session has ended', () => {
     setSessionTimeout(db, 5);
     signInAt(T0);
-    expect(recordActivity(db, T0 + 4 * MINUTE)).toMatchObject({ user: { name: 'Owner' }, timeoutMinutes: 5 });
-    expect(recordActivity(db, T0 + 8 * MINUTE).user?.name).toBe('Owner'); // 4 minutes since the last report
+    expect(recordActivity(db, T0 + 4 * MINUTE)).toMatchObject({ user: { name: 'Store Owner' }, timeoutMinutes: 5 });
+    expect(recordActivity(db, T0 + 8 * MINUTE).user?.name).toBe('Store Owner'); // 4 minutes since the last report
     expect(recordActivity(db, T0 + 14 * MINUTE)).toEqual({ user: null, timeoutMinutes: 5 }); // idle 6 minutes
     expect(recordActivity(db, T0 + 15 * MINUTE).user).toBeNull(); // it does not come back by itself
   });
@@ -275,6 +275,6 @@ describe('session expiry after inactivity', () => {
     expect(currentUser(db, T0 + 2 * MINUTE)).toBeNull();
     signInAt(T0 + 3 * MINUTE);
     setSessionTimeout(db, null);
-    expect(currentUser(db, T0 + 500 * MINUTE)?.name).toBe('Owner');
+    expect(currentUser(db, T0 + 500 * MINUTE)?.name).toBe('Store Owner');
   });
 });

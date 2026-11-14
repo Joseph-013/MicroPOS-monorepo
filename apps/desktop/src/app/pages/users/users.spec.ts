@@ -1,13 +1,12 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { ALL_PERMISSIONS, ROLE_PRESETS, type DesktopApi, type UserInput, type UserRecord } from '@micropos/core';
+import { ALL_PERMISSIONS, ROLE_PRESETS, suggestEmployeeNumber, type DesktopApi, type UserInput, type UserRecord } from '@micropos/core';
 import { BannerService } from '../../core/banner';
 import { AuthService } from '../../core/auth/auth.service';
 import { sessionUser } from '../../core/auth/testing';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { UsersPage } from './users';
-import { suggestEmployeeNumber } from './user-form';
 
 globalThis.ResizeObserver ??= class {
   observe(): void {}
@@ -130,20 +129,28 @@ describe('UsersPage', () => {
     expect(document.querySelector('#user-form')).toBeNull();
   });
 
-  it('suggests the next employee number and fills it in for a new user', async () => {
-    await open([user('a', 'Ana', { employeeNumber: '1001' }), user('b', 'Bo', { employeeNumber: '1007' }), user('c', 'Cy', { employeeNumber: 'EXT-9' })]);
+  it('suggests the next employee number, which a click fills in', async () => {
+    await open([user('a', 'Ana', { employeeNumber: 'EMP-001' }), user('b', 'Bo', { employeeNumber: 'EMP-007' }), user('c', 'Cy', { employeeNumber: 'X9' })]);
     button(el, 'Add user')!.click();
     await settle();
     const form = document.querySelector('#user-form')!;
-    expect((form.querySelector('#user-number') as HTMLInputElement).value).toBe('1008');
-    expect(form.textContent).toContain('Next free number: 1008');
+    const field = form.querySelector('#user-number') as HTMLInputElement;
+    expect(field.value).toBe('');
+    const suggestion = button(form, 'EMP-008')!;
+    expect(form.textContent).toContain('Suggestion:');
+    suggestion.click();
+    await settle();
+    expect((form.querySelector('#user-number') as HTMLInputElement).value).toBe('EMP-008');
+    expect(button(form, 'EMP-008')).toBeUndefined();
   });
 
-  it('works out the next number from the numeric ones only', () => {
-    expect(suggestEmployeeNumber([])).toBe('1001');
-    expect(suggestEmployeeNumber(['abc', '12x'])).toBe('1001');
+  it('works out the next number from the most used pattern', () => {
+    expect(suggestEmployeeNumber([])).toBe('EMP-001');
+    expect(suggestEmployeeNumber(['abc'])).toBe('EMP-001');
+    expect(suggestEmployeeNumber(['EMP-009'])).toBe('EMP-010');
     expect(suggestEmployeeNumber(['0099', '5'])).toBe('0100');
-    expect(suggestEmployeeNumber(['999', '1000'])).toBe('1001');
+    expect(suggestEmployeeNumber(['1001', '1002', 'EMP-050'])).toBe('1003');
+    expect(suggestEmployeeNumber(['1001', 'EMP-050', 'EMP-051'])).toBe('EMP-052');
   });
 
   it('has no switch for signing in: a new user is simply active', async () => {

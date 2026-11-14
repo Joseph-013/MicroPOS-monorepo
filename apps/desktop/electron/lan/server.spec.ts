@@ -116,23 +116,23 @@ describe('pairing and calls', () => {
   it('gives each device its own sign-in: one signing in neither signs in the other nor the till', async () => {
     const a = await pair('A');
     const b = await pair('B');
-    const owner = signInChoices(db).find((c) => c.name === 'Owner')!;
+    const owner = signInChoices(db).find((c) => c.name === 'Store Owner')!;
     expect((await rpc(a, 'auth', 'status')).result).toBeNull();
     const signedIn = await rpc(a, 'auth', 'signIn', { userId: owner.id, pin: INITIAL_OWNER_PIN });
     expect(signedIn.result.ok).toBe(true);
-    expect((await rpc(a, 'auth', 'status')).result.name).toBe('Owner');
+    expect((await rpc(a, 'auth', 'status')).result.name).toBe('Store Owner');
     expect((await rpc(b, 'auth', 'status')).result).toBeNull(); // the other phone is still locked
     expect(currentUser(db)).toBeNull(); // so is the till
     expect((await rpc(b, 'users', 'list')).error).toBe('Not allowed'); // permission checks run per device
     expect((await rpc(a, 'users', 'list')).result).toEqual(['secret']);
-    expect(server.userOf(listDevices(db).find((d) => d.name === 'A')!.id)).toBe('Owner');
+    expect(server.userOf(listDevices(db).find((d) => d.name === 'A')!.id)).toBe('Store Owner');
     expect((await rpc(a, 'auth', 'signOut')).result).toBeNull();
     expect((await rpc(a, 'auth', 'status')).result).toBeNull();
   });
 
   it('signs a device out and refuses it once it is unpaired', async () => {
     const token = await pair('A');
-    const owner = signInChoices(db).find((c) => c.name === 'Owner')!;
+    const owner = signInChoices(db).find((c) => c.name === 'Store Owner')!;
     await rpc(token, 'auth', 'signIn', { userId: owner.id, pin: INITIAL_OWNER_PIN });
     const id = listDevices(db)[0]!.id;
     server.dropDevice(id);

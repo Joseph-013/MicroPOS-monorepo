@@ -14,6 +14,7 @@ import {
   SIGN_IN_PAUSE_MS,
   type SignInChoice,
   type SignInResult,
+  suggestEmployeeNumber,
 } from '@micropos/core';
 import type { AppDatabase } from '../db';
 import { auditLog, type Employee, employees, loginSessions } from '../db/schema';
@@ -142,9 +143,13 @@ export function changePin(db: AppDatabase, input: unknown): ChangePinResult {
 /** PIN of the account made on a fresh install; it must be changed at the first sign-in. */
 export const INITIAL_OWNER_PIN = '1234';
 
+/** Name of the account made on a fresh database. */
+export const OWNER_NAME = 'Store Owner';
+
 /**
- * Makes sure someone can manage users: on a database where nobody can, an admin account "Owner" is created with the
- * well-known starting PIN, which has to be changed at the first sign-in. Does nothing otherwise.
+ * Makes sure someone can manage users: on a database where nobody can, an admin account "Store Owner" (employee number
+ * EMP-001, or the next one in the shop's own pattern) is created with the well-known starting PIN, which has to be
+ * changed at the first sign-in. Does nothing otherwise.
  */
 export function ensureOwner(db: AppDatabase): void {
   const hasManager = db
@@ -162,10 +167,9 @@ export function ensureOwner(db: AppDatabase): void {
       .all()
       .map((e) => e.number),
   );
-  let number = 1001;
-  while (taken.has(String(number))) number += 1;
+  const number = suggestEmployeeNumber([...taken]);
   db.insert(employees)
-    .values({ name: 'Owner', employeeNumber: String(number), role: 'admin', permissions: [...ALL_PERMISSIONS], pinHash: hashPin(INITIAL_OWNER_PIN), pinChangeRequired: true })
+    .values({ name: OWNER_NAME, employeeNumber: number, role: 'admin', permissions: [...ALL_PERMISSIONS], pinHash: hashPin(INITIAL_OWNER_PIN), pinChangeRequired: true })
     .run();
 }
 

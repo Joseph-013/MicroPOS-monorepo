@@ -1,5 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { matchingRole, PERMISSIONS, type Permission, PIN_RULE, ROLE_LABELS, ROLE_PRESETS, type SaveUserResult, USER_ROLES, type UserField, type UserRecord, type UserRole } from '@micropos/core';
+import { matchingRole, PERMISSIONS, type Permission, PIN_RULE, ROLE_LABELS, ROLE_PRESETS, type SaveUserResult, suggestEmployeeNumber, USER_ROLES, type UserField, type UserRecord, type UserRole } from '@micropos/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
@@ -15,17 +15,6 @@ export interface UserFormContext {
 }
 
 const CUSTOM = 'custom';
-
-/** The next employee number: one more than the highest purely numeric one in use (keeping its width, e.g. 0099 gives 0100); 1001 when there is none. */
-export function suggestEmployeeNumber(taken: readonly string[]): string {
-  let best: string | null = null;
-  for (const raw of taken) {
-    const n = raw.trim();
-    if (/^\d{1,15}$/.test(n) && (best === null || BigInt(n) > BigInt(best))) best = n;
-  }
-  if (best === null) return '1001';
-  return (BigInt(best) + 1n).toString().padStart(best.length, '0');
-}
 type Preset = UserRole | typeof CUSTOM;
 
 /** Add / edit dialog of the Users page: who they are, what they may do (a preset to start from, then each switch), and a PIN. */
@@ -49,9 +38,9 @@ type Preset = UserRole | typeof CUSTOM;
           <input hlmInput id="user-number" type="text" [forceInvalid]="invalid('employeeNumber')" [value]="number()" (input)="number.set($any($event.target).value)" />
           @if (!user && !errorFor('employeeNumber')) {
             <p class="text-muted-foreground flex items-center gap-2 text-sm">
-              Next free number: {{ suggestion }}
               @if (number() !== suggestion) {
-                <button type="button" class="text-foreground underline underline-offset-2" (click)="number.set(suggestion)">Use it</button>
+                Suggestion:
+                <button type="button" class="text-foreground min-w-0 truncate underline underline-offset-2" (click)="number.set(suggestion)">{{ suggestion }}</button>
               }
             </p>
           }
@@ -161,9 +150,9 @@ export class UserForm {
   protected readonly groups = [...new Set(PERMISSIONS.map((p) => p.group))].map((name) => ({ name, items: PERMISSIONS.filter((p) => p.group === name) }));
 
   protected readonly name = signal(this.user?.name ?? '');
-  /** For a new user: the next number after the highest one in use (the field starts with it; typing over it is fine). */
+  /** For a new user: the next number in the shop's pattern (EMP-001 on a new shop); a click on it fills the field. */
   protected readonly suggestion = suggestEmployeeNumber(this.users.users().map((u) => u.employeeNumber));
-  protected readonly number = signal(this.user?.employeeNumber ?? this.suggestion);
+  protected readonly number = signal(this.user?.employeeNumber ?? '');
   protected readonly pin = signal('');
   /** Whether the account is active when this form saves: unchanged here (a new user is active); deactivating and reactivating are their own actions (`setActive`). */
   private readonly active = signal(this.user?.active ?? true);
