@@ -7,6 +7,6 @@ each step as it goes; see the top of that file for its options (-WhatIf to
 see what it would do without changing anything).
 
 The new MicroPOS setup does this itself: when it finds the old MicroPOS it
-offers to remove it, and to save a copy of the old data on the Desktop before
-deleting it. Use the script on its own to remove the old MicroPOS without
+always removes it, and deletes the old data, offering to save a copy of it on
+the Desktop first. Use the script on its own to remove the old MicroPOS without
 installing the new one.

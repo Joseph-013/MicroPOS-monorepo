@@ -7,8 +7,9 @@
 ;   OldCleanup  remove-old-micropos.ps1 at the repo root (removes the first MicroPOS, version 1)
 ;
 ; Wizard: install for me only / for all users, welcome, install folder, old MicroPOS (only when version 1, the Squirrel
-; install in %LOCALAPPDATA%\micropos, is found: remove it), existing data (only when the data folder has something in
-; it: keep, delete, or save a copy on the Desktop and delete), shortcuts, ready, install, launch. The uninstaller asks
+; install in %LOCALAPPDATA%\micropos, is found: it is always removed, Cancel to keep it), existing data (only when the
+; data folder has something in it: keep, delete, or save a copy on the Desktop and delete; version 1's data cannot be
+; kept), shortcuts, ready, install, launch. The uninstaller asks
 ; whether to delete the data. The app's data lives per Windows user in %APPDATA%\micropos (Electron's userData),
 ; whichever install mode is chosen.
 
@@ -79,7 +80,6 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags
 [Code]
 var
   OldAppPage: TWizardPage;
-  OldRemoveBox: TNewCheckBox;
   DataPage: TWizardPage;
   KeepRadio, DeleteRadio, CopyRadio: TNewRadioButton;
 
@@ -95,9 +95,11 @@ begin
     RegKeyExists(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\micropos');
 end;
 
+{ Version 1 is always removed when found: it shares the data folder, and this version cannot open its database, so
+  the two cannot live side by side. Cancel Setup to keep it. }
 function RemoveOldApp(): Boolean;
 begin
-  Result := (OldAppPage <> nil) and OldRemoveBox.Checked;
+  Result := OldAppPage <> nil;
 end;
 
 { A page laid out here rather than Inno's option-list page (whose list drew its radio buttons cut off at some display
@@ -193,7 +195,7 @@ begin
   end;
 end;
 
-{ Data page choices: keep, delete, or save a copy on the Desktop and delete. }
+{ Data page choices: keep (not for version 1's data), delete, or save a copy on the Desktop and delete. }
 function WipeData(): Boolean;
 begin
   Result := (DataPage <> nil) and (DeleteRadio.Checked or CopyRadio.Checked);
@@ -215,23 +217,17 @@ begin
   begin
     OldAppPage := CreateChoicePage(AfterID,
       'Old MicroPOS found',
-      'The first MicroPOS (version 1) is installed on this computer.',
-      'It is a separate program from this one. Removing it closes it and takes away its program files, shortcuts and ' +
-      'its entry in Installed apps. What to do with its data is the next question.', Top);
-    OldRemoveBox := TNewCheckBox.Create(OldAppPage);
-    OldRemoveBox.Parent := OldAppPage.Surface;
-    OldRemoveBox.Left := 0;
-    OldRemoveBox.Top := Top;
-    OldRemoveBox.Width := OldAppPage.SurfaceWidth;
-    OldRemoveBox.Height := ScaleY(20);
-    OldRemoveBox.Caption := 'Remove the old MicroPOS (recommended)';
-    OldRemoveBox.Checked := True;
+      'The first MicroPOS (version 1) is installed on this computer. It will be removed.',
+      'The old MicroPOS cannot run beside this one: they share a data folder, and this version cannot open the old ' +
+      'database. Before installing, Setup closes the old MicroPOS and removes its program files, shortcuts and its ' +
+      'entry in Installed apps. Its data is the next page.' + #13#10#13#10 +
+      'To keep the old MicroPOS, click Cancel.', Top);
     AfterID := OldAppPage.ID;
   end;
   if not HasData() then Exit;
   Old := DataLooksOld();
   if Old then
-    Intro := 'This version cannot open it, and MicroPOS will not start while it is there. Save a copy to keep the old records.'
+    Intro := 'This version cannot open it, so it has to go. Save a copy to keep the old records.'
   else
     Intro := 'It holds the database, backups, logs, the shop logo and settings. Choose what to do with it.';
   if Old then
@@ -240,7 +236,8 @@ begin
   else
     DataPage := CreateChoicePage(AfterID, 'Existing data', 'MicroPOS data was found on this computer.',
       'Data folder:' + #13#10 + DataDir() + #13#10#13#10 + Intro, Top);
-  KeepRadio := AddRadio(DataPage, 'Keep existing data', Top);
+  { Version 1's data cannot be kept: the app would not start with it. }
+  if not Old then KeepRadio := AddRadio(DataPage, 'Keep existing data', Top);
   DeleteRadio := AddRadio(DataPage, 'Delete existing data and start fresh (cannot be undone)', Top);
   CopyRadio := AddRadio(DataPage, 'Save a copy of the database on the Desktop, then delete the data', Top);
   if Old then
@@ -262,10 +259,7 @@ begin
     else if WipeData() then
       Result := MsgBox('All MicroPOS data in' + #13#10 + DataDir() + #13#10 +
         'will be deleted when installation starts. This cannot be undone.' + #13#10#13#10 + 'Continue?',
-        mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES
-    else if DataLooksOld() then
-      Result := MsgBox('This data is from the old MicroPOS, which this version cannot open: MicroPOS will not start ' +
-        'until it is removed.' + #13#10#13#10 + 'Keep it anyway?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+        mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
   end;
 end;
 
@@ -273,14 +267,8 @@ function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoType
   MemoGroupInfo, MemoTasksInfo: String): String;
 begin
   Result := MemoDirInfo;
-  if OldAppPage <> nil then
-  begin
-    Result := Result + NewLine + NewLine + 'Old MicroPOS (version 1):' + NewLine + Space;
-    if RemoveOldApp() then
-      Result := Result + 'Remove'
-    else
-      Result := Result + 'Leave installed';
-  end;
+  if RemoveOldApp() then
+    Result := Result + NewLine + NewLine + 'Old MicroPOS (version 1):' + NewLine + Space + 'Remove';
   if DataPage <> nil then
   begin
     Result := Result + NewLine + NewLine + 'Existing data:' + NewLine + Space;
