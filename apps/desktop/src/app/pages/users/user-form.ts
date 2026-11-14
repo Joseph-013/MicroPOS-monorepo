@@ -100,7 +100,10 @@ type Preset = UserRole | typeof CUSTOM;
             Account: <span class="font-medium" [class.text-destructive]="!user.active" data-status>{{ user.active ? 'Active' : 'Inactive' }}</span>
           </p>
           @if (user.active) {
-            @if (confirmingDeactivate()) {
+            @if (users.isLastManager(user)) {
+              <button hlmBtn variant="outline" type="button" class="self-start px-4" disabled>Deactivate user</button>
+              <p class="text-muted-foreground text-sm" data-last-manager>This is the only active user who can manage users, so they cannot be deactivated. Give someone else that permission first.</p>
+            } @else if (confirmingDeactivate()) {
               <div class="border-destructive/50 flex flex-col gap-3 border p-3" role="alert">
                 <p class="text-sm">Deactivate {{ user.name }}? They are signed out at once and cannot sign in until you reactivate them. Their sales and history stay.</p>
                 <div class="flex justify-end gap-2">
@@ -130,7 +133,7 @@ type Preset = UserRole | typeof CUSTOM;
   `,
 })
 export class UserForm {
-  private readonly users = inject(UsersService);
+  protected readonly users = inject(UsersService);
   private readonly ref = inject<BrnDialogRef<boolean>>(BrnDialogRef);
   protected readonly user = injectBrnDialogContext<UserFormContext>().user;
 

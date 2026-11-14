@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { ROLE_PRESETS, type DesktopApi, type UserInput, type UserRecord } from '@micropos/core';
+import { ALL_PERMISSIONS, ROLE_PRESETS, type DesktopApi, type UserInput, type UserRecord } from '@micropos/core';
 import { BannerService } from '../../core/banner';
 import { AuthService } from '../../core/auth/auth.service';
 import { sessionUser } from '../../core/auth/testing';
@@ -254,6 +254,37 @@ describe('UsersPage', () => {
       await settle();
       expect(TestBed.inject(BannerService).current()?.text).toContain('Someone must be able to manage users');
     });
+  });
+
+  it('does not offer to deactivate the only active user who can manage users, in the menu or the form, and says why', async () => {
+    const admin = user('a', 'Ada', { permissions: [...ALL_PERMISSIONS], role: 'admin' });
+    await open([admin, user('b', 'Ben')]);
+    (el.querySelector('[data-row-id="a"]') as HTMLElement).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 }));
+    await settle();
+    const menuItem = document.querySelector('[data-last-manager]') as HTMLButtonElement;
+    expect(menuItem.hasAttribute('disabled')).toBe(true);
+    expect(menuItem.textContent).toContain('the only manager');
+    document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
+    (el.querySelector('[data-row-id="a"]') as HTMLElement).click();
+    await settle();
+    const form = document.querySelector('#user-form')!;
+    expect(button(form, 'Deactivate user')!.disabled).toBe(true);
+    expect(form.querySelector('[data-last-manager]')!.textContent).toContain('only active user who can manage users');
+  });
+
+  it('offers it again when another active user can manage users, but not when that one is inactive', async () => {
+    const admin = (id: string, over = {}) => user(id, id, { permissions: [...ALL_PERMISSIONS], role: 'admin', ...over });
+    await open([admin('a'), admin('b')]);
+    (el.querySelector('[data-row-id="a"]') as HTMLElement).click();
+    await settle();
+    expect(button(document.querySelector('#user-form')!, 'Deactivate user')!.disabled).toBe(false);
+    fixture.destroy();
+    document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
+    TestBed.resetTestingModule();
+    await open([admin('a'), admin('b', { active: false })]);
+    (el.querySelector('[data-row-id="a"]') as HTMLElement).click();
+    await settle();
+    expect(button(document.querySelector('#user-form')!, 'Deactivate user')!.disabled).toBe(true);
   });
 
   it('shows the reason when a change is refused', async () => {

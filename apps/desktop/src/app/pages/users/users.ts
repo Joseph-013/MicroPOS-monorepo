@@ -75,7 +75,14 @@ import { UserForm, type UserFormContext } from './user-form';
           @if (!user.active) {
             <button hlmDropdownMenuItem type="button" (click)="reactivate(user)">Reactivate user</button>
           } @else if (user.id !== auth.user()?.id) {
-            <button hlmDropdownMenuItem variant="destructive" type="button" (click)="pendingDeactivate.set(user)">Deactivate user</button>
+            @if (service.isLastManager(user)) {
+              <!-- The only active person who can manage users cannot be deactivated: shown, but not available, with the reason. -->
+              <button hlmDropdownMenuItem type="button" disabled title="The only active user who can manage users cannot be deactivated" data-last-manager>
+                Deactivate user (the only manager)
+              </button>
+            } @else {
+              <button hlmDropdownMenuItem variant="destructive" type="button" (click)="pendingDeactivate.set(user)">Deactivate user</button>
+            }
           }
         </div>
       }

@@ -29,6 +29,15 @@ export class UsersService {
     }
   }
 
+  /**
+   * True for the only active person who can manage users: deactivating them would leave nobody to add users or give
+   * permissions, so the main process refuses it and the pages do not offer it.
+   */
+  isLastManager(user: UserRecord): boolean {
+    const managers = this.users().filter((u) => u.active && u.permissions.includes('users.manage'));
+    return user.active && user.permissions.includes('users.manage') && managers.length === 1 && managers[0]!.id === user.id;
+  }
+
   /** Deactivates or reactivates a person: saves them as last saved with only `active` changed. The last person who can manage users, and yourself, are refused (`ok: false`). */
   setActive(user: UserRecord, active: boolean): Promise<SaveUserResult> {
     return this.save(user.id, { name: user.name, employeeNumber: user.employeeNumber, role: user.role, permissions: user.permissions, active });
