@@ -344,6 +344,8 @@ The strip slides in and **also animates out** (`animate.leave="banner-leave"`, 1
 
 ## On-screen keyboard
 
+**Press feedback:** a key under the finger changes color and shrinks slightly for 140 ms (`flashKey` in `core/ui/key-flash.ts` on the panel's `pointerdown`, style `.key-flash button[data-pressed]` in `styles.css`), on the keyboard, its numpad and the numeric keypad, so a tap on a touch screen can be seen to register.
+
 - Settings > "On-screen keyboard" (off by default, per device) turns it on; "Numpad beside keyboard" adds a numpad to the right of the QWERTY keyboard. Both live in `AppSettings` (a new setting needs a default and a `storage.migrations.ts` entry).
 - It is attached at the lowest level: `OnScreenKeyboardService` (`core/keyboard/`, started in the root `App`) listens for focus on the whole document, so **no per-field code is needed**. Every `text`, `search`, `email`, `url`, `tel`, `password` input and every `textarea` gets the QWERTY keyboard (number row on top, one-shot Shift, a **#+= key at the bottom left that swaps the letters for a symbols page** (@ # $ _ & - + ( ) / * " ' : ; ! ? = % \ | [ ] { } < > ₱) and back with abc, Enter, Done). Every `type="number"` input, and any input with `inputmode="decimal"` or `"numeric"`, gets the numeric keypad (`core/keypad/`).
 - Both float next to the focused field (below, else above, right or left, whichever fits; they are pushed back into view instead of clipping), as overlays in the top layer. Their keys never take focus from the field (kiosk focus rule) and edit it at the caret, firing `input`; Done blurs the field, which is what commits it. While open, the field's `inputmode` is set to `none` so an OS soft keyboard does not appear too.

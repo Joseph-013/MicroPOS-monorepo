@@ -1,3 +1,4 @@
+import { flashKey } from '../ui/key-flash';
 import { Component, output } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCheck, lucideDelete } from '@ng-icons/lucide';
@@ -17,11 +18,13 @@ export type KeypadKey = string;
   imports: [NgIcon, HlmButtonImports, HoldRepeatDirective],
   providers: [provideIcons({ lucideCheck, lucideDelete })],
   host: {
-    class: 'bg-popover text-popover-foreground border-border block w-60 border p-2 shadow-lg',
+    class: 'key-flash bg-popover text-popover-foreground border-border block w-60 border p-2 shadow-lg',
     role: 'group',
     'aria-label': 'On-screen keypad',
     // Never let a press on the panel (even on the gaps) move focus out of the input.
     '(mousedown)': '$event.preventDefault()',
+    // A brief color shift on the pressed key, so a tap can be seen to register.
+    '(pointerdown)': 'flash($event)',
   },
   template: `
     <div class="grid grid-cols-3 gap-2">
@@ -50,6 +53,7 @@ export type KeypadKey = string;
   `,
 })
 export class OnScreenKeypad {
+  protected readonly flash = flashKey;
   protected readonly keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', 'back'];
   readonly pressed = output<KeypadKey>();
 }

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { KEY_FLASH_MS } from '../ui/key-flash';
 import { OnScreenKeyboard } from './on-screen-keyboard';
 
 describe('OnScreenKeyboard', () => {
@@ -90,6 +91,23 @@ describe('OnScreenKeyboard', () => {
     await click('Numpad .');
     expect(pressed).toEqual(['7', '.']);
     expect(el.className).toContain('60rem'); // wider to fit it
+  });
+
+  it('shows the key under the finger for a moment, so a tap can be seen to register', () => {
+    vi.useFakeTimers();
+    try {
+      const key = btn('h')!;
+      key.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      expect(key.hasAttribute('data-pressed')).toBe(true);
+      expect(btn('j')!.hasAttribute('data-pressed')).toBe(false); // only that key
+      vi.advanceTimersByTime(KEY_FLASH_MS + 1);
+      expect(key.hasAttribute('data-pressed')).toBe(false);
+      el.dispatchEvent(new Event('pointerdown')); // a press on the gap between keys marks nothing
+      expect(el.querySelector('[data-pressed]')).toBeNull();
+      expect(el.classList.contains('key-flash')).toBe(true); // the style that changes its color
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps focus where it is when the panel is pressed', () => {

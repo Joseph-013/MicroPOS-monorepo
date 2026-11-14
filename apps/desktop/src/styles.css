@@ -306,3 +306,11 @@ span[data-required]::after {
     display: none;
   }
 }
+
+/* On-screen keyboard and keypad: the key under the finger changes color for a moment (see `flashKey`), so a tap can be seen to register. */
+.key-flash button[data-pressed] {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  transform: scale(0.94);
+}

@@ -2,6 +2,7 @@ import { Component, computed, input, output, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowBigUp, lucideCornerDownLeft, lucideDelete } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { flashKey } from '../ui/key-flash';
 import { HoldRepeatDirective } from '../ui/hold-repeat.directive';
 
 /** What a key sends: a printable character, or one of 'Backspace', 'Enter', 'Done'. */
@@ -29,12 +30,14 @@ const NUMPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3'];
   imports: [NgIcon, HlmButtonImports, HoldRepeatDirective],
   providers: [provideIcons({ lucideArrowBigUp, lucideCornerDownLeft, lucideDelete })],
   host: {
-    class: 'bg-popover text-popover-foreground border-border block border p-2 shadow-lg',
+    class: 'key-flash bg-popover text-popover-foreground border-border block border p-2 shadow-lg',
     '[class]': 'showNumpad() ? "w-[min(60rem,calc(100vw-1rem))]" : "w-[min(46rem,calc(100vw-1rem))]"',
     role: 'group',
     'aria-label': 'On-screen keyboard',
     // Never let a press on the panel (even on the gaps) move focus out of the field.
     '(mousedown)': '$event.preventDefault()',
+    // A brief color shift on the pressed key, so a tap can be seen to register.
+    '(pointerdown)': 'flash($event)',
   },
   template: `
     <div class="flex gap-3">
@@ -117,6 +120,7 @@ const NUMPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3'];
   `,
 })
 export class OnScreenKeyboard {
+  protected readonly flash = flashKey;
   /** Show a numpad beside the letters. */
   readonly showNumpad = input(false);
   readonly pressed = output<KeyboardKey>();
