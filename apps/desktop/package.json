@@ -60,6 +60,7 @@
     "electron": "^45.3.0",
     "esbuild": "^0.28.2",
     "jsdom": "^30.0.0",
+    "jsqr": "^1.4.0",
     "luxon": "^3.7.2",
     "postcss": "^8.5.32",
     "prettier": "^3.8.1",
@@ -79,6 +80,7 @@
     "@point-of-sale/receipt-printer-encoder": "^4.0.1",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",
+    "qrcode-generator": "^2.0.4",
     "usb": "^3.3.0"
   }
 }

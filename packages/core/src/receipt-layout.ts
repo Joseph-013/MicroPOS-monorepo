@@ -1,7 +1,7 @@
 import type { ReceiptAlign, ReceiptDocument } from './receipt.js';
 
 /** One printed row: a line of text exactly as wide as the paper (padded with spaces), or the shop logo. */
-export type ReceiptRow = { kind: 'text'; text: string; bold: boolean } | { kind: 'logo' };
+export type ReceiptRow = { kind: 'text'; text: string; bold: boolean } | { kind: 'logo' } | { kind: 'qr'; data: string };
 
 function aligned(text: string, width: number, align: ReceiptAlign): string {
   const cut = text.slice(0, width);
@@ -40,6 +40,9 @@ export function layoutReceipt(doc: ReceiptDocument): ReceiptRow[] {
         break;
       case 'logo':
         rows.push({ kind: 'logo' });
+        break;
+      case 'qr':
+        rows.push({ kind: 'qr', data: line.data });
         break;
     }
   }

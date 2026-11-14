@@ -211,3 +211,4 @@ export {
   type UsbPrinterInfo,
 } from './printing.js';
 export { layoutReceipt, type ReceiptRow } from './receipt-layout.js';
+export { ORDER_QR_PREFIX, orderQrPayload, parseOrderQr } from './order-qr.js';

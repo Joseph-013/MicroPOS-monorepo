@@ -1,5 +1,6 @@
 import type { SalesOrderDetail } from './draft.js';
 import type { Money } from './index.js';
+import { orderQrPayload } from './order-qr.js';
 import { formatQuantity } from './quantity.js';
 
 /**
@@ -26,7 +27,9 @@ export type ReceiptLine =
   | { kind: 'rule'; style: 'dash' | 'double' }
   | { kind: 'feed'; lines: number }
   /** The shop's logo, when it has one (the printer side supplies the picture). */
-  | { kind: 'logo' };
+  | { kind: 'logo' }
+  /** A QR code of this text, centred. */
+  | { kind: 'qr'; data: string };
 
 export interface ReceiptDocument {
   /** Characters per line it was laid out for. */
@@ -152,7 +155,8 @@ export function buildSaleReceipt(order: SalesOrderDetail, shop: ReceiptShop, col
     lines.push({ kind: 'rule', style: 'dash' });
     centered(shop.footer);
   }
-  lines.push({ kind: 'feed', lines: 2 });
+  // At the very bottom: scanning it opens the sale again (see order-qr).
+  lines.push({ kind: 'feed', lines: 1 }, { kind: 'qr', data: orderQrPayload(order.orderNumber) }, { kind: 'feed', lines: 2 });
   return { columns, lines };
 }
 

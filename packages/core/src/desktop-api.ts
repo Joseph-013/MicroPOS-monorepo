@@ -31,7 +31,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 39;
+export const DESKTOP_API_VERSION = 40;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -220,6 +220,8 @@ export interface DesktopApi {
     list(): Promise<SalesOrderSummary[]>;
     /** One recorded order with its lines and payments, or null when there is no such order. */
     get(id: string): Promise<SalesOrderDetail | null>;
+    /** The id of the order with this number ("SO-1001", as on its receipt), or null; for opening an order from a scanned receipt code. */
+    idByNumber(orderNumber: string): Promise<string | null>;
     /** Cancels a completed sale: the stock goes back to the batches it came from and the order is marked voided. */
     void(input: OrderActionInput): Promise<OrderActionResult>;
     /** Reverses a completed sale: a refund order with negative amounts is recorded, the stock goes back and the sale is marked refunded. */
