@@ -85,7 +85,7 @@ describe('SettingsPage', () => {
     const fixture = TestBed.createComponent(SettingsPage);
     await fixture.whenStable();
     const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('h2')].map((h) => h.textContent!.trim());
-    expect(titles).toEqual(['Account', 'Credit Interest', 'Credit Alerts', 'Input', 'Window', 'Customer Display']);
+    expect(titles).toEqual(['Account', 'Credit Interest', 'Credit Alerts', 'Input', 'Receipt Printer', 'Window', 'Logs', 'Customer Display']);
   });
 
   describe('Credit Interest', () => {
@@ -194,7 +194,8 @@ describe('SettingsPage', () => {
       const api = {
         ...fakeAuthApi({ status: sessionUser(permissions) }).api,
         display: { isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined },
-        shell: { getCloseToTray: () => Promise.resolve(initial), setCloseToTray: (v: boolean) => (saved.push(v), Promise.resolve(true)) },
+        shell: { getCloseToTray: () => Promise.resolve(initial), setCloseToTray: (v: boolean) => (saved.push(v), Promise.resolve(true)), getLogsFolder: () => Promise.resolve('/logs'), openLogsFolder: () => Promise.resolve(true) },
+        printer: { settings: () => Promise.resolve({ printer: { connection: null, paperWidthMm: 58 }, shop: { name: '', address: '', footer: '' } }), listUsb: () => Promise.resolve([]) },
       } as unknown as DesktopApi;
       TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
       await TestBed.inject(AuthService).whenReady();

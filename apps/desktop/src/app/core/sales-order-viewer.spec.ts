@@ -59,13 +59,16 @@ const PRODUCT: ProductRecord = {
 };
 
 /** What the fake main process answers: the order as stored now, and the calls it received. */
-const fake = { order: ORDER as SalesOrderDetail, voids: [] as unknown[], refunds: [] as unknown[] };
+const fake = { order: ORDER as SalesOrderDetail, voids: [] as unknown[], refunds: [] as unknown[], printed: [] as string[], printResult: { ok: true } as { ok: true } | { ok: false; code: string; error: string } };
 
 function setup() {
   fake.order = ORDER;
   fake.voids = [];
   fake.refunds = [];
+  fake.printed = [];
+  fake.printResult = { ok: true };
   const api = {
+    printer: { printOrder: (id: string) => (fake.printed.push(id), Promise.resolve(fake.printResult)) },
     orders: {
       get: (id: string) => Promise.resolve(id === 'o1' ? fake.order : null),
       list: () => Promise.resolve([]),
@@ -117,6 +120,21 @@ describe('SalesOrderViewer', () => {
     expect(text).toContain('0.5 kg'); // a weighed line shows its unit
     expect(text).toContain('Tendered');
     expect(router.url).toBe('/items/products?view-sales-order=o1'); // the page underneath stays where it was
+  });
+
+  it('prints the receipt from the order dialog and says how it went', async () => {
+    const { router } = setup();
+    await router.navigateByUrl('/orders?view-sales-order=o1');
+    await settle();
+    const print = (): HTMLButtonElement => [...document.querySelectorAll('#sales-order button')].find((b) => b.textContent?.trim() === 'Print receipt') as HTMLButtonElement;
+    print().click();
+    await settle();
+    expect(fake.printed).toEqual(['o1']);
+    expect(TestBed.inject(BannerService).current()?.text).toBe('Receipt for SO-1001 sent to the printer');
+    fake.printResult = { ok: false, code: 'not-configured', error: 'No printer is set up' };
+    print().click();
+    await settle();
+    expect(TestBed.inject(BannerService).current()).toMatchObject({ text: 'No printer is set up', severity: 'error' });
   });
 
   it('open(id) sets the parameter and keeps the rest of the address', async () => {

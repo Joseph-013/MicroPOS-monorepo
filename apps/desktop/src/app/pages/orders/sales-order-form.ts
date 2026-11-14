@@ -10,6 +10,8 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { OrdersService } from '../../core/data/orders.service';
 import { DialogPageLink } from '../../core/ui/dialog-page-link';
+import { DESKTOP_API } from '../../core/api/desktop-api';
+import { BannerService } from '../../core/banner';
 import { MoneyPipe } from '../../core/money.pipe';
 import { CustomerViewer } from '../../core/customer-viewer';
 import { OrderActions } from '../../core/order-actions';
@@ -138,6 +140,7 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', 
     </div>
 
     <hlm-dialog-footer>
+      <button hlmBtn variant="outline" type="button" class="px-4 sm:mr-auto" [disabled]="printing()" (click)="print()">Print receipt</button>
       @if (canReverse()) {
         <button hlmBtn variant="destructive" type="button" class="px-4" (click)="reverse('void')">Void</button>
         <button hlmBtn variant="outline" type="button" class="px-4" (click)="reverse('refund')">Refund</button>
@@ -153,6 +156,25 @@ export class SalesOrderForm {
   private readonly orders = inject(OrdersService);
   private readonly router = inject(Router);
   private readonly customerViewer = inject(CustomerViewer);
+  private readonly api = inject(DESKTOP_API);
+  private readonly banner = inject(BannerService);
+  protected readonly printing = signal(false);
+
+  /** Sends the order's receipt to the receipt printer (the main process prints it); says in a banner how it went. */
+  protected async print(): Promise<void> {
+    if (this.printing()) return;
+    this.printing.set(true);
+    try {
+      const result = (await this.api?.printer.printOrder(this.order().id)) ?? { ok: false as const, error: 'Not connected to the database' };
+      if (result.ok) this.banner.success(`Receipt for ${this.order().orderNumber} sent to the printer`, { key: 'print-receipt' });
+      else this.banner.error(result.error, { key: 'print-receipt', duration: 'long' });
+    } catch (error) {
+      console.error('Failed to print the receipt', error);
+      this.banner.error('Could not print the receipt', { key: 'print-receipt' });
+    } finally {
+      this.printing.set(false);
+    }
+  }
 
   /** Opens the customer's account over this dialog. */
   protected viewCustomer(customerId: string): void {

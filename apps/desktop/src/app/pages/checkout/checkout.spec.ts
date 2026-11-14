@@ -70,7 +70,9 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       clearRepackageDraft: () => Promise.resolve(),
     },
     data: { onChanged: () => () => undefined },
-      shell: { getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true) },
+      shell: { getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true), getLogsFolder: () => Promise.resolve(null), openLogsFolder: () => Promise.resolve(false) },
+      log: { write: () => Promise.resolve() },
+      printer: { settings: () => Promise.reject(new Error('unused')), save: () => Promise.reject(new Error('unused')), listUsb: () => Promise.resolve([]), testPrint: () => Promise.reject(new Error('unused')), printOrder: () => Promise.reject(new Error('unused')) },
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: {
       listProducts: () => Promise.resolve(PRODUCTS),
