@@ -160,7 +160,7 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService): void {
   guarded(db, CHANNELS.inventory.listBatches, ['inventory.manage', 'catalog.view'], (_event, options: unknown) =>
     listBatches(db, { includeEmpty: (options as { includeEmpty?: unknown } | undefined)?.includeEmpty === true }),
   );
-  guarded(db, CHANNELS.dashboard.get, 'dashboard.view', () => dashboard(db));
+  guarded(db, CHANNELS.dashboard.get, 'dashboard.view', (_event, query: unknown) => dashboard(db, query));
   guarded(db, CHANNELS.inventory.concerns, 'inventory.manage', () => stockConcerns(db));
   guarded(db, CHANNELS.inventory.receive, 'inventory.manage', (_event, input: unknown) => receiveStock(db, input));
   guarded(db, CHANNELS.inventory.adjust, 'inventory.manage', (_event, input: unknown) => adjustStock(db, input));

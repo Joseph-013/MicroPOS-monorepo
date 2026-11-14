@@ -1,56 +1,58 @@
-import { type DashboardData, dayOf, dayRange, type PeriodSales } from '@micropos/core';
+import { type ChartBar, chartBuckets, type DashboardData, dayOf, dayRange, daysInRange, granularityFor, MAX_DASHBOARD_DAYS, type PeriodTotals, previousRange } from '@micropos/core';
 import type { AppDatabase } from '../index';
 import { listCustomers } from './customers';
 import { inventoryOverview } from './inventory';
 import { listPurchases, purchaseConcerns } from './purchases';
 import { salesReport } from './reports';
 
-const DAILY_DAYS = 14;
 const TOP_ITEMS = 5;
 const TOP_OWING = 5;
 
-/** `day` moved by whole local days (a clock change does not skip or repeat a day). */
-function addDays(day: string, n: number): string {
-  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
-  return dayOf(new Date(y, m - 1, d + n).getTime());
-}
-
 /**
- * The figures for the Dashboard page: sales today, yesterday and over 7 and 30 days, a chart of the last 14 days, what
- * is taken by each payment method, the best sellers, what customers and suppliers are owed, and the stock overview.
- * Net sales and the day-by-day chart are `salesReport`'s own numbers, so the dashboard and Reports agree.
+ * The figures for the Dashboard page over `from` to `to` (local days, inclusive): net sales, how many, the average,
+ * discounts, refunds and voids, optionally against the period of equal length just before; a chart that is by day, week
+ * or month depending on how long the period is; what was taken by each payment method; the best sellers; and, as of now,
+ * what customers and suppliers are owed and the stock overview. The sales figures are `salesReport`'s own, so the
+ * dashboard and Reports agree. Null when the days are not real dates in order, or are more than `MAX_DASHBOARD_DAYS`.
  */
-export function dashboard(db: AppDatabase, now = Date.now()): DashboardData {
-  const today = dayOf(now);
-  const report = (from: string, to: string) => salesReport(db, from, to)!;
-  const period = (from: string, to: string): PeriodSales => {
-    const r = report(from, to);
-    return { count: r.sales.count, net: r.netAfterRefunds };
-  };
+export function dashboard(db: AppDatabase, rawQuery: unknown, now = Date.now()): DashboardData | null {
+  const q = rawQuery as { from?: unknown; to?: unknown; compare?: unknown } | null;
+  if (typeof q?.from !== 'string' || typeof q.to !== 'string' || !dayRange(q.from, q.to)) return null;
+  const query = { from: q.from, to: q.to, compare: q.compare === true };
+  const days = daysInRange(query.from, query.to);
+  if (days > MAX_DASHBOARD_DAYS) return null;
 
-  // One query for the chart instead of a full report per day: net = every completed or refunded order's total (refund
-  // orders are negative), counted by the day it was completed; the sale count leaves refund orders out.
-  const range = dayRange(addDays(today, 1 - DAILY_DAYS), today)!;
+  const totals = (from: string, to: string): { totals: PeriodTotals; report: NonNullable<ReturnType<typeof salesReport>> } => {
+    const report = salesReport(db, from, to)!;
+    return {
+      report,
+      totals: { count: report.sales.count, net: report.netAfterRefunds, discounts: report.sales.discounts, refunded: report.refunds.total === 0 ? 0 : -report.refunds.total, voided: report.voids.count },
+    };
+  };
+  const current = totals(query.from, query.to);
+  const before = query.compare ? previousRange(query.from, query.to) : null;
+  const previous = before ? { ...totals(before.from, before.to).totals, ...before } : null;
+
+  // The chart in one query: net = every completed or refunded order's total (refund orders are negative), by the day it was
+  // completed; the sale count leaves refund orders out. Each order goes in the bar that holds its day.
+  const granularity = granularityFor(days);
+  const buckets = chartBuckets(query.from, query.to, granularity);
+  const chart: ChartBar[] = buckets.map((b) => ({ ...b, net: 0, count: 0 }));
+  const barOfDay = new Map<string, ChartBar>();
+  for (const bar of chart) for (let d = bar.from; d <= bar.to; d = shiftOneDay(d)) barOfDay.set(d, bar);
+  const range = dayRange(query.from, query.to)!;
   const rows = db.$client
     .prepare(
       `SELECT completed_at AS at, total, refund_of_order_id IS NULL AS isSale FROM orders
         WHERE completed_at >= ? AND completed_at < ? AND status IN ('completed', 'refunded')`,
     )
     .all(range.from, range.to) as { at: number; total: number; isSale: number }[];
-  const byDay = new Map<string, { net: number; count: number }>();
   for (const r of rows) {
-    const entry = byDay.get(dayOf(r.at)) ?? { net: 0, count: 0 };
-    entry.net += r.total;
-    entry.count += r.isSale;
-    byDay.set(dayOf(r.at), entry);
+    const bar = barOfDay.get(dayOf(r.at));
+    if (!bar) continue;
+    bar.net += r.total;
+    bar.count += r.isSale;
   }
-  const daily = Array.from({ length: DAILY_DAYS }, (_, i) => {
-    const day = addDays(today, i + 1 - DAILY_DAYS);
-    return { day, net: byDay.get(day)?.net ?? 0, count: byDay.get(day)?.count ?? 0 };
-  });
-
-  const last7 = report(addDays(today, -6), today);
-  const last30 = report(addDays(today, -29), today);
 
   const owing = listCustomers(db)
     .filter((c) => c.balance > 0)
@@ -60,13 +62,13 @@ export function dashboard(db: AppDatabase, now = Date.now()): DashboardData {
 
   return {
     generatedAt: now,
-    today: period(today, today),
-    yesterday: period(addDays(today, -1), addDays(today, -1)),
-    last7: { count: last7.sales.count, net: last7.netAfterRefunds },
-    last30: { count: last30.sales.count, net: last30.netAfterRefunds },
-    daily,
-    byMethod: last7.byMethod,
-    topItems: last30.items.slice(0, TOP_ITEMS),
+    query,
+    current: current.totals,
+    previous,
+    granularity,
+    chart,
+    byMethod: current.report.byMethod,
+    topItems: current.report.items.slice(0, TOP_ITEMS),
     customersOwing: {
       total: owing.reduce((sum, c) => sum + c.balance, 0),
       count: owing.length,
@@ -80,4 +82,10 @@ export function dashboard(db: AppDatabase, now = Date.now()): DashboardData {
     },
     inventory: inventoryOverview(db, now),
   };
+}
+
+/** The day after `day` (local, a clock change does not skip or repeat one). */
+function shiftOneDay(day: string): string {
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  return dayOf(new Date(y, m - 1, d + 1).getTime());
 }

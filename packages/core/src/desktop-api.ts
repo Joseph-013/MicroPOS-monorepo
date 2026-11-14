@@ -23,7 +23,7 @@ import type { PrinterDebug, PrinterSettings, PrintResult, SaveLogoResult, SavePr
 import type { TableColumnOrders } from './table-columns.js';
 import type { SessionActivity } from './session-timeout.js';
 import type { LanDevice, LanPairing, LanState } from './lan.js';
-import type { DashboardData } from './dashboard.js';
+import type { DashboardData, DashboardQuery } from './dashboard.js';
 import type { SalesReport } from './reports.js';
 import type { ExportFormat, ExportResult, ReportKind } from './report-document.js';
 import type { DataDomain, PurchaseConcern, StockConcern } from './concerns.js';
@@ -37,7 +37,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 47;
+export const DESKTOP_API_VERSION = 48;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -113,8 +113,8 @@ export interface DesktopApi {
     revokeDevice(id: string): Promise<boolean>;
   };
   dashboard: {
-    /** The figures for the Dashboard page. */
-    get(): Promise<DashboardData>;
+    /** The figures for the Dashboard page over the days asked for; null when the days are not valid dates in order (or too many). */
+    get(query: DashboardQuery): Promise<DashboardData | null>;
   };
   tables: {
     /** The column order an admin saved for each page table (tables never saved are not in it). */

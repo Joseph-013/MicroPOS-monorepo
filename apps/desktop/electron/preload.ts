@@ -47,7 +47,7 @@ const api: DesktopApi = {
     revokeDevice: (id) => ipcRenderer.invoke(CHANNELS.lan.revokeDevice, id),
   },
   dashboard: {
-    get: () => ipcRenderer.invoke(CHANNELS.dashboard.get),
+    get: (query) => ipcRenderer.invoke(CHANNELS.dashboard.get, query),
   },
   tables: {
     columnOrders: () => ipcRenderer.invoke(CHANNELS.tables.columnOrders),
