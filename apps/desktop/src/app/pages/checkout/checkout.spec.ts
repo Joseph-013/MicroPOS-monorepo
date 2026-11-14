@@ -601,8 +601,21 @@ describe('CheckoutPage', () => {
         await fixture.whenStable();
         await signIn('checkout.sell');
         expect(buttonByText(el, 'Add')).toBeUndefined();
+        expect(el.querySelector('[data-discount]')).toBeNull(); // no discount and none to give: no Discount line
         await signIn('checkout.sell', 'discounts.give');
         expect(buttonByText(el, 'Add')).toBeDefined();
+        expect(el.querySelector('[data-discount]')).not.toBeNull();
+      });
+
+      it('still shows a discount someone else gave to a cashier who continues the order', async () => {
+        await signIn('checkout.sell', 'discounts.give');
+        scan(PRODUCTS[1].barcode!);
+        await fixture.whenStable();
+        page().orderDiscountSpec.set({ mode: 'amount', value: 100 });
+        await signIn('checkout.sell');
+        expect(buttonByText(el, 'Add')).toBeUndefined();
+        expect(buttonByText(el, 'Edit')).toBeUndefined();
+        expect(el.querySelector('[data-discount]')!.textContent!.trim()).toBe('₱1.00');
       });
 
       it('takes a line discount and an order discount off, and sends them with the reason and a note', async () => {
