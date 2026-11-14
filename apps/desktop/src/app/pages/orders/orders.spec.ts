@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { type DesktopApi, type SalesOrderSummary } from '@micropos/core';
+import { dayOf, type DesktopApi, type SalesOrderSummary } from '@micropos/core';
 import { BannerService } from '../../core/banner';
 import { withSession } from '../../core/auth/testing';
 import { DESKTOP_API } from '../../core/api/desktop-api';
@@ -329,6 +329,23 @@ describe('OrdersPage paging and highlighting', () => {
     expect(el.querySelectorAll('.row-target')).toHaveLength(1);
     expect(row.querySelector('.row-target')!.getAttribute('aria-selected')).toBe('false');
     expect(TestBed.inject(Router).url).toBe('/orders'); // the parameter is used up
+  });
+
+  it('?date=<day> (the Dashboard chart) filters to that day and is used up; another day shows nothing', async () => {
+    const day = dayOf(60_000); // every order was made within minutes of the epoch
+    await open(`/orders?date=${day}`);
+    expect(footer()).toContain('of 120');
+    expect((el.querySelector('app-date-range-filter') as HTMLElement).textContent).toContain(day.slice(0, 4));
+    expect(TestBed.inject(Router).url).toBe('/orders');
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    await open('/orders?date=2000-01-01');
+    expect(rows()).toHaveLength(0);
+    expect(el.textContent).toContain('No orders');
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    await open('/orders?date=nonsense'); // not a date: ignored, nothing filtered
+    expect(footer()).toContain('of 120');
   });
 
   it('clears filters that hide the target order', async () => {

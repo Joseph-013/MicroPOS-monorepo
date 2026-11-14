@@ -63,6 +63,9 @@ const COLUMN_DEFS = [
   { key: 'total', label: 'Total', width: '8rem' },
 ];
 
+/** `?date=YYYY-MM-DD` filters the list to that day (set from the Dashboard's chart). */
+export const DATE_PARAM = 'date';
+
 /** Sales Orders: every recorded sale, newest first. Open one to see its lines and payment. */
 @Component({
   imports: [
@@ -244,6 +247,16 @@ export class OrdersPage {
     // `?view-sales-order=<id>` (the dialog is open for it) and `?highlight=<id>` (a link from another page) both
     // target a row: show the page that holds it and highlight it. `highlight` is then removed from the address.
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      // `?date=YYYY-MM-DD` (the Dashboard's bars link here): show that day's orders only, then drop it from the address.
+      const day = params.get(DATE_PARAM);
+      if (day) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+          this.resetFilters();
+          this.dateFrom.set(day);
+          this.dateTo.set(day);
+        }
+        void this.router.navigate([], { queryParams: { [DATE_PARAM]: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      }
       const highlight = params.get(HIGHLIGHT_PARAM);
       const id = highlight ?? params.get(VIEW_SALES_ORDER_PARAM);
       if (id) void loaded.then(() => this.reveal(id, !!highlight));

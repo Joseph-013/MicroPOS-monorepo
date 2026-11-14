@@ -41,10 +41,17 @@
         <div hlmCardContent>
           <div class="flex h-40 items-end gap-1.5 pt-5" role="list" aria-label="Net sales by day">
             @for (day of d.daily; track day.day) {
-              <div class="flex h-full min-w-0 flex-1 flex-col justify-end" role="listitem" [attr.aria-label]="day.day + ': ' + (day.net | money)" [attr.title]="day.day + ': ' + (day.net | money) + ' (' + day.count + ' sales)'">
+              <a
+                routerLink="/orders"
+                [queryParams]="{ date: day.day }"
+                class="hover:bg-muted/50 flex h-full min-w-0 flex-1 flex-col justify-end transition-colors"
+                role="listitem"
+                [attr.aria-label]="day.day + ': ' + (day.net | money) + '. Open the sales orders of this day'"
+                [attr.title]="day.day + ': ' + (day.net | money) + ' (' + day.count + ' sales). Click to see them'"
+              >
                 <span class="text-muted-foreground shrink-0 text-center text-[10px] leading-4 whitespace-nowrap" data-bar-value>{{ compactMoney(day.net) }}</span>
                 <div class="bg-primary w-full shrink-0" [style.height.%]="barHeight(day.net)" data-bar></div>
-              </div>
+              </a>
             }
           </div>
           <div class="text-muted-foreground mt-1 flex gap-1.5 text-center text-[11px]" aria-hidden="true">
