@@ -7,6 +7,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { sessionUser } from '../../core/auth/testing';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { UsersPage } from './users';
+import { suggestEmployeeNumber } from './user-form';
 
 globalThis.ResizeObserver ??= class {
   observe(): void {}
@@ -127,6 +128,22 @@ describe('UsersPage', () => {
     expect(fake.calls.created[0]).toMatchObject({ name: 'Sam', employeeNumber: '2001', pin: '4321', active: true });
     expect(fake.calls.created[0].permissions).toEqual(['checkout.sell', 'orders.view', 'customers.view', 'customers.payments']);
     expect(document.querySelector('#user-form')).toBeNull();
+  });
+
+  it('suggests the next employee number and fills it in for a new user', async () => {
+    await open([user('a', 'Ana', { employeeNumber: '1001' }), user('b', 'Bo', { employeeNumber: '1007' }), user('c', 'Cy', { employeeNumber: 'EXT-9' })]);
+    button(el, 'Add user')!.click();
+    await settle();
+    const form = document.querySelector('#user-form')!;
+    expect((form.querySelector('#user-number') as HTMLInputElement).value).toBe('1008');
+    expect(form.textContent).toContain('Next free number: 1008');
+  });
+
+  it('works out the next number from the numeric ones only', () => {
+    expect(suggestEmployeeNumber([])).toBe('1001');
+    expect(suggestEmployeeNumber(['abc', '12x'])).toBe('1001');
+    expect(suggestEmployeeNumber(['0099', '5'])).toBe('0100');
+    expect(suggestEmployeeNumber(['999', '1000'])).toBe('1001');
   });
 
   it('has no switch for signing in: a new user is simply active', async () => {

@@ -15,6 +15,17 @@ export interface UserFormContext {
 }
 
 const CUSTOM = 'custom';
+
+/** The next employee number: one more than the highest purely numeric one in use (keeping its width, e.g. 0099 gives 0100); 1001 when there is none. */
+export function suggestEmployeeNumber(taken: readonly string[]): string {
+  let best: string | null = null;
+  for (const raw of taken) {
+    const n = raw.trim();
+    if (/^\d{1,15}$/.test(n) && (best === null || BigInt(n) > BigInt(best))) best = n;
+  }
+  if (best === null) return '1001';
+  return (BigInt(best) + 1n).toString().padStart(best.length, '0');
+}
 type Preset = UserRole | typeof CUSTOM;
 
 /** Add / edit dialog of the Users page: who they are, what they may do (a preset to start from, then each switch), and a PIN. */
@@ -36,6 +47,14 @@ type Preset = UserRole | typeof CUSTOM;
         <div class="flex flex-col gap-2">
           <label hlmLabel data-required for="user-number">Employee number</label>
           <input hlmInput id="user-number" type="text" [forceInvalid]="invalid('employeeNumber')" [value]="number()" (input)="number.set($any($event.target).value)" />
+          @if (!user && !errorFor('employeeNumber')) {
+            <p class="text-muted-foreground flex items-center gap-2 text-sm">
+              Next free number: {{ suggestion }}
+              @if (number() !== suggestion) {
+                <button type="button" class="text-foreground underline underline-offset-2" (click)="number.set(suggestion)">Use it</button>
+              }
+            </p>
+          }
           @if (errorFor('employeeNumber'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
         </div>
       </div>
@@ -142,7 +161,9 @@ export class UserForm {
   protected readonly groups = [...new Set(PERMISSIONS.map((p) => p.group))].map((name) => ({ name, items: PERMISSIONS.filter((p) => p.group === name) }));
 
   protected readonly name = signal(this.user?.name ?? '');
-  protected readonly number = signal(this.user?.employeeNumber ?? '');
+  /** For a new user: the next number after the highest one in use (the field starts with it; typing over it is fine). */
+  protected readonly suggestion = suggestEmployeeNumber(this.users.users().map((u) => u.employeeNumber));
+  protected readonly number = signal(this.user?.employeeNumber ?? this.suggestion);
   protected readonly pin = signal('');
   /** Whether the account is active when this form saves: unchanged here (a new user is active); deactivating and reactivating are their own actions (`setActive`). */
   private readonly active = signal(this.user?.active ?? true);
