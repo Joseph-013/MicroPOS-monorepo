@@ -41,7 +41,9 @@ BEFORE YOU START
 
 
 BEFORE INSTALLING THE NEW MICROPOS
-  Do both steps first. The new app does not touch the old app's files, and it
-  cannot open the old database (same file name, different layout), so it will
-  not start properly while %APPDATA%\micropos\micropos.db is the old one.
-  Copy that file somewhere safe first if you want to keep the old records.
+  Do step 1 first. The new app cannot open the old database (same file name,
+  different layout), so it will not start properly while
+  %APPDATA%\micropos\micropos.db is the old one. Either delete that folder by
+  hand (step 2), or choose "Delete existing data and start fresh" on the
+  setup wizard's Existing data page. Copy micropos.db somewhere safe first if
+  you want to keep the old records.
