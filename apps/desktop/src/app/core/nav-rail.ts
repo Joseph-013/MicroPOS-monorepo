@@ -82,6 +82,7 @@ export class NavRail {
   protected readonly expanded = computed(() => this.pinned() || this.hovered());
 
   protected readonly nav: NavItem[] = [
+    { id: 'dashboard', path: '/dashboard', label: 'Dashboard', icon: 'lucideLayoutDashboard', permission: 'dashboard.view' },
     { id: 'checkout', path: '/checkout', label: 'Checkout', icon: 'lucideShoppingCart', permission: 'checkout.sell' },
     {
       id: 'items',

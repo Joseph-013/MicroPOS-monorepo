@@ -30,6 +30,12 @@ describe('NavRail access', () => {
     expect(text).toContain('Sam');
   });
 
+  it('shows the Dashboard to someone who may view it, and not to a cashier', async () => {
+    expect(await render(['dashboard.view'])).toContain('Dashboard');
+    TestBed.resetTestingModule();
+    expect(await render(['checkout.sell'])).not.toContain('Dashboard');
+  });
+
   it('shows a group with the entries that are allowed', async () => {
     const text = await render(['inventory.manage', 'users.manage']);
     expect(text).toContain('Items');
