@@ -50,7 +50,7 @@ const SORT_VALUES: Record<SortKey, (p: PurchaseSummary) => string | number | nul
 const COLUMN_DEFS = [
   { key: 'number', label: 'Order', width: 'minmax(6rem,0.8fr)' },
   { key: 'supplier', label: 'Supplier', width: 'minmax(10rem,1.6fr)' },
-  { key: 'ordered', label: 'Ordered', width: '10rem' },
+  { key: 'ordered', label: 'Ordered', width: '13rem' },
   { key: 'due', label: 'Due', width: '9rem' },
   { key: 'status', label: 'Status', width: '7rem' },
   { key: 'total', label: 'Total', width: '8rem' },
