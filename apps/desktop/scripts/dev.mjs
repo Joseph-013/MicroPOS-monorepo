@@ -13,8 +13,15 @@ const children = [];
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
+const WINDOWS = process.platform === 'win32';
+
 function run(cmd, args, env = {}) {
-  const child = spawn(cmd, args, { stdio: 'inherit', detached: true, env: { ...process.env, ...env } });
+  const options = { stdio: 'inherit', env: { ...process.env, ...env } };
+  // Windows: pnpm is a .cmd script, which only starts through a shell (given one command line; the arguments here are
+  // fixed words). Not detached there: a detached child gets a console window of its own.
+  const child = WINDOWS
+    ? spawn([cmd, ...args].join(' '), { ...options, shell: true })
+    : spawn(cmd, args, { ...options, detached: true });
   children.push(child);
   return child;
 }
@@ -22,7 +29,9 @@ function run(cmd, args, env = {}) {
 function shutdown(code = 0) {
   for (const c of children) {
     try {
-      process.kill(-c.pid); // whole process group, so pnpm wrappers don't orphan ng/electron
+      // The whole tree, so pnpm wrappers don't orphan ng/electron: taskkill /T on Windows, the process group elsewhere.
+      if (WINDOWS) execFileSync('taskkill', ['/pid', String(c.pid), '/T', '/F'], { stdio: 'ignore' });
+      else process.kill(-c.pid);
     } catch {}
   }
   process.exit(code);
