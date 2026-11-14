@@ -14,6 +14,7 @@ import {
 import type { Bitmap } from './bitmap';
 import { encodeReceipt } from './escpos';
 import { isTransient, PrinterError } from './errors';
+import type { ReceiptImageSink } from './receipt-image';
 import type { PrinterTransport } from './transports/types';
 
 export interface PrinterServiceDeps {
@@ -23,6 +24,8 @@ export interface PrinterServiceDeps {
   /** The shop logo scaled and centred for the paper, or null when there is none. */
   logo: (paperWidthDots: number) => Bitmap | null;
   log: { error(source: string, message: string, details?: unknown): void; info(source: string, message: string, details?: unknown): void };
+  /** A stand-in for the printer that saves each receipt as an image (debug); used instead of the printer while it is on. */
+  images?: Pick<ReceiptImageSink, 'enabled' | 'save'>;
   /** How long to wait before the one retry of a transient failure. */
   retryDelayMs?: number;
   now?: () => number;
@@ -66,6 +69,12 @@ export class PrinterService {
 
   private async run(doc: ReceiptDocument, label: string): Promise<PrintResult> {
     const { printer } = this.deps.settings();
+    if (this.deps.images?.enabled()) {
+      const saved = await this.deps.images.save(doc, label, printer.paperWidthMm);
+      if (saved.ok) this.deps.log.info('printer', `Saved ${label} as an image (${saved.savedTo})`);
+      else this.fail(saved.code, saved.error, label);
+      return saved;
+    }
     if (!printer.connection) return this.fail('not-configured', 'No printer is set up', label);
     let bytes: Uint8Array;
     try {

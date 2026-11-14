@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
 import type { Permission } from '@micropos/core';
 import type { AppDatabase } from '../db';
@@ -19,7 +20,8 @@ import { changePin, isAllowed, signIn, signInChoices, signOut, currentUser } fro
 import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/users';
 import { getCloseToTray, setCloseToTray } from '../close-to-tray';
 import { log, logDirectory } from '../logging';
-import { createPrinterService } from '../printing';
+import { createPrinterService, receiptImagesFolder } from '../printing';
+import { getSaveReceiptImages, setSaveReceiptImages } from '../printing/debug-settings';
 import { shopLogos } from '../printing/logo';
 import { loadPrinterSettings, savePrinterSettings } from '../printing/settings';
 import { listUsbPrinters } from '../printing/transports/usb';
@@ -93,6 +95,12 @@ export function registerIpcHandlers(db: AppDatabase): void {
   guarded(db, CHANNELS.printer.printOrder, ['orders.view', 'checkout.sell'], async (_event, orderId: unknown) => {
     const order = getOrder(db, orderId);
     return order ? printer.printSale(order) : ({ ok: false, code: 'unknown', error: 'Order not found' } as const);
+  });
+  guarded(db, CHANNELS.debug.get, 'settings.manage', () => ({ saveImages: getSaveReceiptImages(db), folder: receiptImagesFolder() }));
+  guarded(db, CHANNELS.debug.setSaveImages, 'settings.manage', (_event, value: unknown) => setSaveReceiptImages(db, value));
+  guarded(db, CHANNELS.debug.openReceiptsFolder, 'settings.manage', async () => {
+    fs.mkdirSync(receiptImagesFolder(), { recursive: true });
+    return (await shell.openPath(receiptImagesFolder())) === '';
   });
   guarded(db, CHANNELS.shell.getLogsFolder, 'settings.manage', () => logDirectory());
   guarded(db, CHANNELS.shell.openLogsFolder, 'settings.manage', async () => {

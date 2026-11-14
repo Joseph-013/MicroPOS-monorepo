@@ -3,12 +3,14 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildSaleReceipt, buildTestReceipt, columnsFor, DEFAULT_PRINTER_SETTINGS, type PrinterSettings, type ReceiptDocument, type SalesOrderDetail, wrapText, formatReceiptMoney } from '@micropos/core';
+import { buildSaleReceipt, buildTestReceipt, columnsFor, layoutReceipt, DEFAULT_PRINTER_SETTINGS, type PrinterSettings, type ReceiptDocument, type SalesOrderDetail, wrapText, formatReceiptMoney } from '@micropos/core';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from '../db';
 import { centerOnPaper, type Bitmap } from './bitmap';
 import { encodeReceipt } from './escpos';
 import { PrinterError } from './errors';
 import { LogoStore } from './logo-store';
+import { ReceiptImageSink, slug } from './receipt-image';
+import { getSaveReceiptImages, setSaveReceiptImages } from './debug-settings';
 import { PrinterService } from './printer-service';
 import { loadPrinterSettings, sanitizePrinterSettings, savePrinterSettings } from './settings';
 import { NetworkTransport } from './transports/network';
@@ -403,5 +405,111 @@ describe('the logo store', () => {
   it('reports a failure to write without leaving anything behind', () => {
     fs.writeFileSync(path.join(dir, 'data'), 'a file where the folder should be');
     expect(store().save(new Uint8Array([1]))).toMatchObject({ ok: false, error: expect.stringContaining('could not be saved') });
+  });
+});
+
+describe('the receipt as printed rows', () => {
+  const rows = (doc: ReceiptDocument) => layoutReceipt(doc).flatMap((r) => (r.kind === 'text' ? [r.text] : ['<logo>']));
+
+  it('lays every row out as wide as the paper, aligned the way the printer aligns it', () => {
+    const doc: ReceiptDocument = {
+      columns: 20,
+      lines: [
+        { kind: 'text', text: 'Left' },
+        { kind: 'text', text: 'Middle', align: 'center' },
+        { kind: 'text', text: 'Right', align: 'right' },
+        { kind: 'columns', cells: [{ text: 'Milk', align: 'left', width: 12 }, { text: '12.00', align: 'right' }] },
+        { kind: 'rule', style: 'dash' },
+        { kind: 'rule', style: 'double' },
+        { kind: 'feed', lines: 2 },
+        { kind: 'logo' },
+      ],
+    };
+    expect(rows(doc)).toEqual(['Left                ', '       Middle       ', '               Right', 'Milk           12.00', '-'.repeat(20), '='.repeat(20), ' '.repeat(20), ' '.repeat(20), '<logo>']);
+    expect(layoutReceipt({ columns: 4, lines: [{ kind: 'text', text: 'too long for it', bold: true }] })).toEqual([{ kind: 'text', text: 'too ', bold: true }]);
+  });
+
+  it('shows a whole sale receipt within the paper, with the totals lined up on the right', () => {
+    const lines = rows(buildSaleReceipt(order(), shop, 32));
+    for (const l of lines) expect(l.length).toBe(32);
+    expect(lines).toContain('TOTAL                 PHP 121.00');
+    expect(lines).toContain('  2 x 4.29                  8.58');
+    expect(lines[0]).toBe('        Aling Nena Store        ');
+  });
+});
+
+describe('saving receipts as images instead of printing', () => {
+  let dir: string;
+  beforeEach(() => (dir = fs.mkdtempSync(path.join(os.tmpdir(), 'micropos-images-'))));
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const when = new Date(2026, 10, 14, 4, 5, 6);
+  const doc = buildSaleReceipt(order(), shop, 32);
+  const sink = (rasterize = async () => Buffer.from('PNG'), enabled = () => true, logo: Buffer | null = null) =>
+    new ReceiptImageSink({ folder: () => path.join(dir, 'MicroPOS receipts'), rasterize, enabled, logoPng: () => logo, now: () => when });
+
+  it('draws the laid-out rows at the paper width and writes the picture in the folder under a name that says what and when', async () => {
+    let seen: Parameters<Parameters<typeof sink>[0] & ((i: never) => Promise<Buffer>)>[0] | undefined;
+    const result = await sink(async (input) => ((seen = input as never), Buffer.from('PNGDATA')), () => true, Buffer.from('LOGO')).save(doc, 'SO-1001', 80);
+    const file = path.join(dir, 'MicroPOS receipts', 'receipt-SO-1001-20261114-040506.png');
+    expect(result).toEqual({ ok: true, savedTo: file });
+    expect(fs.readFileSync(file, 'utf8')).toBe('PNGDATA');
+    expect(seen).toMatchObject({ columns: 48, dots: 576 });
+    expect((seen as { rows: unknown[] }).rows).toEqual(layoutReceipt(doc)); // what was drawn is exactly what is laid out
+    expect(((seen as unknown) as { logo: Buffer }).logo.toString()).toBe('LOGO');
+  });
+
+  it('never overwrites: two receipts in one second get their own files', async () => {
+    const images = sink();
+    const first = await images.save(doc, 'SO-1001', 58);
+    const second = await images.save(doc, 'SO-1001', 58);
+    expect(first).toMatchObject({ ok: true });
+    expect(second).toMatchObject({ ok: true });
+    expect((first as { savedTo: string }).savedTo).not.toBe((second as { savedTo: string }).savedTo);
+    expect(fs.readdirSync(path.join(dir, 'MicroPOS receipts'))).toHaveLength(2);
+  });
+
+  it('reports a picture that could not be made or saved', async () => {
+    expect(await sink(async () => { throw new Error('no canvas'); }).save(doc, 'x', 58)).toMatchObject({ ok: false, code: 'write-failed', error: expect.stringContaining('no canvas') });
+    fs.writeFileSync(path.join(dir, 'MicroPOS receipts'), 'a file where the folder should be');
+    expect(await sink().save(doc, 'x', 58)).toMatchObject({ ok: false, code: 'write-failed' });
+  });
+
+  it('names files safely', () => {
+    expect([slug('SO-1001'), slug('test page'), slug('../../etc/passwd'), slug('###')]).toEqual(['SO-1001', 'test-page', 'etc-passwd', 'receipt']);
+  });
+
+  it('stands in for the printer while it is on, even with no printer set up, and not otherwise', async () => {
+    const sent: Uint8Array[] = [];
+    const log = { error: () => undefined, info: () => undefined };
+    let on = true;
+    const service = new PrinterService({ settings: () => DEFAULT_PRINTER_SETTINGS, transportFor: () => ({ send: async (b) => void sent.push(b) }), logo: () => null, log, images: sink(async () => Buffer.from('PNG'), () => on) });
+    const saved = await service.printSale(order());
+    expect(saved).toMatchObject({ ok: true, savedTo: expect.stringContaining('receipt-SO-1001-') });
+    expect(sent).toEqual([]); // nothing went to a printer
+    on = false;
+    expect(await service.printSale(order())).toMatchObject({ ok: false, code: 'not-configured' }); // back to the real thing
+  });
+});
+
+describe('the debug setting', () => {
+  let dir: string;
+  let handle: ReturnType<typeof createDatabase>;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'micropos-debug-'));
+    handle = createDatabase(path.join(dir, 'test.db'), { migrationsFolder: SOURCE_MIGRATIONS_FOLDER });
+  });
+  afterEach(() => {
+    handle.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('is off until an admin turns it on, and only takes a yes or no', () => {
+    expect(getSaveReceiptImages(handle.db)).toBe(false);
+    expect(setSaveReceiptImages(handle.db, true)).toBe(true);
+    expect(getSaveReceiptImages(handle.db)).toBe(true);
+    expect(setSaveReceiptImages(handle.db, 'yes')).toBe(false);
+    expect(getSaveReceiptImages(handle.db)).toBe(true);
+    setSaveReceiptImages(handle.db, false);
+    expect(getSaveReceiptImages(handle.db)).toBe(false);
   });
 });
