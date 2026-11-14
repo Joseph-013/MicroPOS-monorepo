@@ -30,6 +30,7 @@ export function fakeAuthApi(options: FakeAuth = {}) {
         return Promise.resolve();
       },
       changePin: () => Promise.resolve({ ok: true as const, user: sessionUser([]) }),
+      activity: () => Promise.resolve({ user: options.status ?? null, timeoutMinutes: null }),
     },
   } as unknown as DesktopApi;
   return { api, calls };

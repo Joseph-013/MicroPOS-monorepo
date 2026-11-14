@@ -120,6 +120,8 @@ const api: DesktopApi = {
     signIn: (input) => ipcRenderer.invoke(CHANNELS.auth.signIn, input),
     signOut: () => ipcRenderer.invoke(CHANNELS.auth.signOut),
     changePin: (input) => ipcRenderer.invoke(CHANNELS.auth.changePin, input),
+    activity: () => ipcRenderer.invoke(CHANNELS.auth.activity),
+    setSessionTimeout: (minutes) => ipcRenderer.invoke(CHANNELS.auth.setSessionTimeout, minutes),
   },
   users: {
     list: () => ipcRenderer.invoke(CHANNELS.users.list),

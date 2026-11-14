@@ -1,5 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { ActivityMonitor } from './core/auth/activity-monitor';
 import { AuthService } from './core/auth/auth.service';
 import { SignInScreen } from './core/auth/sign-in-screen';
 import { DesktopApiGuard } from './core/api/desktop-api-guard';
@@ -45,6 +46,8 @@ export class App {
   /** Opens `?view-purchase=<id>` in a purchase order dialog over any page. */
   private readonly purchaseViewer = inject(PurchaseViewer);
   private readonly auth = inject(AuthService);
+  /** Signs the person out after the shop's inactivity limit (if one is set in Settings). */
+  private readonly activityMonitor = inject(ActivityMonitor);
   /** Nobody is signed in (or the person must still choose their own PIN): only the sign-in screen is usable. */
   protected readonly locked = computed(() => !this.auth.user() || this.auth.user()!.pinChangeRequired);
   /** Height of the banner strip (`h-9`); pages and the nav rail read it as `--banner-offset`. */

@@ -100,6 +100,8 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.printer.listUsb,
   CHANNELS.printer.testPrint,
   CHANNELS.printer.printOrder,
+  CHANNELS.auth.activity,
+  CHANNELS.auth.setSessionTimeout,
   CHANNELS.lan.state,
   CHANNELS.lan.setEnabled,
   CHANNELS.lan.devices,

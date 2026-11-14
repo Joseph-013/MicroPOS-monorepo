@@ -21,6 +21,7 @@ import type {
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
 import type { PrinterDebug, PrinterSettings, PrintResult, SaveLogoResult, SavePrinterSettingsResult, UsbPrinterInfo } from './printing.js';
 import type { TableColumnOrders } from './table-columns.js';
+import type { SessionActivity } from './session-timeout.js';
 import type { LanDevice, LanPairing, LanState } from './lan.js';
 import type { DashboardData } from './dashboard.js';
 import type { SalesReport } from './reports.js';
@@ -36,7 +37,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 46;
+export const DESKTOP_API_VERSION = 47;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -283,6 +284,13 @@ export interface DesktopApi {
     signOut(): Promise<void>;
     /** Changes the signed-in person's own PIN. */
     changePin(input: ChangePinInput): Promise<ChangePinResult>;
+    /**
+     * The page reports that someone is using it (it sends this while there is input, not while idle) and learns whether
+     * the session is still open and the shop's inactivity limit. A session that has been idle longer than the limit has ended.
+     */
+    activity(): Promise<SessionActivity>;
+    /** Sets how many minutes of inactivity end a session (null: never). Needs `settings.manage`; false when the number is not valid. */
+    setSessionTimeout(minutes: number | null): Promise<boolean>;
   };
   users: {
     list(): Promise<UserRecord[]>;

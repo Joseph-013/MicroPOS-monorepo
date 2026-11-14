@@ -8,7 +8,8 @@ import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from '../d
 import { auditLog, employees, loginSessions } from '../db/schema';
 import { sellingEmployee } from '../db/queries/orders';
 import { currentActorId } from './actor';
-import { changePin, currentUser, ensureOwner, INITIAL_OWNER_PIN, isAllowed, signIn, signInChoices, signOut } from './auth';
+import { changePin, currentUser, ensureOwner, INITIAL_OWNER_PIN, isAllowed, recordActivity, signIn, signInChoices, signOut } from './auth';
+import { getSessionTimeout, setSessionTimeout } from './session-timeout';
 import { hashPin } from './pin';
 import { createUser, listUsers, resetPin, signInLog, updateUser } from './users';
 
@@ -227,5 +228,53 @@ describe('managing users', () => {
     expect(signInLog(db)).toHaveLength(2);
     expect(listUsers(db)[0].lastSignInAt).not.toBeNull();
     expect(db.select().from(loginSessions).all()).toHaveLength(2);
+  });
+});
+
+describe('session expiry after inactivity', () => {
+  const T0 = 1_000_000;
+  const MINUTE = 60_000;
+  const signInAt = (now: number): void => {
+    ensureOwner(db);
+    expect(signIn(db, { userId: ownerId(), pin: INITIAL_OWNER_PIN }, now).ok).toBe(true);
+  };
+
+  it('never expires by default, and the limit is saved only as a whole number of minutes in range', () => {
+    expect(getSessionTimeout(db)).toBeNull();
+    signInAt(T0);
+    expect(currentUser(db, T0 + 1000 * 60 * MINUTE)?.name).toBe('Owner'); // days later, still signed in
+    for (const bad of [0, -5, 1.5, 1441, '10', undefined, NaN]) expect(setSessionTimeout(db, bad), String(bad)).toBe(false);
+    expect(setSessionTimeout(db, 15)).toBe(true);
+    expect(getSessionTimeout(db)).toBe(15);
+    expect(setSessionTimeout(db, null)).toBe(true);
+    expect(getSessionTimeout(db)).toBeNull();
+  });
+
+  it('ends a session that has been idle longer than the limit, and records the sign-out at its last activity', () => {
+    setSessionTimeout(db, 5);
+    signInAt(T0);
+    expect(currentUser(db, T0 + 5 * MINUTE)?.name).toBe('Owner'); // exactly at the limit is still fine
+    expect(currentUser(db, T0 + 5 * MINUTE + 1)).toBeNull();
+    expect(currentUser(db, T0 + 5 * MINUTE + 2)).toBeNull(); // stays ended
+    expect(isAllowed(db, [])).toBe(false);
+    expect(db.select().from(loginSessions).all()[0]!.loggedOutAt).toBe(T0);
+  });
+
+  it('keeps a session alive while the page reports activity, and tells it when the session has ended', () => {
+    setSessionTimeout(db, 5);
+    signInAt(T0);
+    expect(recordActivity(db, T0 + 4 * MINUTE)).toMatchObject({ user: { name: 'Owner' }, timeoutMinutes: 5 });
+    expect(recordActivity(db, T0 + 8 * MINUTE).user?.name).toBe('Owner'); // 4 minutes since the last report
+    expect(recordActivity(db, T0 + 14 * MINUTE)).toEqual({ user: null, timeoutMinutes: 5 }); // idle 6 minutes
+    expect(recordActivity(db, T0 + 15 * MINUTE).user).toBeNull(); // it does not come back by itself
+  });
+
+  it('applies a limit set later, and turning it off keeps sessions open again', () => {
+    signInAt(T0);
+    setSessionTimeout(db, 1);
+    expect(currentUser(db, T0 + 2 * MINUTE)).toBeNull();
+    signInAt(T0 + 3 * MINUTE);
+    setSessionTimeout(db, null);
+    expect(currentUser(db, T0 + 500 * MINUTE)?.name).toBe('Owner');
   });
 });

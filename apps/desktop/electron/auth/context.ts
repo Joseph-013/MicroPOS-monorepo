@@ -4,9 +4,11 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 export interface SessionState {
   session: { employeeId: string; loginSessionId: string } | null;
   actorId: string | null;
+  /** When this connection last reported activity (sign-in, or the page's heartbeat while someone uses it). */
+  lastActivityAt: number;
 }
 
-export const newSessionState = (): SessionState => ({ session: null, actorId: null });
+export const newSessionState = (): SessionState => ({ session: null, actorId: null, lastActivityAt: 0 });
 
 /** The till's own window: one person at a time. Calls from the till's window and everything outside a request use it. */
 const tillState = newSessionState();

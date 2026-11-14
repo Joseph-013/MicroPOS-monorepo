@@ -9,6 +9,7 @@ import {
   type Permission,
   PIN_RULE,
   ROLE_PRESETS,
+  type SessionActivity,
   type SessionUser,
   SIGN_IN_PAUSE_MS,
   type SignInChoice,
@@ -18,6 +19,7 @@ import type { AppDatabase } from '../db';
 import { auditLog, type Employee, employees, loginSessions } from '../db/schema';
 import { setActor } from './actor';
 import { sessionState } from './context';
+import { getSessionTimeout } from './session-timeout';
 import { hashPin, verifyPin } from './pin';
 
 /** Employees whose PIN hash is a real one can sign in; the "Register" stand-in used before sign-in existed cannot. */
@@ -34,15 +36,32 @@ export function toSessionUser(employee: Employee): SessionUser {
 }
 
 /** Who is signed in now, read fresh so a change to their permissions, or deactivating them, applies at once. */
-export function currentUser(db: AppDatabase): SessionUser | null {
-  const session = sessionState().session;
+export function currentUser(db: AppDatabase, now = Date.now()): SessionUser | null {
+  const state = sessionState();
+  const session = state.session;
   if (!session) return null;
+  // A session nobody has used for longer than the shop's limit has ended (it is closed as of its last activity).
+  const limit = getSessionTimeout(db);
+  if (limit !== null && now - state.lastActivityAt > limit * 60_000) {
+    endSession(db, state.lastActivityAt);
+    return null;
+  }
   const [employee] = db.select().from(employees).where(eq(employees.id, session.employeeId)).all();
   if (!employee || !canSignIn(employee)) {
     endSession(db);
     return null;
   }
   return toSessionUser(employee);
+}
+
+/**
+ * The page says someone is using it: the session's inactivity clock restarts. Returns who is signed in (null once the
+ * session has ended, because it was idle too long) and the shop's limit.
+ */
+export function recordActivity(db: AppDatabase, now = Date.now()): SessionActivity {
+  const user = currentUser(db, now);
+  if (user) sessionState().lastActivityAt = now;
+  return { user, timeoutMinutes: getSessionTimeout(db) };
 }
 
 /** True when someone is signed in and holds any of `needed` (or `needed` is empty: signed in is enough). */
@@ -86,6 +105,7 @@ export function signIn(db: AppDatabase, input: unknown, now = Date.now()): SignI
   endSession(db, now);
   const loginSessionId = db.insert(loginSessions).values({ employeeId: employee.id, loggedInAt: now }).returning({ id: loginSessions.id }).get().id;
   sessionState().session = { employeeId: employee.id, loginSessionId };
+  sessionState().lastActivityAt = now;
   setActor(employee.id);
   return { ok: true, user: toSessionUser(employee) };
 }

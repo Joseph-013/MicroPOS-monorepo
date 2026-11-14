@@ -20,7 +20,8 @@ import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../db/queries/repackage-draft';
 import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/queries/product-draft';
 import { setScannerEnabled } from '../scanner';
-import { changePin, isAllowed, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
+import { setSessionTimeout } from '../auth/session-timeout';
+import { changePin, isAllowed, recordActivity, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
 import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/users';
 import { getCloseToTray, setCloseToTray } from '../close-to-tray';
 import { log, logDirectory } from '../logging';
@@ -218,9 +219,11 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService): void {
   });
   // Signing in and out: the sign-in screen can ask who may sign in and try a PIN before anyone is signed in.
   handle(CHANNELS.auth.status, () => currentUser(db));
+  handle(CHANNELS.auth.activity, () => recordActivity(db));
   handle(CHANNELS.auth.choices, () => signInChoices(db));
   handle(CHANNELS.auth.signIn, (_event, input: unknown) => signIn(db, input));
   guarded(db, CHANNELS.auth.signOut, [], () => signOut(db));
+  guarded(db, CHANNELS.auth.setSessionTimeout, 'settings.manage', (_event, minutes: unknown) => setSessionTimeout(db, minutes));
   guarded(db, CHANNELS.auth.changePin, [], (_event, input: unknown) => changePin(db, input));
   guarded(db, CHANNELS.shell.getCloseToTray, 'settings.manage', () => getCloseToTray(db));
   guarded(db, CHANNELS.shell.setCloseToTray, 'settings.manage', (_event, value: unknown) => setCloseToTray(db, value));

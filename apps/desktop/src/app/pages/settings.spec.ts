@@ -85,7 +85,7 @@ describe('SettingsPage', () => {
     const fixture = TestBed.createComponent(SettingsPage);
     await fixture.whenStable();
     const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('hlm-accordion-trigger')].map((h) => h.textContent!.trim());
-    expect(titles).toEqual(['Account', 'Input', 'Customer Display', 'Credit Interest', 'Credit Alerts', 'Receipt Printer', 'Window', 'Logs', 'Debug']);
+    expect(titles).toEqual(['Account', 'Input', 'Customer Display', 'Credit Interest', 'Credit Alerts', 'Receipt Printer', 'Auto sign-out', 'Window', 'Logs', 'Debug']);
   });
 
   describe('Credit Interest', () => {
@@ -292,7 +292,7 @@ describe('SettingsPage', () => {
       expect(sections()).toEqual([]);
       await type('');
       expect(el.textContent).not.toContain('No settings found');
-      expect(sections()).toHaveLength(9);
+      expect(sections()).toHaveLength(10);
       expect(stateOf('Account')).toBe('open'); // back to how it was
       expect(stateOf('Input')).toBe('closed');
     });
