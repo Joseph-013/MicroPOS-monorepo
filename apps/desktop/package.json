@@ -76,7 +76,9 @@
   "author": "MicroPOS",
   "license": "UNLICENSED",
   "dependencies": {
+    "@point-of-sale/receipt-printer-encoder": "^4.0.1",
     "better-sqlite3": "^13.0.3",
-    "drizzle-orm": "^0.45.4"
+    "drizzle-orm": "^0.45.4",
+    "usb": "^3.3.0"
   }
 }

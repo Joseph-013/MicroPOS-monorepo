@@ -168,12 +168,18 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@point-of-sale/receipt-printer-encoder':
+        specifier: ^4.0.1
+        version: 4.0.1
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3)
+      usb:
+        specifier: ^3.3.0
+        version: 3.3.0
     devDependencies:
       '@angular/build':
         specifier: ^22.2.6
@@ -1125,6 +1131,9 @@ packages:
 
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
+
+  '@canvas/image-data@1.1.0':
+    resolution: {integrity: sha512-QdObRRjRbcXGmM1tmJ+MrHcaz1MftF2+W7YI+MsphnsCrmtyfS0d5qJbk0MeSbUeyM/jCb0hmnkXPsy026L7dA==}
 
   '@clack/core@1.4.3':
     resolution: {integrity: sha512-/kr3UWNtdJfxZtPgDqUOmG2pvwlmcLGheex5yiZKdwbzZJxhV+HMNR9QNmyY5cGwTNV6LrR7Jtp+KjhUAP1qBQ==}
@@ -2244,6 +2253,70 @@ packages:
     peerDependencies:
       '@ng-icons/core': ^36.1.0
 
+  '@node-usb/usb-darwin-arm64@3.3.0':
+    resolution: {integrity: sha512-7P3UZX3J0pbqWs8cBC2VEJAWpVfxeJTBAPAC3tTAwdUjmurbG0wEIz5W6nokKgyrlfejyNGhBl9ZT6ELgcC80Q==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@node-usb/usb-darwin-x64@3.3.0':
+    resolution: {integrity: sha512-ZcCLlNVbz04fjUAy+2QLs2fLFAOp3NFvfinXKs6/S2reMQZOR0fFndWU1oUXOOiiEYwG7zHjbi5VWl/KcuWOtA==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@node-usb/usb-linux-arm-gnueabihf@3.3.0':
+    resolution: {integrity: sha512-Y3HCcC69Zoq3XwzX0Fx5uRm6DOy0JENAEmTjki7k725ZEWWysC+fWCQgSwuNUpmw6OOtrjjQG6+pQKIe4lSh4w==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [arm]
+    os: [linux]
+
+  '@node-usb/usb-linux-arm64-gnu@3.3.0':
+    resolution: {integrity: sha512-LnzoSGKq606zYius2AeRiBPmYidFEUDZz0ULx5rTw3iPsNHVxnxfpHg8uwsrYvugJ4A2rSkvs3JlXPEO8wKBqg==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@node-usb/usb-linux-arm64-musl@3.3.0':
+    resolution: {integrity: sha512-wblptWtIz7KXPyRGyFE9TSyHSMHx96Sctl/6xAdkcX18s2rkMiCxV3lUPBmVYjrw7QSaIdMjpTFYe16Mrs2NHw==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@node-usb/usb-linux-x64-gnu@3.3.0':
+    resolution: {integrity: sha512-RV4FkXoJen6prQ93RbhqZ9tjzn/F0h8EoNVJbB3OhYxrZtqssD2ILqw6SPiRtwbmNYv315hT5bEZSRoX/7VOLw==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@node-usb/usb-linux-x64-musl@3.3.0':
+    resolution: {integrity: sha512-/SPx4t64yj0KY0lEHt3yBB17mV7hMQxesppHrCAC1tSc/V28lIteM37Z4MD9Y7FPP1powNXsBnl7P/iX4rphOw==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@node-usb/usb-win32-arm64-msvc@3.3.0':
+    resolution: {integrity: sha512-XeDz9H8vBrn769dGNFzzNhENKi6u73PYW9y5LbhnU6TqJctR3f/UxDJ3jLH0VMOkmoM1s3Tfo1YUZkNl8a/upg==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@node-usb/usb-win32-ia32-msvc@3.3.0':
+    resolution: {integrity: sha512-QJnWjuG/BBVVuixbgb8DVK07Sj1nOqXx8daYRDa5YpjScjUvnzNvB4woFD7KCfrVArzrJLWolXk0o6Na7YyLBQ==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [ia32]
+    os: [win32]
+
+  '@node-usb/usb-win32-x64-msvc@3.3.0':
+    resolution: {integrity: sha512-ka4MF8cKoxj4/g5iz2xvr1mFwZWdWrQq1T3x/UqNurjfszcja0JB2acO2XErHsUeB4zqGi94p0jLbART5S448g==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
+    cpu: [x64]
+    os: [win32]
+
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
     engines: {node: '>= 8'}
@@ -2590,6 +2663,12 @@ packages:
     peerDependencies:
       typescript: '>3.0.0'
 
+  '@point-of-sale/codepage-encoder@3.0.2':
+    resolution: {integrity: sha512-Sx+0sE/XgPtMUNKScHpwTIZiHNd/+Mg0udACQJVwPsxH9kUAgIkRi9kRlmWBMCruwOJadjKLyKs8MO8Bh+VS/A==}
+
+  '@point-of-sale/receipt-printer-encoder@4.0.1':
+    resolution: {integrity: sha512-ALLSmZl0uEH52r9hPffjdxzBBbbjQWPryjXmB0Eb2wsiVE3c2nSvOHEZPNLfgLLSaVAY4F9t1K3ZdI4altPPbQ==}
+
   '@rolldown/binding-android-arm-eabi@1.2.16':
     resolution: {integrity: sha512-ia3DwAs0OsMGS7+IConptSiyk9pEXkOx/AbJ2n/lAGxH3QkWQus1t8d7gnAT38FCU2sQu8lUbeR6AiZFv4JxaA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2863,6 +2942,9 @@ packages:
   '@types/parse-json@4.0.2':
     resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
 
+  '@types/w3c-web-usb@1.0.14':
+    resolution: {integrity: sha512-Qu3Nn6JFuF4+sHKYl+IcX9vYiI40ogleXzFFSxoE1W94rG98o/kXs8uJ0QSfFzuwBCZWlGfUGpPkgwuuX4PchA==}
+
   '@typescript-eslint/project-service@8.72.2':
     resolution: {integrity: sha512-6y5dLTZdHhI8Eh3yIQ/bfQhRKwn5e+TpJj64o18Cngc0iW/BCrVvrr6zGYqXPnYH31u6YXAYiFh0+qxX5mybJw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -3132,6 +3214,12 @@ packages:
 
   caniuse-lite@1.0.30001823:
     resolution: {integrity: sha512-TQ5s/djDjNk1axreUW+4rULH+BmdCMLiJkhaXnO5wqivG7tITkSUj4ItIdzqdZHKaXcHAV8dhH3JxOM7/7bwqw==}
+
+  canvas-dither@1.0.1:
+    resolution: {integrity: sha512-wT1RnV2y9SauibcsfMMCagQTnXmyQq2nJXuX5tTEvo0sXm1vVbJ2r8QxSC3fRQMY3ZgZVq1j54cOvmO4u+Lu/A==}
+
+  canvas-flatten@1.0.1:
+    resolution: {integrity: sha512-UhHeKeWGS23Bm5teZiHk6NEOme1OKCpv6arFovV89dydt0Xz+U4HkPXAKBZS/hmpR15x5U9tDj1ieMQMTwvCAA==}
 
   chai@6.3.0:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
@@ -4535,6 +4623,10 @@ packages:
     resolution: {integrity: sha512-oTeemxwoMuxxTYxXUwjkrOPfngTQehlv0/HoYFNkB4uzsP1Un1A9nI8JQKGOFkxpqkC7qkMs0lUsGrvUlbLNUA==}
     engines: {node: '>=14', npm: '>=7'}
 
+  resize-image-data@0.3.1:
+    resolution: {integrity: sha512-6hVRn2S6W1cdycreA6Vth5XRN2NnGs7/RnVpxNw/1OCK8aCoevRFH2WprmQRZDnnH3e6awLv2tTIPuv7/7xeGg==}
+    engines: {node: '>=8.6.0'}
+
   resolve-from@4.0.0:
     resolution: {integrity: sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==}
     engines: {node: '>=4'}
@@ -5019,6 +5111,10 @@ packages:
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
+
+  usb@3.3.0:
+    resolution: {integrity: sha512-zqqdLff364w/kKnUjG00V9bMmhBqucWgtw7rhsS+hJhSyy7Pq99r/mqRO1LU2OPaUQQZ0Pga/bAJ1A+gpu2Qww==}
+    engines: {node: '>= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0'}
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
@@ -6336,6 +6432,8 @@ snapshots:
       hashery: 1.5.1
       keyv: 5.6.0
 
+  '@canvas/image-data@1.1.0': {}
+
   '@clack/core@1.4.3':
     dependencies:
       fast-wrap-ansi: 0.2.0
@@ -7276,6 +7374,36 @@ snapshots:
       '@ng-icons/core': 36.1.0(@angular-devkit/schematics@22.2.6(chokidar@5.0.0))(@angular/common@22.2.5(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.5(@angular/compiler@22.2.5)(rxjs@7.8.2))(@schematics/angular@22.2.6(chokidar@5.0.0))(rxjs@7.8.2)
       tslib: 2.9.1
 
+  '@node-usb/usb-darwin-arm64@3.3.0':
+    optional: true
+
+  '@node-usb/usb-darwin-x64@3.3.0':
+    optional: true
+
+  '@node-usb/usb-linux-arm-gnueabihf@3.3.0':
+    optional: true
+
+  '@node-usb/usb-linux-arm64-gnu@3.3.0':
+    optional: true
+
+  '@node-usb/usb-linux-arm64-musl@3.3.0':
+    optional: true
+
+  '@node-usb/usb-linux-x64-gnu@3.3.0':
+    optional: true
+
+  '@node-usb/usb-linux-x64-musl@3.3.0':
+    optional: true
+
+  '@node-usb/usb-win32-arm64-msvc@3.3.0':
+    optional: true
+
+  '@node-usb/usb-win32-ia32-msvc@3.3.0':
+    optional: true
+
+  '@node-usb/usb-win32-x64-msvc@3.3.0':
+    optional: true
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -7558,6 +7686,16 @@ snapshots:
       esquery: 1.7.0
       typescript: 6.0.3
 
+  '@point-of-sale/codepage-encoder@3.0.2': {}
+
+  '@point-of-sale/receipt-printer-encoder@4.0.1':
+    dependencies:
+      '@canvas/image-data': 1.1.0
+      '@point-of-sale/codepage-encoder': 3.0.2
+      canvas-dither: 1.0.1
+      canvas-flatten: 1.0.1
+      resize-image-data: 0.3.1
+
   '@rolldown/binding-android-arm-eabi@1.2.16':
     optional: true
 
@@ -7811,6 +7949,8 @@ snapshots:
       undici-types: 8.9.0
 
   '@types/parse-json@4.0.2': {}
+
+  '@types/w3c-web-usb@1.0.14': {}
 
   '@typescript-eslint/project-service@8.72.2(supports-color@8.1.1)(typescript@6.0.3)':
     dependencies:
@@ -8101,6 +8241,10 @@ snapshots:
   callsites@3.1.0: {}
 
   caniuse-lite@1.0.30001823: {}
+
+  canvas-dither@1.0.1: {}
+
+  canvas-flatten@1.0.1: {}
 
   chai@6.3.0: {}
 
@@ -9611,6 +9755,10 @@ snapshots:
     dependencies:
       pe-library: 1.0.1
 
+  resize-image-data@0.3.1:
+    dependencies:
+      '@canvas/image-data': 1.1.0
+
   resolve-from@4.0.0: {}
 
   resolve-pkg-maps@1.0.0: {}
@@ -10034,6 +10182,21 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
+
+  usb@3.3.0:
+    dependencies:
+      '@types/w3c-web-usb': 1.0.14
+    optionalDependencies:
+      '@node-usb/usb-darwin-arm64': 3.3.0
+      '@node-usb/usb-darwin-x64': 3.3.0
+      '@node-usb/usb-linux-arm-gnueabihf': 3.3.0
+      '@node-usb/usb-linux-arm64-gnu': 3.3.0
+      '@node-usb/usb-linux-arm64-musl': 3.3.0
+      '@node-usb/usb-linux-x64-gnu': 3.3.0
+      '@node-usb/usb-linux-x64-musl': 3.3.0
+      '@node-usb/usb-win32-arm64-msvc': 3.3.0
+      '@node-usb/usb-win32-ia32-msvc': 3.3.0
+      '@node-usb/usb-win32-x64-msvc': 3.3.0
 
   util-deprecate@1.0.2: {}
 
