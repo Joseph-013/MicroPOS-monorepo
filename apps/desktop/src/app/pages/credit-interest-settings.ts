@@ -1,8 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
 import { formatRate, parseRate } from '@micropos/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmInputImports } from '@spartan-ng/helm/input';
+import { SettingRow, SettingsSection } from './settings-section';
 import { BannerService } from '../core/banner';
 import { CustomersService } from '../core/data/customers.service';
 import { OnScreenKeypadDirective } from '../core/keypad';
@@ -11,16 +11,12 @@ import { AppSettings } from '../core/settings/app-settings.service';
 /** Settings > Credit Interest: the monthly rates a customer's interest starts from when it is switched on for them. */
 @Component({
   selector: 'app-credit-interest-settings',
-  imports: [OnScreenKeypadDirective, HlmButtonImports, HlmCardImports, HlmInputImports],
+  imports: [SettingRow, SettingsSection, OnScreenKeypadDirective, HlmButtonImports, HlmInputImports],
   template: `
-    <section hlmCard class="mt-3 max-w-xl">
-      <div hlmCardHeader>
-        <h2 hlmCardTitle>Credit Interest</h2>
-      </div>
-      <div hlmCardContent>
+    <app-settings-section title="Credit Interest">
         <form (submit)="$event.preventDefault(); save()">
           @for (field of fields; track field.id) {
-            <div class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+            <div [appSetting]="field.label" settingKeywords="interest rate credit percent monthly customer" class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
               <label [for]="field.id">{{ field.label }}</label>
               <div class="flex items-center gap-2">
                 <input
@@ -46,8 +42,7 @@ import { AppSettings } from '../core/settings/app-settings.service';
             <button hlmBtn type="submit" class="px-5" [disabled]="saving()">Save</button>
           </div>
         </form>
-      </div>
-    </section>
+    </app-settings-section>
   `,
 })
 export class CreditInterestSettings {

@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
-import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { DESKTOP_API } from '../core/api/desktop-api';
+import { SettingRow, SettingsSection } from './settings-section';
 import { BannerService } from '../core/banner';
 
 /**
@@ -10,19 +10,14 @@ import { BannerService } from '../core/banner';
  */
 @Component({
   selector: 'app-window-settings',
-  imports: [HlmCardImports, HlmSwitchImports],
+  imports: [SettingRow, SettingsSection, HlmSwitchImports],
   template: `
-    <section hlmCard class="mt-3 max-w-xl">
-      <div hlmCardHeader>
-        <h2 hlmCardTitle>Window</h2>
-      </div>
-      <div hlmCardContent>
-        <label class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
-          <span>Keep running in the tray when closed</span>
-          <hlm-switch aria-label="Keep running in the tray when closed" [checked]="closeToTray()" [disabled]="!loaded()" (checkedChange)="set($event)" />
-        </label>
-      </div>
-    </section>
+    <app-settings-section title="Window">
+      <label appSetting="Keep running in the tray when closed" settingKeywords="background close minimize hide taskbar system tray" class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+        <span>Keep running in the tray when closed</span>
+        <hlm-switch aria-label="Keep running in the tray when closed" [checked]="closeToTray()" [disabled]="!loaded()" (checkedChange)="set($event)" />
+      </label>
+    </app-settings-section>
   `,
 })
 export class WindowSettings {

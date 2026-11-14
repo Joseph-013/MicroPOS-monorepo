@@ -84,8 +84,8 @@ describe('SettingsPage', () => {
   it('capitalizes its section titles', async () => {
     const fixture = TestBed.createComponent(SettingsPage);
     await fixture.whenStable();
-    const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('h2')].map((h) => h.textContent!.trim());
-    expect(titles).toEqual(['Account', 'Credit Interest', 'Credit Alerts', 'Input', 'Receipt Printer', 'Window', 'Logs', 'Customer Display']);
+    const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('hlm-accordion-trigger')].map((h) => h.textContent!.trim());
+    expect(titles).toEqual(['Account', 'Input', 'Customer Display', 'Credit Interest', 'Credit Alerts', 'Receipt Printer', 'Window', 'Logs']);
   });
 
   describe('Credit Interest', () => {
@@ -219,6 +219,89 @@ describe('SettingsPage', () => {
     it('is only for people who may change shop settings', async () => {
       const { el } = await open(['customers.manage', 'users.manage']);
       expect(el.querySelector('app-window-settings')).toBeNull();
+    });
+  });
+
+  describe('accordion and search', () => {
+    const open = async () => {
+      const fixture = TestBed.createComponent(SettingsPage);
+      await fixture.whenStable();
+      const el = fixture.nativeElement as HTMLElement;
+      const type = async (text: string): Promise<void> => {
+        const input = el.querySelector('input[aria-label="Search settings"]') as HTMLInputElement;
+        input.value = text;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await fixture.whenStable();
+      };
+      const sections = (): string[] => [...el.querySelectorAll('hlm-accordion-trigger')].map((t) => t.textContent!.trim());
+      const shownRows = (): string[] => [...el.querySelectorAll<HTMLElement>('[appsetting]')].filter((r) => !r.hidden && r.closest('hlm-accordion-item')).map((r) => r.textContent!.replace(/\s+/g, ' ').trim());
+      const stateOf = (title: string): string | null => [...el.querySelectorAll('hlm-accordion-item')].find((i) => i.querySelector('hlm-accordion-trigger')?.textContent?.trim() === title)?.getAttribute('data-state') ?? null;
+      return { fixture, el, type, sections, shownRows, stateOf };
+    };
+
+    it('is a centred column, with the Account section open and the others closed', async () => {
+      const { el, stateOf } = await open();
+      expect((el.firstElementChild as HTMLElement).className).toContain('mx-auto');
+      expect(stateOf('Account')).toBe('open');
+      expect(stateOf('Input')).toBe('closed');
+      expect(stateOf('Customer Display')).toBe('closed');
+    });
+
+    it('opens and closes a section on its title, and remembers that while the page lives', async () => {
+      const { fixture, el, stateOf } = await open();
+      const trigger = (title: string): HTMLElement => [...el.querySelectorAll<HTMLElement>('hlm-accordion-trigger button')].find((b) => b.textContent?.includes(title))!;
+      trigger('Input').click();
+      await fixture.whenStable();
+      expect(stateOf('Input')).toBe('open');
+      expect(stateOf('Account')).toBe('open'); // several can be open
+      trigger('Account').click();
+      await fixture.whenStable();
+      expect(stateOf('Account')).toBe('closed');
+    });
+
+    it('finds a setting by its name or by a word that describes it, showing only what matches, with its section open', async () => {
+      const { type, sections, shownRows, stateOf } = await open();
+      await type('keyboard');
+      expect(sections()).toEqual(['Input']);
+      expect(shownRows()).toEqual(['On-screen keyboard', 'Numpad beside keyboard']);
+      expect(stateOf('Input')).toBe('open');
+      await type('dark'); // a keyword of Theme, which is not in its label
+      expect(sections()).toEqual(['Account']);
+      expect(shownRows()).toEqual([expect.stringContaining('Theme')]);
+      await type('tray');
+      expect(sections()).toEqual(['Window']);
+      await type('logo paper'); // every word has to match
+      expect(sections()).toEqual([]);
+      await type('logo');
+      expect(sections()).toEqual(['Receipt Printer']);
+      expect(shownRows()).toEqual([expect.stringContaining('Logo')]);
+    });
+
+    it('shows every setting of a section whose title matches', async () => {
+      const { type, sections, shownRows } = await open();
+      await type('customer display');
+      expect(sections()).toEqual(['Customer Display']);
+      expect(shownRows()).toHaveLength(5);
+    });
+
+    it('says when nothing matches, and puts everything back when the search is cleared', async () => {
+      const { el, type, sections, stateOf } = await open();
+      await type('zzzz');
+      expect(el.textContent).toContain('No settings found');
+      expect(sections()).toEqual([]);
+      await type('');
+      expect(el.textContent).not.toContain('No settings found');
+      expect(sections()).toHaveLength(8);
+      expect(stateOf('Account')).toBe('open'); // back to how it was
+      expect(stateOf('Input')).toBe('closed');
+    });
+
+    it('ignores capitals and accents', async () => {
+      const { type, sections } = await open();
+      await type('ÉCRAN keyboard');
+      expect(sections()).toEqual([]);
+      await type('KEYBOARD');
+      expect(sections()).toEqual(['Input']);
     });
   });
 

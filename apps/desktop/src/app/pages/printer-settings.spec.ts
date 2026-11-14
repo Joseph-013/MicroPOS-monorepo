@@ -1,4 +1,6 @@
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { HlmAccordionImports } from '@spartan-ng/helm/accordion';
 import type { DesktopApi, PrinterSettings, PrintResult, SavePrinterSettingsResult, UsbPrinterInfo } from '@micropos/core';
 import { DESKTOP_API } from '../core/api/desktop-api';
 import { BannerService } from '../core/banner';
@@ -11,6 +13,12 @@ globalThis.ResizeObserver ??= class {
   disconnect(): void {}
 };
 Element.prototype.scrollIntoView ??= () => undefined;
+
+/** The sections live in an accordion, as on the Settings page. */
+@Component({ imports: [HlmAccordionImports, PrinterSettingsCard], template: '<hlm-accordion type="multiple"><app-printer-settings /></hlm-accordion>' })
+class PrinterHost {}
+@Component({ imports: [HlmAccordionImports, LogsSettings], template: '<hlm-accordion type="multiple"><app-logs-settings /></hlm-accordion>' })
+class LogsHost {}
 
 const EMPTY: PrinterSettings = { printer: { connection: null, paperWidthMm: 58 }, shop: { name: '', address: '', footer: '' } };
 const wait = (ms = 20): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -37,8 +45,8 @@ function setup(initial: PrinterSettings = EMPTY, usb: UsbPrinterInfo[] = [], tes
   return { saved, logos, tests: () => tests };
 }
 
-async function render(): Promise<{ el: HTMLElement; fixture: ReturnType<typeof TestBed.createComponent<PrinterSettingsCard>> }> {
-  const fixture = TestBed.createComponent(PrinterSettingsCard);
+async function render(): Promise<{ el: HTMLElement; fixture: ReturnType<typeof TestBed.createComponent<PrinterHost>> }> {
+  const fixture = TestBed.createComponent(PrinterHost);
   await fixture.whenStable();
   await wait();
   await fixture.whenStable();
@@ -223,7 +231,7 @@ describe('LogsSettings', () => {
     let opened = 0;
     const api = { shell: { getLogsFolder: () => Promise.resolve('/home/u/logs'), openLogsFolder: () => (opened++, Promise.resolve(true)) } } as unknown as DesktopApi;
     TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
-    const fixture = TestBed.createComponent(LogsSettings);
+    const fixture = TestBed.createComponent(LogsHost);
     await fixture.whenStable();
     await wait();
     await fixture.whenStable();
@@ -236,7 +244,7 @@ describe('LogsSettings', () => {
   it('says when the folder cannot be opened', async () => {
     const api = { shell: { getLogsFolder: () => Promise.resolve('/x'), openLogsFolder: () => Promise.resolve(false) } } as unknown as DesktopApi;
     TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
-    const fixture = TestBed.createComponent(LogsSettings);
+    const fixture = TestBed.createComponent(LogsHost);
     await fixture.whenStable();
     await wait();
     await fixture.whenStable();

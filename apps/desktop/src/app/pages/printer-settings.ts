@@ -13,7 +13,6 @@ import {
   type UsbPrinterInfo,
 } from '@micropos/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
@@ -21,6 +20,7 @@ import { DESKTOP_API } from '../core/api/desktop-api';
 import { BannerService } from '../core/banner';
 import { OnScreenKeypadDirective } from '../core/keypad';
 import { AppSettings } from '../core/settings/app-settings.service';
+import { SettingRow, SettingsSection } from './settings-section';
 
 type Kind = 'none' | 'network' | 'usb';
 const KIND_LABELS: Record<Kind, string> = { none: 'No printer', network: 'Network', usb: 'USB' };
@@ -32,15 +32,11 @@ const usbKey = (d: Pick<UsbPrinterInfo, 'vendorId' | 'productId' | 'serialNumber
  */
 @Component({
   selector: 'app-printer-settings',
-  imports: [OnScreenKeypadDirective, HlmButtonImports, HlmCardImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
+  imports: [SettingRow, SettingsSection, OnScreenKeypadDirective, HlmButtonImports, HlmInputImports, HlmLabelImports, HlmSelectImports],
   template: `
-    <section hlmCard class="mt-3 max-w-xl">
-      <div hlmCardHeader>
-        <h2 hlmCardTitle>Receipt Printer</h2>
-      </div>
-      <div hlmCardContent>
+    <app-settings-section title="Receipt Printer">
         <form class="grid gap-3" (submit)="$event.preventDefault(); save()">
-          <div class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+          <div appSetting="Connection" settingKeywords="receipt printer network usb ip address none" class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
             <span id="pr-kind-label">Connection</span>
             <hlm-select [value]="kind()" (valueChange)="setKind($event)" [itemToString]="kindLabel">
               <hlm-select-trigger class="w-40" aria-labelledby="pr-kind-label">
@@ -55,7 +51,7 @@ const usbKey = (d: Pick<UsbPrinterInfo, 'vendorId' | 'productId' | 'serialNumber
           </div>
 
           @if (kind() === 'network') {
-            <div class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+            <div appSetting="Printer address and port" settingKeywords="receipt network ip host 9100" class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
               <div class="flex flex-col gap-2">
                 <label hlmLabel data-required for="pr-host">Address</label>
                 <input hlmInput id="pr-host" type="text" placeholder="192.168.1.50" [forceInvalid]="invalid('host')" [value]="host()" (input)="host.set($any($event.target).value)" />
@@ -81,7 +77,7 @@ const usbKey = (d: Pick<UsbPrinterInfo, 'vendorId' | 'productId' | 'serialNumber
           }
 
           @if (kind() === 'usb') {
-            <div class="flex flex-col gap-2">
+            <div appSetting="USB printer" settingKeywords="receipt device choose refresh" class="flex flex-col gap-2">
               <label hlmLabel data-required id="pr-usb-label">Printer</label>
               <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                 <hlm-select [value]="usbChoice()" (valueChange)="usbChoice.set($event ?? '')" [itemToString]="usbLabel">
@@ -100,7 +96,7 @@ const usbKey = (d: Pick<UsbPrinterInfo, 'vendorId' | 'productId' | 'serialNumber
             </div>
           }
 
-          <div class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+          <div appSetting="Paper width" settingKeywords="receipt printer 58 80 mm roll" class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
             <span id="pr-width-label">Paper width</span>
             <hlm-select [value]="paperWidth()" (valueChange)="setPaperWidth($event)" [itemToString]="widthLabel">
               <hlm-select-trigger class="w-40" aria-labelledby="pr-width-label">
@@ -114,7 +110,7 @@ const usbKey = (d: Pick<UsbPrinterInfo, 'vendorId' | 'productId' | 'serialNumber
             </hlm-select>
           </div>
 
-          <div class="flex flex-col gap-2">
+          <div appSetting="Logo" settingKeywords="receipt picture image upload brand header" class="flex flex-col gap-2">
             <span hlmLabel id="pr-logo-label">Logo</span>
             <div class="flex items-center gap-3">
               <div class="flex h-16 w-40 min-w-0 shrink-0 items-center justify-center overflow-hidden border bg-white p-1" aria-labelledby="pr-logo-label">
@@ -133,17 +129,17 @@ const usbKey = (d: Pick<UsbPrinterInfo, 'vendorId' | 'productId' | 'serialNumber
               <input #picker type="file" accept="image/png,image/jpeg" class="hidden" tabindex="-1" aria-hidden="true" (change)="upload(picker)" />
             </div>
           </div>
-          <div class="flex flex-col gap-2">
+          <div appSetting="Shop name" settingKeywords="receipt store header title" class="flex flex-col gap-2">
             <label hlmLabel for="pr-name">Shop name</label>
             <input hlmInput id="pr-name" type="text" [attr.maxlength]="maxName" [forceInvalid]="invalid('shopName')" [value]="shopName()" (input)="shopName.set($any($event.target).value)" />
             @if (errorFor('shopName'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
           </div>
-          <div class="flex flex-col gap-2">
+          <div appSetting="Address" settingKeywords="receipt shop store location header" class="flex flex-col gap-2">
             <label hlmLabel for="pr-address">Address</label>
             <input hlmInput id="pr-address" type="text" [attr.maxlength]="maxAddress" [forceInvalid]="invalid('shopAddress')" [value]="shopAddress()" (input)="shopAddress.set($any($event.target).value)" />
             @if (errorFor('shopAddress'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
           </div>
-          <div class="flex flex-col gap-2">
+          <div appSetting="Closing message" settingKeywords="receipt footer thank you note bottom" class="flex flex-col gap-2">
             <label hlmLabel for="pr-footer">Closing message</label>
             <input hlmInput id="pr-footer" type="text" [attr.maxlength]="maxFooter" [forceInvalid]="invalid('shopFooter')" [value]="shopFooter()" (input)="shopFooter.set($any($event.target).value)" />
             @if (errorFor('shopFooter'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
@@ -155,8 +151,7 @@ const usbKey = (d: Pick<UsbPrinterInfo, 'vendorId' | 'productId' | 'serialNumber
             <button hlmBtn type="submit" class="px-5" [disabled]="busy()">Save</button>
           </div>
         </form>
-      </div>
-    </section>
+    </app-settings-section>
   `,
 })
 export class PrinterSettingsCard {

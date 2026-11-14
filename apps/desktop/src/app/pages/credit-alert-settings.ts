@@ -1,8 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
 import { isAlertDays } from '@micropos/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmInputImports } from '@spartan-ng/helm/input';
+import { SettingRow, SettingsSection } from './settings-section';
 import { BannerService } from '../core/banner';
 import { CustomersService } from '../core/data/customers.service';
 import { OnScreenKeypadDirective } from '../core/keypad';
@@ -12,15 +12,11 @@ import { AppSettings } from '../core/settings/app-settings.service';
 /** Settings > Credit Alerts: when a customer is counted on the Customers link in the navigation. A blank limit is off. */
 @Component({
   selector: 'app-credit-alert-settings',
-  imports: [OnScreenKeypadDirective, HlmButtonImports, HlmCardImports, HlmInputImports],
+  imports: [SettingRow, SettingsSection, OnScreenKeypadDirective, HlmButtonImports, HlmInputImports],
   template: `
-    <section hlmCard class="mt-3 max-w-xl">
-      <div hlmCardHeader>
-        <h2 hlmCardTitle>Credit Alerts</h2>
-      </div>
-      <div hlmCardContent>
+    <app-settings-section title="Credit Alerts">
         <form (submit)="$event.preventDefault(); save()">
-          <div class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+          <div appSetting="Owes more than" settingKeywords="credit alert limit amount customer badge" class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
             <label for="alert-amount">Owes more than</label>
             <input
               hlmInput
@@ -37,7 +33,7 @@ import { AppSettings } from '../core/settings/app-settings.service';
               (input)="amount.set($any($event.target).value)"
             />
           </div>
-          <div class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
+          <div appSetting="Unpaid for more than" settingKeywords="credit alert limit days overdue customer badge" class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
             <label for="alert-days">Unpaid for more than</label>
             <div class="flex items-center gap-2">
               <input
@@ -62,8 +58,7 @@ import { AppSettings } from '../core/settings/app-settings.service';
             <button hlmBtn type="submit" class="px-5" [disabled]="saving()">Save</button>
           </div>
         </form>
-      </div>
-    </section>
+    </app-settings-section>
   `,
 })
 export class CreditAlertSettingsCard {
