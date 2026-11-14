@@ -1,3 +1,5 @@
+import { ColumnConfig } from '../../core/ui/column-config';
+import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -57,14 +59,22 @@ const SORT_VALUES: Record<SortKey, (b: BatchRecord, now: number) => string | num
   receivedAt: (b) => b.receivedAt,
 };
 
-/** Column widths shared by the title row, the filter row and every batch row. */
-export const COLUMNS_TEMPLATE =
-  '3.5rem minmax(12rem,2fr) minmax(8rem,1fr) 13rem 9rem minmax(7rem,.8fr) minmax(7rem,.8fr) minmax(7rem,.8fr) 11rem';
+/** The columns and their widths, shared by the title row, the filter row and every row (an admin may reorder them). */
+const COLUMN_DEFS = [
+  { key: 'product', label: 'Product', width: 'minmax(12rem,2fr)' },
+  { key: 'batch', label: 'Batch', width: 'minmax(8rem,1fr)' },
+  { key: 'expires', label: 'Expires', width: '13rem' },
+  { key: 'status', label: 'Status', width: '9rem' },
+  { key: 'onHand', label: 'On hand', width: 'minmax(7rem,.8fr)' },
+  { key: 'received', label: 'Received', width: 'minmax(7rem,.8fr)' },
+  { key: 'cost', label: 'Cost', width: 'minmax(7rem,.8fr)' },
+  { key: 'receivedAt', label: 'Received on', width: '11rem' },
+];
 
 /** Inventory: every batch with stock left, its expiry and quantity; receive, adjust and write off stock. */
 @Component({
   imports: [
-    AppPager,
+    ColumnConfig, AppPager,
     ConcernsButton,
     ConfirmItems,
     DatePipe,
@@ -94,7 +104,7 @@ export class InventoryPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  protected readonly columnsTemplate = COLUMNS_TEMPLATE;
+  protected readonly layout = tableLayout('inventory', COLUMN_DEFS, '3.5rem');
   protected readonly columns: { key: SortKey; label: string; right?: boolean }[] = [
     { key: 'product', label: 'Product' },
     { key: 'batch', label: 'Batch' },

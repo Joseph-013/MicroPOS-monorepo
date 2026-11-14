@@ -1,20 +1,21 @@
 <section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-1.5rem)] min-h-0 gap-0">
   <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
     <h1 class="text-2xl">Sales Orders</h1>
-    @if (selected().length) {
-      <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3">
+      @if (selected().length) {
         <span class="text-muted-foreground text-sm">{{ selected().length }} selected</span>
         @if (reversible().length) {
           <button hlmBtn variant="destructive" type="button" class="px-4" (click)="reverse('void', reversible())">Void {{ reversible().length }}</button>
           <button hlmBtn variant="outline" type="button" class="px-4" (click)="reverse('refund', reversible())">Refund {{ reversible().length }}</button>
         }
         <button hlmBtn variant="ghost" type="button" class="px-3" (click)="clearSelection()">Clear</button>
-      </div>
-    }
+      }
+      <app-column-config [layout]="layout" />
+    </div>
   </header>
 
   <div class="min-h-0 flex-1 overflow-auto">
-    <div role="table" aria-label="Sales Orders" class="min-w-[74rem] text-sm" [style.--cols]="columnsTemplate">
+    <div role="table" aria-label="Sales Orders" class="min-w-[74rem] text-sm" [style.--cols]="layout.template()">
       <div role="rowgroup" class="bg-background sticky top-0 z-10">
         <!-- Row 1: column titles, click to sort -->
         <div role="row" class="grid grid-cols-(--cols) border-b">
@@ -22,7 +23,7 @@
             <hlm-checkbox aria-label="Select all" [checked]="allSelected()" [indeterminate]="someSelected()" (checkedChange)="toggleAll($event)" />
           </div>
           @for (column of columns; track column.key) {
-            <div role="columnheader" [attr.aria-sort]="ariaSort(column.key)">
+            <div role="columnheader" [style.order]="layout.order(column.key)" [attr.aria-sort]="ariaSort(column.key)">
               <button
                 type="button"
                 class="hover:bg-muted flex h-(--control-height) w-full items-center gap-1.5 px-3 font-medium {{ column.right ? 'justify-end' : '' }}"
@@ -45,20 +46,20 @@
               <ng-icon name="lucideFilterX" size="18" />
             </button>
           </div>
-          <div role="columnheader" class="px-3 py-2">
+          <div role="columnheader" [style.order]="layout.order('number')" class="px-3 py-2">
             <app-filter-input [(value)]="numberFilter" placeholder="Order" label="Filter order" />
           </div>
-          <div role="columnheader" class="px-3 py-2">
+          <div role="columnheader" [style.order]="layout.order('date')" class="px-3 py-2">
             <app-date-range-filter label="Date" [(from)]="dateFrom" [(to)]="dateTo" />
           </div>
-          <div role="columnheader" class="px-3 py-2">
+          <div role="columnheader" [style.order]="layout.order('cashier')" class="px-3 py-2">
             <app-filter-input [(value)]="cashierFilter" placeholder="Cashier" label="Filter cashier" />
           </div>
-          <div role="columnheader" class="px-3 py-2">
+          <div role="columnheader" [style.order]="layout.order('customer')" class="px-3 py-2">
             <app-filter-input [(value)]="customerFilter" placeholder="Customer" label="Filter customer" />
           </div>
-          <div role="columnheader"></div>
-          <div role="columnheader" class="px-3 py-2">
+          <div role="columnheader" [style.order]="layout.order('items')"></div>
+          <div role="columnheader" [style.order]="layout.order('method')" class="px-3 py-2">
             <hlm-select [(value)]="methodFilter" [itemToString]="methodFilterLabel" class="block">
               <hlm-select-trigger size="sm" class="w-full" aria-label="Filter payment">
                 <hlm-select-value />
@@ -70,7 +71,7 @@
               </hlm-select-content>
             </hlm-select>
           </div>
-          <div role="columnheader" class="px-3 py-2">
+          <div role="columnheader" [style.order]="layout.order('status')" class="px-3 py-2">
             <hlm-select [(value)]="statusFilter" [itemToString]="statusFilterLabel" class="block">
               <hlm-select-trigger size="sm" class="w-full" aria-label="Filter status">
                 <hlm-select-value />
@@ -82,7 +83,7 @@
               </hlm-select-content>
             </hlm-select>
           </div>
-          <div role="columnheader"></div>
+          <div role="columnheader" [style.order]="layout.order('total')"></div>
         </div>
       </div>
 
@@ -109,10 +110,10 @@
               <div role="cell" class="flex items-center px-3" (pointerdown)="selection.noteModifiers($event)" (click)="$event.stopPropagation()">
                 <hlm-checkbox [aria-label]="'Select ' + order.orderNumber" [checked]="isSelected(order)" (checkedChange)="toggleRow(order, $event)" />
               </div>
-              <div role="cell" class="truncate px-3 text-base">{{ order.orderNumber }}</div>
-              <div role="cell" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ order.createdAt | date: 'MMM d, y, h:mm a' }}</div>
-              <div role="cell" class="text-muted-foreground truncate px-3">{{ order.employeeName }}</div>
-              <div role="cell" class="min-w-0 px-3">
+              <div role="cell" [style.order]="layout.order('number')" class="truncate px-3 text-base">{{ order.orderNumber }}</div>
+              <div role="cell" [style.order]="layout.order('date')" class="text-muted-foreground px-3 text-sm whitespace-nowrap">{{ order.createdAt | date: 'MMM d, y, h:mm a' }}</div>
+              <div role="cell" [style.order]="layout.order('cashier')" class="text-muted-foreground truncate px-3">{{ order.employeeName }}</div>
+              <div role="cell" [style.order]="layout.order('customer')" class="min-w-0 px-3">
                 @if (order.customerName) {
                   <p class="truncate">{{ order.customerName }}</p>
                   @if (order.onAccount !== 0) {
@@ -122,12 +123,12 @@
                   <span class="text-muted-foreground">-</span>
                 }
               </div>
-              <div role="cell" class="text-muted-foreground px-3 text-right">{{ order.itemCount }}</div>
-              <div role="cell" class="text-muted-foreground truncate px-3">{{ methodText(order) }}</div>
-              <div role="cell" class="px-3">
+              <div role="cell" [style.order]="layout.order('items')" class="text-muted-foreground px-3 text-right">{{ order.itemCount }}</div>
+              <div role="cell" [style.order]="layout.order('method')" class="text-muted-foreground truncate px-3">{{ methodText(order) }}</div>
+              <div role="cell" [style.order]="layout.order('status')" class="px-3">
                 <span hlmBadge [variant]="statusVariant(order)">{{ statusLabel(order) }}</span>
               </div>
-              <div role="cell" class="px-3 text-right text-base">{{ order.total | money }}</div>
+              <div role="cell" [style.order]="layout.order('total')" class="px-3 text-right text-base">{{ order.total | money }}</div>
             </div>
           </div>
         }

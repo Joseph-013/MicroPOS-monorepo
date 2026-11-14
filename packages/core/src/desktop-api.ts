@@ -20,6 +20,7 @@ import type {
 } from './purchasing.js';
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
 import type { PrinterDebug, PrinterSettings, PrintResult, SaveLogoResult, SavePrinterSettingsResult, UsbPrinterInfo } from './printing.js';
+import type { TableColumnOrders } from './table-columns.js';
 import type { SalesReport } from './reports.js';
 import type { ExportFormat, ExportResult, ReportKind } from './report-document.js';
 import type { DataDomain, PurchaseConcern, StockConcern } from './concerns.js';
@@ -33,7 +34,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 42;
+export const DESKTOP_API_VERSION = 43;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -95,6 +96,12 @@ export interface DesktopApi {
   log: {
     /** The page reports an error to the main process, which writes it to the log files. Nothing comes back. */
     write(entry: { level: 'error' | 'warn'; source: string; message: string; details?: string }): Promise<void>;
+  };
+  tables: {
+    /** The column order an admin saved for each page table (tables never saved are not in it). */
+    columnOrders(): Promise<TableColumnOrders>;
+    /** Saves one table's column order for everyone; false when the table or keys are not valid. */
+    saveColumnOrder(tableId: string, keys: string[]): Promise<boolean>;
   };
   reports: {
     /** The sales summary for the local days `from` to `to` inclusive (`YYYY-MM-DD`), or null when they are not dates in order. */

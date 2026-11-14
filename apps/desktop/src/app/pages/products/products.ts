@@ -1,3 +1,5 @@
+import { ColumnConfig } from '../../core/ui/column-config';
+import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -49,9 +51,18 @@ type SortDirection = 'asc' | 'desc';
 
 type BulkKind = 'delete' | 'restore';
 
-/** Column widths shared by the title row, the filter row and every product row. */
-export const COLUMNS_TEMPLATE =
-  '3.5rem minmax(12rem,2fr) minmax(8rem,1fr) minmax(9rem,1fr) minmax(12rem,1.5fr) minmax(7rem,.8fr) minmax(8rem,.9fr) minmax(12rem,1fr) 9rem 13rem';
+/** The columns and their widths, shared by the title row, the filter row and every row (an admin may reorder them). */
+const COLUMN_DEFS = [
+  { key: 'name', label: 'Name', width: 'minmax(12rem,2fr)' },
+  { key: 'sku', label: 'SKU', width: 'minmax(8rem,1fr)' },
+  { key: 'barcode', label: 'Barcode / PLU', width: 'minmax(9rem,1fr)' },
+  { key: 'categories', label: 'Categories', width: 'minmax(12rem,1.5fr)' },
+  { key: 'cost', label: 'Cost', width: 'minmax(7rem,.8fr)' },
+  { key: 'price', label: 'Price', width: 'minmax(8rem,.9fr)' },
+  { key: 'stock', label: 'Stock', width: 'minmax(12rem,1fr)' },
+  { key: 'status', label: 'Status', width: '9rem' },
+  { key: 'created', label: 'Created', width: '13rem' },
+];
 
 /** What each column sorts by. Empty values (no SKU, no cost) always sort last. */
 const SORT_VALUES: Record<SortKey, (p: ProductRecord) => string | number | null> = {
@@ -69,7 +80,7 @@ const SORT_VALUES: Record<SortKey, (p: ProductRecord) => string | number | null>
 /** Products: search, filter and manage the catalog. */
 @Component({
   imports: [
-    AppPager,
+    ColumnConfig, AppPager,
     ConfirmItems,
     DatePipe,
     DateRangeFilter,
@@ -188,7 +199,7 @@ export class ProductsPage {
     ).sort(compare);
   });
 
-  protected readonly columnsTemplate = COLUMNS_TEMPLATE;
+  protected readonly layout = tableLayout('products', COLUMN_DEFS, '3.5rem');
 
   /** True while any column filter is set; enables the reset button. */
   protected readonly pager = new Pager(

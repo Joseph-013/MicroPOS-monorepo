@@ -1,3 +1,5 @@
+import { ColumnConfig } from '../../core/ui/column-config';
+import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -45,13 +47,19 @@ const SORT_VALUES: Record<SortKey, (c: CustomerRecord) => string | number | null
   activity: (c) => c.lastActivityAt,
 };
 
-/** Column widths shared by the title row, the filter row and every row. */
-export const COLUMNS_TEMPLATE = '3.5rem minmax(12rem,2fr) minmax(8rem,1fr) 9rem 9rem 13rem';
+/** The columns and their widths, shared by the title row, the filter row and every row (an admin may reorder them). */
+const COLUMN_DEFS = [
+  { key: 'name', label: 'Name', width: 'minmax(12rem,2fr)' },
+  { key: 'phone', label: 'Phone', width: 'minmax(8rem,1fr)' },
+  { key: 'balance', label: 'Owes', width: '9rem' },
+  { key: 'limit', label: 'Limit', width: '9rem' },
+  { key: 'activity', label: 'Last activity', width: '13rem' },
+];
 
 /** Customers: who buys on credit, what each owes, and their accounts. Open one to see the ledger and record payments. */
 @Component({
   imports: [
-    AppPager,
+    ColumnConfig, AppPager,
     ConfirmItems,
     DatePipe,
     DateRangeFilter,
@@ -80,7 +88,7 @@ export class CustomersPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  protected readonly columnsTemplate = COLUMNS_TEMPLATE;
+  protected readonly layout = tableLayout('customers', COLUMN_DEFS, '3.5rem');
   protected readonly columns: { key: SortKey; label: string; right?: boolean }[] = [
     { key: 'name', label: 'Name' },
     { key: 'phone', label: 'Phone' },

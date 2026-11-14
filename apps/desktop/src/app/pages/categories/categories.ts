@@ -1,3 +1,5 @@
+import { ColumnConfig } from '../../core/ui/column-config';
+import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -35,13 +37,19 @@ const SORT_VALUES: Record<SortKey, (c: CategoryRecord) => string | number> = {
   created: (c) => c.createdAt,
 };
 
-/** Column widths shared by the title row, the filter row and every row. */
-export const COLUMNS_TEMPLATE = '3.5rem minmax(14rem,3fr) minmax(8rem,1fr) minmax(7rem,.8fr) 13rem';
+/** The columns and their widths, shared by the title row, the filter row and every row (an admin may reorder them). */
+const COLUMN_DEFS = [
+  { key: 'name', label: 'Name', width: 'minmax(14rem,3fr)' },
+  { key: 'products', label: 'Products', width: 'minmax(8rem,1fr)' },
+  { key: 'order', label: 'Order', width: 'minmax(7rem,.8fr)' },
+  { key: 'created', label: 'Created', width: '13rem' },
+];
 
 /** Categories: add, rename, order and delete the groups products belong to. */
 @Component({
   imports: [
     AppPager,
+    ColumnConfig,
     ConfirmItems,
     DatePipe,
     DateRangeFilter,
@@ -66,7 +74,7 @@ export class CategoriesPage {
   private readonly dialogs = inject(HlmDialogService);
   private readonly banner = inject(BannerService);
 
-  protected readonly columnsTemplate = COLUMNS_TEMPLATE;
+  protected readonly layout = tableLayout('categories', COLUMN_DEFS, '3.5rem');
   protected readonly columns: { key: SortKey; label: string; right?: boolean }[] = [
     { key: 'name', label: 'Name' },
     { key: 'products', label: 'Products', right: true },

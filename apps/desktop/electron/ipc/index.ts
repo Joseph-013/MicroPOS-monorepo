@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
-import { isExportFormat, isReportKind, type Permission } from '@micropos/core';
+import { ALL_PERMISSIONS, isExportFormat, isReportKind, type Permission } from '@micropos/core';
 import type { AppDatabase } from '../db';
 import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
@@ -9,6 +9,7 @@ import { returnToSupplier } from '../db/queries/supplier-returns';
 import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock, stockConcerns } from '../db/queries/inventory';
 import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, purchaseConcerns, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
 import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
+import { getColumnOrders, saveColumnOrder } from '../table-columns';
 import { salesReport } from '../db/queries/reports';
 import { exportReport } from '../reports/export';
 import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-interest';
@@ -98,6 +99,8 @@ export function registerIpcHandlers(db: AppDatabase): void {
     const order = getOrder(db, orderId);
     return order ? printer.printSale(order) : ({ ok: false, code: 'unknown', error: 'Order not found' } as const);
   });
+  guarded(db, CHANNELS.tables.columnOrders, ALL_PERMISSIONS, () => getColumnOrders(db));
+  guarded(db, CHANNELS.tables.saveColumnOrder, 'settings.manage', (_event, tableId: unknown, keys: unknown) => saveColumnOrder(db, tableId, keys));
   guarded(db, CHANNELS.reports.sales, 'reports.view', (_event, from: unknown, to: unknown) => salesReport(db, from, to));
   guarded(db, CHANNELS.reports.export, 'reports.view', async (event, kind: unknown, from: unknown, to: unknown, format: unknown) => {
     const report = isReportKind(kind) && isExportFormat(format) ? salesReport(db, from, to) : null;

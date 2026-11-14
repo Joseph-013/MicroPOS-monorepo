@@ -101,6 +101,8 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.printer.listUsb,
   CHANNELS.printer.testPrint,
   CHANNELS.printer.printOrder,
+  CHANNELS.tables.columnOrders,
+  CHANNELS.tables.saveColumnOrder,
   CHANNELS.reports.sales,
   CHANNELS.reports.export,
   CHANNELS.log.write,

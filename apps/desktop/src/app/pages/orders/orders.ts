@@ -1,3 +1,5 @@
+import { ColumnConfig } from '../../core/ui/column-config';
+import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -49,13 +51,22 @@ const SORT_VALUES: Record<SortKey, (o: SalesOrderSummary) => string | number> = 
   total: (o) => o.total,
 };
 
-/** Column widths shared by the title row, the filter row and every row. */
-export const COLUMNS_TEMPLATE = '3.5rem minmax(8rem,1fr) 13rem minmax(9rem,1.4fr) minmax(9rem,1.2fr) 6rem minmax(8rem,1fr) 9rem 8rem';
+/** The columns and their widths, shared by the title row, the filter row and every row (an admin may reorder them). */
+const COLUMN_DEFS = [
+  { key: 'number', label: 'Order', width: 'minmax(8rem,1fr)' },
+  { key: 'date', label: 'Date', width: '13rem' },
+  { key: 'cashier', label: 'Cashier', width: 'minmax(9rem,1.4fr)' },
+  { key: 'customer', label: 'Customer', width: 'minmax(9rem,1.2fr)' },
+  { key: 'items', label: 'Items', width: '6rem' },
+  { key: 'method', label: 'Payment', width: 'minmax(8rem,1fr)' },
+  { key: 'status', label: 'Status', width: '9rem' },
+  { key: 'total', label: 'Total', width: '8rem' },
+];
 
 /** Sales Orders: every recorded sale, newest first. Open one to see its lines and payment. */
 @Component({
   imports: [
-    AppPager,
+    ColumnConfig, AppPager,
     DatePipe,
     DateRangeFilter,
     FilterInput,
@@ -80,7 +91,7 @@ export class OrdersPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  protected readonly columnsTemplate = COLUMNS_TEMPLATE;
+  protected readonly layout = tableLayout('orders', COLUMN_DEFS, '3.5rem');
   protected readonly columns: { key: SortKey; label: string; right?: boolean }[] = [
     { key: 'number', label: 'Order' },
     { key: 'date', label: 'Date' },

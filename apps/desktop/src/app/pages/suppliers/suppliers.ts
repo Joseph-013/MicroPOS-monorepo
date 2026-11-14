@@ -1,3 +1,5 @@
+import { ColumnConfig } from '../../core/ui/column-config';
+import { tableLayout } from '../../core/ui/table-columns';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -39,13 +41,18 @@ const SORT_VALUES: Record<SortKey, (s: SupplierRecord) => string | number | null
   owed: (s) => s.owed,
 };
 
-/** Column widths shared by the title row, the filter row and every row. */
-export const COLUMNS_TEMPLATE = '3.5rem minmax(12rem,2fr) minmax(8rem,1fr) 8rem 10rem';
+/** The columns and their widths, shared by the title row, the filter row and every row (an admin may reorder them). */
+const COLUMN_DEFS = [
+  { key: 'name', label: 'Name', width: 'minmax(12rem,2fr)' },
+  { key: 'phone', label: 'Phone', width: 'minmax(8rem,1fr)' },
+  { key: 'open', label: 'On order', width: '8rem' },
+  { key: 'owed', label: 'We owe', width: '10rem' },
+];
 
 /** Suppliers: who the store buys from and what is still owed to each. Their purchase orders are on the Purchases page. */
 @Component({
   imports: [
-    AppPager,
+    ColumnConfig, AppPager,
     ConfirmItems,
     FilterInput,
     MoneyPipe,
@@ -70,7 +77,7 @@ export class SuppliersPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  protected readonly columnsTemplate = COLUMNS_TEMPLATE;
+  protected readonly layout = tableLayout('suppliers', COLUMN_DEFS, '3.5rem');
   protected readonly columns: { key: SortKey; label: string; right?: boolean }[] = [
     { key: 'name', label: 'Name' },
     { key: 'phone', label: 'Phone' },

@@ -1,3 +1,5 @@
+import { ColumnConfig } from '../../core/ui/column-config';
+import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -43,12 +45,20 @@ const SORT_VALUES: Record<SortKey, (p: PurchaseSummary) => string | number | nul
   owed: (p) => p.owed,
 };
 
-/** Column widths shared by the title row, the filter row and every row. */
-export const COLUMNS_TEMPLATE = 'minmax(6rem,0.8fr) minmax(10rem,1.6fr) 10rem 9rem 7rem 8rem 8rem';
+/** The columns and their widths, shared by the title row, the filter row and every row (an admin may reorder them). */
+const COLUMN_DEFS = [
+  { key: 'number', label: 'Order', width: 'minmax(6rem,0.8fr)' },
+  { key: 'supplier', label: 'Supplier', width: 'minmax(10rem,1.6fr)' },
+  { key: 'ordered', label: 'Ordered', width: '10rem' },
+  { key: 'due', label: 'Due', width: '9rem' },
+  { key: 'status', label: 'Status', width: '7rem' },
+  { key: 'total', label: 'Total', width: '8rem' },
+  { key: 'owed', label: 'Owed', width: '8rem' },
+];
 
 /** Purchases: stock ordered from suppliers, often in advance and paid later. Open one to receive it or record payments. */
 @Component({
-  imports: [AppPager, ConcernsButton, DatePipe, DateRangeFilter, FilterInput, MoneyPipe, NgIcon, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmSelectImports],
+  imports: [ColumnConfig, AppPager, ConcernsButton, DatePipe, DateRangeFilter, FilterInput, MoneyPipe, NgIcon, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmSelectImports],
   providers: [provideIcons({ lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX })],
   templateUrl: './purchases.html',
 })
@@ -60,7 +70,7 @@ export class PurchasesPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  protected readonly columnsTemplate = COLUMNS_TEMPLATE;
+  protected readonly layout = tableLayout('purchases', COLUMN_DEFS);
   protected readonly columns: { key: SortKey; label: string; right?: boolean }[] = [
     { key: 'number', label: 'Order' },
     { key: 'supplier', label: 'Supplier' },

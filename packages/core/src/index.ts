@@ -229,3 +229,4 @@ export {
   type ReportKind,
   type ReportSection,
 } from './report-document.js';
+export { isColumnKeys, isTableId, MAX_COLUMNS, MAX_TABLE_ID, orderColumns, type TableColumnOrders } from './table-columns.js';

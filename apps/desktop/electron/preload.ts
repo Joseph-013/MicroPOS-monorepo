@@ -39,6 +39,10 @@ const api: DesktopApi = {
     testPrint: () => ipcRenderer.invoke(CHANNELS.printer.testPrint),
     printOrder: (orderId) => ipcRenderer.invoke(CHANNELS.printer.printOrder, orderId),
   },
+  tables: {
+    columnOrders: () => ipcRenderer.invoke(CHANNELS.tables.columnOrders),
+    saveColumnOrder: (tableId, keys) => ipcRenderer.invoke(CHANNELS.tables.saveColumnOrder, tableId, keys),
+  },
   reports: {
     sales: (from, to) => ipcRenderer.invoke(CHANNELS.reports.sales, from, to),
     export: (kind, from, to, format) => ipcRenderer.invoke(CHANNELS.reports.export, kind, from, to, format),
