@@ -200,6 +200,7 @@ export {
   PRINTER_ERROR_CODES,
   type PrinterConfig,
   type PrinterConnection,
+  type PrinterDebug,
   type PrinterErrorCode,
   type PrinterSettings,
   type PrinterSettingsField,
@@ -209,3 +210,4 @@ export {
   type SavePrinterSettingsResult,
   type UsbPrinterInfo,
 } from './printing.js';
+export { layoutReceipt, type ReceiptRow } from './receipt-layout.js';

@@ -45,7 +45,8 @@ export interface UsbPrinterInfo {
 export const PRINTER_ERROR_CODES = ['not-configured', 'unreachable', 'timeout', 'no-printer-interface', 'busy', 'write-failed', 'unsupported', 'unknown'] as const;
 export type PrinterErrorCode = (typeof PRINTER_ERROR_CODES)[number];
 
-export type PrintResult = { ok: true } | { ok: false; code: PrinterErrorCode; error: string };
+/** `savedTo` is set when the receipt was saved as an image (debug) instead of printed. */
+export type PrintResult = { ok: true; savedTo?: string } | { ok: false; code: PrinterErrorCode; error: string };
 
 export type PrinterSettingsField = 'host' | 'port' | 'usb' | 'paperWidth' | 'shopName' | 'shopAddress' | 'shopFooter';
 export type SavePrinterSettingsResult = { ok: true; settings: PrinterSettings } | { ok: false; field: PrinterSettingsField | null; error: string };
@@ -57,3 +58,11 @@ export const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 
 /** The result of uploading a logo: the saved picture as a data URL for the preview, or why it was refused. */
 export type SaveLogoResult = { ok: true; dataUrl: string } | { ok: false; error: string };
+
+/** Debugging aids for receipts (Settings > Debug). */
+export interface PrinterDebug {
+  /** Save each receipt as an image in the Downloads folder instead of sending it to the printer (no printer needed). */
+  saveImages: boolean;
+  /** The folder the images go in. */
+  folder: string;
+}
