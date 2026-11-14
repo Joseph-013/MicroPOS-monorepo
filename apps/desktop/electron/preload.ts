@@ -38,6 +38,16 @@ const api: DesktopApi = {
     listUsb: () => ipcRenderer.invoke(CHANNELS.printer.listUsb),
     testPrint: () => ipcRenderer.invoke(CHANNELS.printer.testPrint),
     printOrder: (orderId) => ipcRenderer.invoke(CHANNELS.printer.printOrder, orderId),
+    printDailyReport: (day) => ipcRenderer.invoke(CHANNELS.printer.printDailyReport, day),
+  },
+  cash: {
+    state: () => ipcRenderer.invoke(CHANNELS.cash.state),
+    open: (input) => ipcRenderer.invoke(CHANNELS.cash.open, input),
+    addMovement: (input) => ipcRenderer.invoke(CHANNELS.cash.addMovement, input),
+    close: (input) => ipcRenderer.invoke(CHANNELS.cash.close, input),
+  },
+  reports: {
+    daily: (day) => ipcRenderer.invoke(CHANNELS.reports.daily, day),
   },
   debug: {
     get: () => ipcRenderer.invoke(CHANNELS.debug.get),

@@ -9,6 +9,8 @@ import { returnToSupplier } from '../db/queries/supplier-returns';
 import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock, stockConcerns } from '../db/queries/inventory';
 import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, purchaseConcerns, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
 import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
+import { addCashMovement, closeDrawer, drawerState, openDrawer } from '../db/queries/cash';
+import { dailyReport } from '../db/queries/reports';
 import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-interest';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
 import { completeOrder, getOrder, orderIdByNumber, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
@@ -95,6 +97,15 @@ export function registerIpcHandlers(db: AppDatabase): void {
   guarded(db, CHANNELS.printer.printOrder, ['orders.view', 'checkout.sell'], async (_event, orderId: unknown) => {
     const order = getOrder(db, orderId);
     return order ? printer.printSale(order) : ({ ok: false, code: 'unknown', error: 'Order not found' } as const);
+  });
+  guarded(db, CHANNELS.cash.state, ['cash.manage', 'reports.view'], () => drawerState(db));
+  guarded(db, CHANNELS.cash.open, 'cash.manage', (_event, input: unknown) => openDrawer(db, input));
+  guarded(db, CHANNELS.cash.addMovement, 'cash.manage', (_event, input: unknown) => addCashMovement(db, input));
+  guarded(db, CHANNELS.cash.close, 'cash.manage', (_event, input: unknown) => closeDrawer(db, input));
+  guarded(db, CHANNELS.reports.daily, 'reports.view', (_event, day: unknown) => dailyReport(db, day));
+  guarded(db, CHANNELS.printer.printDailyReport, 'reports.view', async (_event, day: unknown) => {
+    const report = dailyReport(db, day);
+    return report ? printer.printDaily(report) : ({ ok: false, code: 'unknown', error: 'That is not a date' } as const);
   });
   guarded(db, CHANNELS.debug.get, 'settings.manage', () => ({ saveImages: getSaveReceiptImages(db), folder: receiptImagesFolder() }));
   guarded(db, CHANNELS.debug.setSaveImages, 'settings.manage', (_event, value: unknown) => setSaveReceiptImages(db, value));

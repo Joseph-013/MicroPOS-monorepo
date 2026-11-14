@@ -23,6 +23,8 @@ erDiagram
     products ||--o{ purchase_order_lines : "bought as"
     purchase_orders ||--o{ purchase_payments : "paid by"
     suppliers ||--o{ supplier_returns : "refunds"
+    cash_sessions ||--o{ cash_movements : "has"
+    employees |o--o{ cash_sessions : "opens and closes"
     purchase_orders |o--o{ supplier_returns : "credited by"
     product_batches ||--o{ supplier_returns : "sent back from"
     stock_movements ||--o| supplier_returns : "took out"
@@ -206,6 +208,27 @@ erDiagram
         text product_id FK
         int quantity_milli
         int unit_cost
+    }
+    cash_sessions {
+        text id PK
+        int opened_at
+        text opened_by FK
+        int opening_float "cents counted in"
+        int closed_at "null while open"
+        text closed_by FK
+        int counted_cash
+        int expected_cash "fixed at closing"
+        int variance "counted - expected"
+        text note
+    }
+    cash_movements {
+        text id PK
+        text session_id FK
+        text type "in, out"
+        int amount "cents, positive"
+        text reason
+        text employee_id FK
+        int at
     }
     supplier_returns {
         text id PK

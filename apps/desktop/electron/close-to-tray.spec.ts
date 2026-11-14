@@ -72,8 +72,8 @@ describe('the shop settings permission', () => {
 
     const after = createDatabase(old, { migrationsFolder: SOURCE_MIGRATIONS_FOLDER });
     const permissionsOf = (name: string) => after.db.select({ p: employees.permissions }).from(employees).where(eq(employees.name, name)).get()?.p;
-    expect(permissionsOf('admin')).toEqual(['checkout.sell', 'users.manage', 'settings.manage']);
-    expect(permissionsOf('manager')).toEqual(['checkout.sell', 'customers.manage']);
+    expect(permissionsOf('admin')).toEqual(['checkout.sell', 'users.manage', 'settings.manage', 'cash.manage', 'reports.view']); // later migrations add theirs too
+    expect(permissionsOf('manager')).toEqual(['checkout.sell', 'customers.manage', 'cash.manage']); // can sell, so can use the drawer; cannot void, so no reports
     expect(permissionsOf('preset')).toBeNull();
     after.close();
   });
