@@ -19,6 +19,7 @@ import { OrderQrScan } from './core/order-qr-scan';
 import { SalesOrderViewer } from './core/sales-order-viewer';
 import { ScannerService } from './core/scanner';
 import { AppSettings } from './core/settings/app-settings.service';
+import { OutsideTapGuard } from './core/ui/outside-tap-guard';
 import { ThemeService } from './core/theme.service';
 
 @Component({
@@ -34,6 +35,8 @@ export class App {
   private readonly apiGuard = inject(DesktopApiGuard);
   /** Applies the theme (light, dark or system, per signed-in user) from launch on, not only once Settings is opened. */
   private readonly theme = inject(ThemeService);
+  /** A touch outside an open menu only closes it, instead of also pressing what is underneath. */
+  private readonly outsideTapGuard = inject(OutsideTapGuard);
   /** Opens `?view-sales-order=<id>` in a dialog over any page. */
   private readonly salesOrderViewer = inject(SalesOrderViewer);
   /** Started at launch: scanning the QR on a receipt opens its sale. */
