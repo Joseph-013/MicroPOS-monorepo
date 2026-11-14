@@ -1,6 +1,9 @@
-import { Component, effect, ElementRef, inject, viewChild } from '@angular/core';
+import { Component, DestroyRef, effect, ElementRef, inject, viewChild } from '@angular/core';
 import { isPopoverOpen, keepOnTop } from '../viewport/top-layer';
 import { BannerService } from './banner.service';
+
+/** Length of the leave animation (`.banner-leave` in styles.css) plus a little. */
+const LEAVE_MS = 170;
 
 /**
  * Renders the current banner as a thin strip across the top of the window. Place once at the root.
@@ -18,6 +21,7 @@ import { BannerService } from './banner.service';
     >
       @if (banner.current(); as message) {
         <div
+          animate.leave="banner-leave"
           class="animate-in fade-in-0 slide-in-from-top-2 pointer-events-auto flex h-9 w-full items-center justify-center duration-150 {{ severityClass(message.severity) }}"
           (mouseenter)="banner.pause()"
           (mouseleave)="banner.resume()"
@@ -53,14 +57,18 @@ export class BannerHost {
   constructor() {
     keepOnTop(() => this.panel().nativeElement, 1, () => !!this.banner.current());
 
+    // The panel stays in the top layer for the length of the leave animation, so the banner fades out instead of vanishing.
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
     effect(() => {
       const panel = this.panel().nativeElement;
+      clearTimeout(hideTimer);
       if (this.banner.current()) {
         if (!isPopoverOpen(panel)) panel.showPopover?.();
       } else if (isPopoverOpen(panel)) {
-        panel.hidePopover?.();
+        hideTimer = setTimeout(() => panel.hidePopover?.(), LEAVE_MS);
       }
     });
+    inject(DestroyRef).onDestroy(() => clearTimeout(hideTimer));
   }
 
   protected severityClass(severity: string): string {

@@ -173,6 +173,16 @@ span[data-required]::after {
     opacity: 0;
   }
 }
+/* The banner slides back up as it fades out (the enter is the strip's own animate-in classes). */
+@keyframes banner-leave {
+  to {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+}
+.banner-leave {
+  animation: banner-leave 150ms ease-in forwards;
+}
 @keyframes row-flash {
   from {
     background-color: color-mix(in oklab, var(--primary) 35%, transparent);

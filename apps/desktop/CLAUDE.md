@@ -313,6 +313,8 @@ The order's items are a small table (`role="table"` grid, sticky title row Item 
 
 ## Banner (short status messages)
 
+The strip slides in and **also animates out** (`animate.leave="banner-leave"`, 150 ms fade and slide up, in `styles.css`); `BannerHost` keeps its popover open for `LEAVE_MS` after the banner goes so the leave animation is seen.
+
 - Use `BannerService` (`src/app/core/banner/`) for brief feedback instead of inline text: `banner.success('Bananas added')`, `banner.warning(msg, { duration: 'long' })`, `banner.error(...)`, `banner.info(...)`, or `banner.show(msg, { severity, duration, key })`. One thin strip at the top of the window (`BannerHost`, placed once in the root); click it to dismiss.
 - Hovering a timed banner pauses its countdown (`pause()` / `resume()`, wired to the strip's mouseenter and mouseleave); after the pointer leaves it stays for what was left, at least 0.6 s. Persistent banners have no timer.
 - Default duration is 1.5 s; presets `short` 0.8 s, `default` 1.5 s, `long` 4 s, `persistent` (stays until clicked or `dismiss()`), or any number of milliseconds. Default severity is `info`.
