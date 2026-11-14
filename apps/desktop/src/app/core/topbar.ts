@@ -8,15 +8,16 @@ import { Logo } from './logo';
 import { NavDrawer } from './nav-drawer';
 
 /**
- * The bar across the top of the page: the name of the page being shown and, on a phone-sized screen, the logo and the
- * burger button at the far right that opens the navigation drawer (on wide screens the navigation is the rail on the
- * left and there is no burger).
+ * The bar across the top of the page on a phone-sized screen only: the logo, the name of the page being shown and the
+ * burger button at the far right that opens the navigation drawer. Wide screens have no top bar (the navigation is the
+ * rail on the left and every page has its own title).
  */
 @Component({
   selector: 'app-topbar',
   imports: [NgIcon, Logo],
   providers: [provideIcons({ lucideMenu, lucideX })],
-  host: { class: 'bg-background border-border sticky top-(--banner-offset,0px) z-10 block h-(--topbar-height) shrink-0 border-b' },
+  // Phone-sized screens only: on wide screens the pages keep their own titles and the rail stays on the left.
+  host: { class: 'bg-background border-border sticky top-(--banner-offset,0px) z-10 hidden h-(--topbar-height) shrink-0 border-b max-md:block' },
   template: `
     <header class="flex h-full items-center gap-3 px-3">
       @if (drawer.mobile()) {

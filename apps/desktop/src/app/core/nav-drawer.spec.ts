@@ -42,8 +42,11 @@ async function render(mobile: boolean) {
 describe('top bar and navigation drawer', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  it('on a wide screen: the page name in the top bar, no burger, and the rail as always on the left', async () => {
+  it('on a wide screen: no top bar (it is hidden), no burger, and the rail as always on the left', async () => {
     const { el, nav, burger } = await render(false);
+    const bar = el.querySelector('app-topbar') as HTMLElement;
+    expect(bar.classList.contains('hidden')).toBe(true); // shown only below the md breakpoint (max-md:block)
+    expect(bar.classList.contains('max-md:block')).toBe(true);
     expect(el.querySelector('[data-page-title]')!.textContent!.trim()).toBe('Checkout');
     expect(burger()).toBeNull();
     expect(nav().classList.contains('left-0')).toBe(true);
