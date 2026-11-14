@@ -4,6 +4,8 @@ import { Router } from '@angular/router';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
 import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { sessionUser } from '../../core/auth/testing';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { ScannerService } from '../../core/scanner';
 import { CheckoutPage } from './checkout';
@@ -519,6 +521,61 @@ describe('CheckoutPage', () => {
       // The order is gone for good: the debounced draft save must not write it back.
       await flushSaves();
       expect(store.draft).toBeNull();
+    });
+
+    describe('discounts and notes', () => {
+      const page = (): { setLineDiscount(id: string, spec: { mode: 'amount' | 'percent'; value: number } | null): void; orderDiscountSpec: { set(v: unknown): void }; discountReason: { set(v: string): void } } => fixture.componentInstance as never;
+      const signIn = async (...permissions: Parameters<typeof sessionUser>[0]): Promise<void> => {
+        TestBed.inject(AuthService).user.set(sessionUser(permissions));
+        await fixture.whenStable();
+      };
+
+      it('offers a discount only to someone who may give one', async () => {
+        scan(PRODUCTS[1].barcode!);
+        await fixture.whenStable();
+        await signIn('checkout.sell');
+        expect(buttonByText(el, 'Add')).toBeUndefined();
+        await signIn('checkout.sell', 'discounts.give');
+        expect(buttonByText(el, 'Add')).toBeDefined();
+      });
+
+      it('takes a line discount and an order discount off, and sends them with the reason and a note', async () => {
+        await signIn('checkout.sell', 'discounts.give');
+        scan(PRODUCTS[1].barcode!);
+        scan(PRODUCTS[1].barcode!); // 2 x 4.29 = 8.58
+        await fixture.whenStable();
+        page().setLineDiscount('2', { mode: 'percent', value: 1000 }); // 10% of 8.58 = 0.858, to 0.86
+        page().orderDiscountSpec.set({ mode: 'amount', value: 100 }); // 1.00 more
+        page().discountReason.set('Loyal customer');
+        await fixture.whenStable();
+        expect(el.querySelector('[data-line-discount]')!.textContent).toContain('₱0.86 off (10%)');
+        expect(el.querySelector('[data-discount]')!.textContent!.trim()).toBe('₱1.86');
+        expect(el.textContent).toContain('₱6.72'); // 8.58 - 1.86
+        await type('#tendered', '7');
+        await type('input[aria-label="Order note"]', '  Birthday cake  ');
+        store.result = { ok: true, orderId: 'o1', orderNumber: 'SO-1001', total: 672, change: 28, onAccount: 0 };
+        complete().click();
+        await fixture.whenStable();
+        expect(store.orders).toEqual([
+          { lines: [{ productId: '2', quantityMilli: 2000, unitPrice: 429, discount: 86 }], discount: 100, discountReason: 'Loyal customer', note: 'Birthday cake', payment: { method: 'cash', tendered: 700, reference: undefined } },
+        ]);
+        expect(el.textContent).not.toContain('Birthday cake'); // the order starts afresh
+      });
+
+      it('keeps a percent discount in step as items are added, and never takes off more than the order', async () => {
+        await signIn('checkout.sell', 'discounts.give');
+        scan(PRODUCTS[1].barcode!);
+        await fixture.whenStable();
+        page().orderDiscountSpec.set({ mode: 'percent', value: 5000 }); // half of 4.29, to 2.15
+        await fixture.whenStable();
+        expect(el.querySelector('[data-discount]')!.textContent!.trim()).toBe('₱2.15');
+        scan(PRODUCTS[1].barcode!); // 8.58: half is 4.29
+        await fixture.whenStable();
+        expect(el.querySelector('[data-discount]')!.textContent!.trim()).toBe('₱4.29');
+        page().orderDiscountSpec.set({ mode: 'amount', value: 100_000 });
+        await fixture.whenStable();
+        expect(el.querySelector('[data-discount]')!.textContent!.trim()).toBe('₱8.58');
+      });
     });
 
     it('takes a card payment without cash handed over', async () => {

@@ -140,6 +140,9 @@
                         / {{ unitLabel(line.unit) }}
                       }
                     </p>
+                    @if (line.off) {
+                      <p class="text-success truncate text-sm" data-line-discount>{{ line.off | money }} off@if (line.discount?.mode === 'percent') { ({{ formatDiscount(line.discount!) }}) }</p>
+                    }
                   </div>
                   <div class="flex items-center gap-1">
                     <button
@@ -203,7 +206,7 @@
                       <ng-icon name="lucidePlus" size="18" strokeWidth="1.5" />
                     </button>
                   </div>
-                  <span class="text-right text-lg">{{ line.total | money }}</span>
+                  <span class="text-right text-lg">{{ line.net | money }}</span>
                 </div>
               </app-swipe-actions>
             </li>
@@ -227,9 +230,14 @@
           <dt>Subtotal</dt>
           <dd>{{ subtotal() | money }}</dd>
         </div>
-        <div class="text-muted-foreground flex justify-between">
-          <dt>Discount</dt>
-          <dd>{{ discount() | money }}</dd>
+        <div class="text-muted-foreground flex min-h-(--control-height) items-center justify-between gap-2">
+          <dt class="flex min-w-0 items-center gap-2">
+            <span class="truncate">Discount@if (orderDiscountSpec()?.mode === 'percent') { ({{ formatDiscount(orderDiscountSpec()!) }}) }</span>
+            @if (canDiscount()) {
+              <button hlmBtn variant="outline" size="sm" type="button" class="px-3" [disabled]="!lines().length" (click)="editOrderDiscount()">{{ orderDiscountSpec() ? 'Edit' : 'Add' }}</button>
+            }
+          </dt>
+          <dd class="shrink-0" data-discount>{{ discount() | money }}</dd>
         </div>
         <div class="font-heading flex justify-between border-t pt-2 text-3xl">
           <dt>Total</dt>
@@ -349,6 +357,7 @@
     </div>
 
     <div hlmCardContent class="grid grid-cols-[1fr_auto] gap-2 border-t pt-3">
+      <input hlmInput class="col-span-2" type="text" autocomplete="off" aria-label="Order note" placeholder="Note on this sale (optional)" [attr.maxlength]="maxNote" [value]="note()" (input)="note.set($any($event.target).value)" />
       <label class="col-span-2 flex min-h-(--control-height) items-center justify-between gap-3 text-sm">
         <span>Print receipt</span>
         <hlm-switch aria-label="Print receipt after each sale" [checked]="settings.printReceiptAfterSale()" (checkedChange)="settings.printReceiptAfterSale.set($event)" />
@@ -386,6 +395,12 @@
 <!-- Right-click (or long-press) menu of an order line. -->
 <ng-template #lineMenu let-line>
   <div hlmDropdownMenu>
+    @if (canDiscount()) {
+      <button hlmDropdownMenuItem type="button" (click)="editLineDiscount(line.productId)">{{ line.discount ? 'Change discount' : 'Discount' }}</button>
+      @if (line.discount) {
+        <button hlmDropdownMenuItem type="button" (click)="setLineDiscount(line.productId, null)">Remove discount</button>
+      }
+    }
     <button
       hlmDropdownMenuItem
       variant="destructive"

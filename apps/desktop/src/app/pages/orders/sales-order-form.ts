@@ -99,6 +99,9 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', 
               </p>
             </div>
             <span class="text-right">{{ line.lineTotal | money }}</span>
+            @if (line.discount) {
+              <p class="text-muted-foreground col-span-full flex justify-between gap-4 text-sm" data-line-discount><span>Discount</span><span>−{{ abs(line.discount) | money }}</span></p>
+            }
           </li>
         }
       </ul>
@@ -113,12 +116,19 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', 
             <dt>Discount</dt>
             <dd>−{{ order().discountTotal | money }}</dd>
           </div>
+          @if (order().discountReason) {
+            <p class="text-muted-foreground text-sm" data-discount-reason>Discount reason: {{ order().discountReason }}</p>
+          }
         }
         <div class="font-heading flex justify-between border-t pt-2 text-2xl">
           <dt>Total</dt>
           <dd>{{ order().total | money }}</dd>
         </div>
       </dl>
+
+      @if (order().note) {
+        <p class="bg-muted/50 border px-3 py-2 text-sm select-text" data-note><span class="text-muted-foreground">Note:</span> {{ order().note }}</p>
+      }
 
       @for (payment of order().payments; track $index) {
         <dl class="text-muted-foreground grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
@@ -210,6 +220,7 @@ export class SalesOrderForm {
     return refundOf ? 'outline' : status === 'completed' ? 'success' : status === 'open' ? 'outline' : 'destructive';
   }
 
+  protected readonly abs = Math.abs;
   protected quantity(line: SalesOrderDetail['lines'][number]): string {
     return `${formatQuantity(Math.abs(line.quantityMilli))}${isWeighed(line.unit ?? 'each') ? ` ${line.unit}` : ''}`;
   }

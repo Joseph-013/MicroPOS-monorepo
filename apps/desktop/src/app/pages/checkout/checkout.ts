@@ -1,7 +1,7 @@
 import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideFilterX, lucideX, lucideMinus, lucideListPlus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
-import { type CatalogProduct, type CustomerDisplayLine, type CustomerDisplayReceipt, type CustomerDisplayState, type DraftLine, IDLE_DISPLAY_STATE, gramsToQuantityMilli, parseScaleBarcode, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
+import { discountCents, type DiscountSpec, formatDiscount, MAX_ORDER_NOTE, type CatalogProduct, type CustomerDisplayLine, type CustomerDisplayReceipt, type CustomerDisplayState, type DraftLine, IDLE_DISPLAY_STATE, gramsToQuantityMilli, parseScaleBarcode, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -15,7 +15,11 @@ import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
+import { firstValueFrom } from 'rxjs';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
+import { AuthService } from '../../core/auth/auth.service';
 import { BannerService } from '../../core/banner';
+import { DiscountForm, type DiscountContext, type DiscountOutcome } from './discount-form';
 import { ReceiptPrinting } from '../../core/receipt-printing';
 import { scrollToRow } from '../../core/row-target';
 import { CatalogService } from '../../core/data/catalog.service';
@@ -70,15 +74,36 @@ export class CheckoutPage {
   private readonly draft = inject(CheckoutDraftService);
   private readonly banner = inject(BannerService);
   private readonly viewer = inject(SalesOrderViewer);
+  private readonly dialogs = inject(HlmDialogService);
+  protected readonly auth = inject(AuthService);
   protected readonly customers = inject(CustomersService);
   /** The customer-facing window (opened and closed in Settings): kept up to date with the order. */
   private readonly display = inject(CustomerDisplayService);
 
   // The order in progress. It is saved automatically as a draft and restored when the page opens.
   protected readonly lines = signal<DraftLine[]>([]);
-  protected readonly lineTotals = computed(() => this.lines().map((l) => ({ ...l, total: lineTotal(l.unitPrice, l.quantityMilli) })));
+  /** Each line with its price times quantity (`total`), what its own discount takes off (`off`, from `discount` as entered), and what is left (`net`). */
+  protected readonly lineTotals = computed(() =>
+    this.lines().map((l) => {
+      const total = lineTotal(l.unitPrice, l.quantityMilli);
+      const off = discountCents(l.discount, total);
+      return { ...l, total, off, net: total - off };
+    }),
+  );
   protected readonly subtotal = computed(() => this.lineTotals().reduce((sum, l) => sum + l.total, 0));
-  protected readonly discount = signal(0);
+  /** Taken off by the lines' own discounts. */
+  protected readonly lineDiscounts = computed(() => this.lineTotals().reduce((sum, l) => sum + l.off, 0));
+  /** The discount on the whole order as entered (an amount or a percent of what is left after the line discounts). */
+  protected readonly orderDiscountSpec = signal<DiscountSpec | null>(null);
+  protected readonly orderDiscount = computed(() => discountCents(this.orderDiscountSpec(), this.subtotal() - this.lineDiscounts()));
+  /** All discounts together (shown in the totals). */
+  protected readonly discount = computed(() => this.lineDiscounts() + this.orderDiscount());
+  /** Why a discount was given, and a remark on the sale (both optional). */
+  protected readonly discountReason = signal('');
+  protected readonly note = signal('');
+  protected readonly maxNote = MAX_ORDER_NOTE;
+  protected readonly canDiscount = computed(() => this.auth.can('discounts.give'));
+  protected readonly formatDiscount = formatDiscount;
   protected readonly paymentMethod = signal<PaymentMethod>('cash');
   /** Label shown in the closed select (the raw value is lowercase). */
   protected readonly paymentLabel = (method: PaymentMethod): string => PAYMENT_METHODS[method] ?? '';
@@ -172,7 +197,7 @@ export class CheckoutPage {
   private readonly paidSale = signal<{ receipt: CustomerDisplayReceipt; lines: CustomerDisplayLine[] } | null>(null);
   /** What the customer sees: the order as it is rung up, the thank-you right after paying, or the welcome screen. */
   private readonly displayState = computed<CustomerDisplayState>(() => {
-    const lines = this.lineTotals().map((l) => ({ name: l.name, unit: l.unit, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice, total: l.total }));
+    const lines = this.lineTotals().map((l) => ({ name: l.name, unit: l.unit, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice, total: l.net }));
     if (lines.length) {
       const highlight = this.lineTotals().findIndex((l) => l.productId === this.highlightId());
       return { phase: 'shopping', lines, total: this.total(), highlight: highlight >= 0 ? highlight : null, receipt: null };
@@ -324,6 +349,40 @@ export class CheckoutPage {
     this.touch(line.productId);
   }
 
+  /** Opens the discount dialog; resolves with what was chosen, or null when cancelled. */
+  private async askDiscount(context: DiscountContext): Promise<DiscountOutcome | null> {
+    const ref = this.dialogs.open<DiscountOutcome, DiscountContext>(DiscountForm, {
+      id: 'checkout-discount',
+      contentClass: 'w-[min(26rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
+      context,
+    });
+    return (await firstValueFrom(ref.closed$)) ?? null;
+  }
+
+  /** The discount on the whole order (the button in the totals). */
+  protected async editOrderDiscount(): Promise<void> {
+    if (!this.lines().length) return;
+    const outcome = await this.askDiscount({ title: 'Discount on the order', base: this.subtotal() - this.lineDiscounts(), current: this.orderDiscountSpec(), reason: this.discountReason() });
+    if (!outcome) return;
+    this.orderDiscountSpec.set(outcome.spec);
+    this.discountReason.set(outcome.reason);
+  }
+
+  /** The discount on one item (its context menu). */
+  protected async editLineDiscount(productId: string): Promise<void> {
+    const line = this.lines().find((l) => l.productId === productId);
+    if (!line) return;
+    const total = lineTotal(line.unitPrice, line.quantityMilli);
+    const outcome = await this.askDiscount({ title: `Discount on ${line.name}`, base: total, current: line.discount ?? null, reason: this.discountReason() });
+    if (!outcome) return;
+    this.setLineDiscount(line.productId, outcome.spec);
+    this.discountReason.set(outcome.reason);
+  }
+
+  protected setLineDiscount(productId: string, spec: DiscountSpec | null): void {
+    this.lines.update((lines) => lines.map((l) => (l.productId === productId ? { productId: l.productId, name: l.name, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice, unit: l.unit, ...(spec ? { discount: spec } : {}) } : l)));
+  }
+
   /** Takes one line off the order (context menu or swipe). */
   protected removeLine(productId: string): void {
     this.lines.update((lines) => lines.filter((l) => l.productId !== productId));
@@ -339,7 +398,9 @@ export class CheckoutPage {
     this.paidSale.set(null);
     this.lastTouched.set(null);
     this.lines.set([]);
-    this.discount.set(0);
+    this.orderDiscountSpec.set(null);
+    this.discountReason.set('');
+    this.note.set('');
     this.tenderedText.set('');
     this.reference.set('');
     this.customerId.set(null);
@@ -367,8 +428,10 @@ export class CheckoutPage {
       const nothingPaid = this.nothingPaid();
       const method = nothingPaid ? 'cash' : this.paymentMethod();
       const result = await this.draft.completeOrder({
-        lines: this.lines().map((l) => ({ productId: l.productId, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice })),
-        discount: this.discount(),
+        lines: this.lineTotals().map((l) => ({ productId: l.productId, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice, ...(l.off ? { discount: l.off } : {}) })),
+        discount: this.orderDiscount(),
+        ...(this.discount() > 0 && this.discountReason().trim() ? { discountReason: this.discountReason().trim() } : {}),
+        ...(this.note().trim() ? { note: this.note().trim() } : {}),
         ...(this.customerId() ? { customerId: this.customerId()!, amountPaid: this.payNow()! } : {}),
         payment: { method, tendered: method === 'cash' && this.payNow() !== 0 ? (this.tendered() ?? undefined) : undefined, reference: nothingPaid ? undefined : this.reference().trim() || undefined },
       });
