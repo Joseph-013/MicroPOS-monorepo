@@ -3,7 +3,10 @@
   Removes the first MicroPOS (version 1.0.0, a Squirrel install) from this Windows user account.
 
 .DESCRIPTION
-  Steps (the same as WINDOWS-CLEANUP.txt):
+  The MicroPOS setup wizard bundles this script and runs it (with -Yes -KeepData) when it finds version 1. It can
+  also be run on its own, to remove version 1 without installing the new MicroPOS.
+
+  Steps:
     1. Closes the old app (only micropos.exe running from %LOCALAPPDATA%\micropos).
     2. Copies the old database to a backup folder (on the Desktop unless -BackupTo is given; skip with -NoBackup).
     3. Runs the old app's uninstaller (%LOCALAPPDATA%\micropos\Update.exe --uninstall).
@@ -16,8 +19,7 @@
   matched by their path, and the data folder is left alone when it looks like the new app's (it has a backups
   folder or the new app is installed) unless -Force is given. The new app's own files are never touched.
 
-  Run it as the Windows user who used the old MicroPOS (its files are per user). Double-click
-  remove-old-micropos.cmd, or in PowerShell:
+  Run it as the Windows user who used the old MicroPOS (its files are per user), in PowerShell:
     powershell -ExecutionPolicy Bypass -File .\remove-old-micropos.ps1
   Add -WhatIf to see what it would do without changing anything.
 

@@ -47,9 +47,7 @@ if (process.platform !== 'win32') {
     `/DAppVersion=${version}`,
     `/DSourceDir=${path.join(root, 'out', 'MicroPOS-win32-x64')}`,
     `/DOutputDir=${outputDir}`,
-    `/DIconFile=${path.join(root, 'assets', 'icon.ico')}`,
-    `/DOldCleanup=${path.join(root, '..', '..', 'remove-old-micropos.ps1')}`,
-    path.join(root, 'installer', 'micropos.iss'),
+    `/DIconFile=${path.join(root, 'assets', 'icon.ico')}`,    path.join(root, 'installer', 'micropos.iss'),
   ]);
   console.log(`Installer: ${path.join(outputDir, `MicroPOS-${version}-setup.exe`)}`);
 }

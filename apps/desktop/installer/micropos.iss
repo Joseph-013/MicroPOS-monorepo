@@ -4,7 +4,7 @@
 ;   SourceDir   the packaged app folder (out\MicroPOS-win32-x64)
 ;   OutputDir   where Setup goes (out\make\inno)
 ;   IconFile    assets\icon.ico
-;   OldCleanup  remove-old-micropos.ps1 at the repo root (removes the first MicroPOS, version 1)
+; remove-old-micropos.ps1, next to this file, removes the first MicroPOS (version 1) and is bundled into Setup.
 ;
 ; Wizard: install for me only / for all users, welcome, install folder, old MicroPOS (only when version 1, the Squirrel
 ; install in %LOCALAPPDATA%\micropos, is found: it is always removed, Cancel to keep it), existing data (only when the
@@ -15,9 +15,6 @@
 
 #ifndef AppVersion
   #error AppVersion is not defined: build with `pnpm make` (scripts/make.mjs)
-#endif
-#ifndef OldCleanup
-  #error OldCleanup is not defined: build with `pnpm make` (scripts/make.mjs)
 #endif
 
 ; The installed app's id. Never change it: it is how a later Setup finds this install (to upgrade it, or to refuse to
@@ -68,7 +65,7 @@ Type: filesandordirs; Name: "{app}\resources"
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Not installed: extracted to a temporary folder and run when the old MicroPOS is to be removed.
-Source: "{#OldCleanup}"; Flags: dontcopy
+Source: "remove-old-micropos.ps1"; Flags: dontcopy
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
