@@ -4,66 +4,98 @@
     <a hlmBtn variant="outline" routerLink="/reports" class="px-4">Reports</a>
   </header>
 
+  <!-- Which days the sales figures cover; the stock, credit and supplier figures are always as of now. -->
+  <section hlmCard class="gap-0 p-3">
+    <div class="flex flex-wrap items-center gap-3">
+      <span id="dash-period-label" class="sr-only">Period</span>
+      <hlm-select [value]="service.period()" (valueChange)="choosePeriod($event)" [itemToString]="periodLabel">
+        <hlm-select-trigger class="w-48" aria-labelledby="dash-period-label" id="dash-period">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          @for (p of periods; track p) {
+            <hlm-select-item [value]="p">{{ periodLabel(p) }}</hlm-select-item>
+          }
+        </hlm-select-content>
+      </hlm-select>
+      @if (service.period() === 'custom') {
+        <label class="text-sm" for="dash-from">From</label>
+        <input hlmInput id="dash-from" type="date" class="w-44" [value]="service.customFrom()" [attr.max]="today" (change)="service.choose({ from: $any($event.target).value || undefined })" />
+        <label class="text-sm" for="dash-to">To</label>
+        <input hlmInput id="dash-to" type="date" class="w-44" [value]="service.customTo()" [attr.max]="today" (change)="service.choose({ to: $any($event.target).value || undefined })" />
+      }
+      <label class="ml-auto flex items-center gap-3 text-sm">
+        <span>Compare to the period before</span>
+        <hlm-switch aria-label="Compare to the period before" [checked]="service.compare()" (checkedChange)="service.choose({ compare: $event })" />
+      </label>
+    </div>
+  </section>
+
   @if (data(); as d) {
     @let o = d.inventory;
 
-    <!-- Sales -->
-    <h2 class="text-muted-foreground text-sm font-medium">Sales</h2>
+    <!-- Sales: for the period chosen above, against the period before when comparing -->
+    <h2 class="text-muted-foreground text-sm font-medium">Sales · {{ periodText() }}</h2>
     <div class="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
       <section hlmCard class="gap-1 p-4">
-        <p class="text-muted-foreground text-sm">Today</p>
-        <p class="font-heading truncate text-3xl" data-today>{{ d.today.net | money }}</p>
+        <p class="text-muted-foreground text-sm">Net sales</p>
+        <p class="font-heading truncate text-3xl" data-net>{{ d.current.net | money }}</p>
         <p class="text-muted-foreground text-sm">
-          {{ d.today.count }} {{ d.today.count === 1 ? 'sale' : 'sales' }}
-          @if (change(d.today.net, d.yesterday.net); as c) { · {{ c }} on yesterday }
+          @if (d.previous; as p) { {{ change(d.current.net, p.net) ?? 'No sales' }} {{ compareText(d.previous) }} } @else { after refunds }
         </p>
       </section>
       <section hlmCard class="gap-1 p-4">
-        <p class="text-muted-foreground text-sm">Yesterday</p>
-        <p class="font-heading truncate text-3xl">{{ d.yesterday.net | money }}</p>
-        <p class="text-muted-foreground text-sm">{{ d.yesterday.count }} {{ d.yesterday.count === 1 ? 'sale' : 'sales' }}</p>
+        <p class="text-muted-foreground text-sm">Sales</p>
+        <p class="font-heading truncate text-3xl" data-count>{{ d.current.count }}</p>
+        <p class="text-muted-foreground text-sm">
+          @if (d.previous; as p) { {{ change(d.current.count, p.count) ?? 'No sales' }} {{ compareText(d.previous) }} } @else { rung up }
+        </p>
       </section>
       <section hlmCard class="gap-1 p-4">
-        <p class="text-muted-foreground text-sm">Last 7 days</p>
-        <p class="font-heading truncate text-3xl">{{ d.last7.net | money }}</p>
-        <p class="text-muted-foreground text-sm">{{ d.last7.count }} {{ d.last7.count === 1 ? 'sale' : 'sales' }}@if (d.last7.count) { · {{ d.last7.net / d.last7.count | money }} each }</p>
+        <p class="text-muted-foreground text-sm">Average sale</p>
+        <p class="font-heading truncate text-3xl" data-average>{{ average(d.current) | money }}</p>
+        <p class="text-muted-foreground text-sm">
+          @if (d.previous; as p) { {{ change(average(d.current), average(p)) ?? 'No sales' }} {{ compareText(d.previous) }} } @else { net sales per sale }
+        </p>
       </section>
       <section hlmCard class="gap-1 p-4">
-        <p class="text-muted-foreground text-sm">Last 30 days</p>
-        <p class="font-heading truncate text-3xl">{{ d.last30.net | money }}</p>
-        <p class="text-muted-foreground text-sm">{{ d.last30.count }} {{ d.last30.count === 1 ? 'sale' : 'sales' }}@if (d.last30.count) { · {{ d.last30.net / d.last30.count | money }} each }</p>
+        <p class="text-muted-foreground text-sm">Refunds and voids</p>
+        <p class="font-heading truncate text-3xl" data-refunded>{{ d.current.refunded | money }}</p>
+        <p class="text-muted-foreground text-sm">{{ d.current.voided }} voided · {{ d.current.discounts | money }} discounts</p>
       </section>
     </div>
 
     <div class="grid grid-cols-[repeat(auto-fit,minmax(24rem,1fr))] gap-3">
       <section hlmCard class="gap-0 [grid-column:1/-1]">
-        <div hlmCardHeader><h2 hlmCardTitle>Net sales, last 14 days</h2></div>
+        <div hlmCardHeader><h2 hlmCardTitle>Net sales by {{ d.granularity }}</h2></div>
         <div hlmCardContent>
-          <div class="flex h-40 items-end gap-1.5 pt-5" role="list" aria-label="Net sales by day">
-            @for (day of d.daily; track day.day) {
+          <div class="flex h-40 items-end gap-1.5 pt-5" role="list" [attr.aria-label]="'Net sales by ' + d.granularity">
+            @for (bar of d.chart; track bar.from) {
               <a
                 routerLink="/orders"
-                [queryParams]="{ date: day.day }"
+                [queryParams]="barLink(bar)"
                 class="hover:bg-muted/50 flex h-full min-w-0 flex-1 flex-col justify-end transition-colors"
                 role="listitem"
-                [attr.aria-label]="day.day + ': ' + (day.net | money) + '. Open the sales orders of this day'"
-                [attr.title]="day.day + ': ' + (day.net | money) + ' (' + day.count + ' sales). Click to see them'"
+                [attr.aria-label]="barTitle(bar) + ': ' + (bar.net | money) + '. Open the sales orders of this ' + d.granularity"
+                [attr.title]="barTitle(bar) + ': ' + (bar.net | money) + ' (' + bar.count + ' sales). Click to see them'"
               >
-                <span class="text-muted-foreground shrink-0 text-center text-[10px] leading-4 whitespace-nowrap" data-bar-value>{{ compactMoney(day.net) }}</span>
-                <div class="bg-primary w-full shrink-0" [style.height.%]="barHeight(day.net)" data-bar></div>
+                @if (d.chart.length <= 14) {
+                  <span class="text-muted-foreground shrink-0 text-center text-[10px] leading-4 whitespace-nowrap" data-bar-value>{{ compactMoney(bar.net) }}</span>
+                }
+                <div class="bg-primary w-full shrink-0" [style.height.%]="barHeight(bar.net)" data-bar></div>
               </a>
             }
           </div>
           <div class="text-muted-foreground mt-1 flex gap-1.5 text-center text-[11px]" aria-hidden="true">
-            @for (day of d.daily; track day.day) {
-              <span class="min-w-0 flex-1 truncate">{{ weekday(day.day) }}</span>
+            @for (bar of d.chart; track bar.from) {
+              <span class="min-w-0 flex-1 truncate" data-bar-label>{{ barLabel(bar) }}</span>
             }
           </div>
         </div>
       </section>
 
       <section hlmCard class="gap-0">
-        <div hlmCardHeader><h2 hlmCardTitle>Taken by, last 7 days</h2></div>
+        <div hlmCardHeader><h2 hlmCardTitle>Taken by</h2></div>
         <div hlmCardContent class="px-0">
           @for (m of d.byMethod; track m.method) {
             <div class="border-t px-4 py-2">
@@ -71,13 +103,13 @@
               <div class="bg-muted mt-1 h-1.5 w-full"><div class="bg-primary h-full" [style.width.%]="(m.amount / methodMax()) * 100"></div></div>
             </div>
           } @empty {
-            <p class="text-muted-foreground border-t px-4 py-4 text-sm">Nothing taken yet</p>
+            <p class="text-muted-foreground border-t px-4 py-4 text-sm">Nothing taken in this period</p>
           }
         </div>
       </section>
 
       <section hlmCard class="gap-0">
-        <div hlmCardHeader><h2 hlmCardTitle>Best sellers, last 30 days</h2></div>
+        <div hlmCardHeader><h2 hlmCardTitle>Best sellers</h2></div>
         <div hlmCardContent class="px-0">
           @for (item of d.topItems; track item.name + item.unit) {
             <div class="grid grid-cols-[minmax(0,1fr)_auto_6rem] items-baseline gap-x-3 border-t px-4 py-2 text-sm">
@@ -86,7 +118,7 @@
               <span class="text-right">{{ item.total | money }}</span>
             </div>
           } @empty {
-            <p class="text-muted-foreground border-t px-4 py-4 text-sm">Nothing sold yet</p>
+            <p class="text-muted-foreground border-t px-4 py-4 text-sm">Nothing sold in this period</p>
           }
         </div>
       </section>

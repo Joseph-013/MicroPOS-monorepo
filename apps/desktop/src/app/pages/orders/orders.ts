@@ -64,7 +64,7 @@ const COLUMN_DEFS = [
   { key: 'total', label: 'Total', width: '8rem' },
 ];
 
-/** `?date=YYYY-MM-DD` filters the list to that day (set from the Dashboard's chart). */
+/** `?date=YYYY-MM-DD` filters the list to that day, `?from=...&to=...` to those days (set from the Dashboard's chart). */
 export const DATE_PARAM = 'date';
 
 /** Sales Orders: every recorded sale, newest first. Open one to see its lines and payment. */
@@ -248,15 +248,19 @@ export class OrdersPage {
     // `?view-sales-order=<id>` (the dialog is open for it) and `?highlight=<id>` (a link from another page) both
     // target a row: show the page that holds it and highlight it. `highlight` is then removed from the address.
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
-      // `?date=YYYY-MM-DD` (the Dashboard's bars link here): show that day's orders only, then drop it from the address.
+      // `?date=YYYY-MM-DD` (a Dashboard day bar), or `?from=...&to=...` (a week or month bar): show the orders of those days
+      // only, then drop the parameters from the address.
       const day = params.get(DATE_PARAM);
-      if (day) {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      const from = params.get('from') ?? day;
+      const to = params.get('to') ?? day;
+      if (from || to) {
+        const isDay = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+        if (isDay(from) && isDay(to)) {
           this.resetFilters();
-          this.dateFrom.set(day);
-          this.dateTo.set(day);
+          this.dateFrom.set(from);
+          this.dateTo.set(to);
         }
-        void this.router.navigate([], { queryParams: { [DATE_PARAM]: null }, queryParamsHandling: 'merge', replaceUrl: true });
+        void this.router.navigate([], { queryParams: { [DATE_PARAM]: null, from: null, to: null }, queryParamsHandling: 'merge', replaceUrl: true });
       }
       const highlight = params.get(HIGHLIGHT_PARAM);
       const id = highlight ?? params.get(VIEW_SALES_ORDER_PARAM);

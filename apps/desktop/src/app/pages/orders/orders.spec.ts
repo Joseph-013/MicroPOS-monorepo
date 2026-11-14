@@ -348,6 +348,18 @@ describe('OrdersPage paging and highlighting', () => {
     expect(footer()).toContain('of 120');
   });
 
+  it('?from=<day>&to=<day> (a week or month bar) filters to those days, and the parameters are used up', async () => {
+    const day = dayOf(60_000);
+    await open(`/orders?from=${day}&to=${day}`);
+    expect(footer()).toContain('of 120');
+    expect(TestBed.inject(Router).url).toBe('/orders');
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    await open('/orders?from=2000-01-01&to=2000-01-31');
+    expect(rows()).toHaveLength(0);
+    expect(TestBed.inject(Router).url).toBe('/orders');
+  });
+
   it('clears filters that hide the target order', async () => {
     await open();
     const input = el.querySelector('input[aria-label="Filter order"]') as HTMLInputElement;
