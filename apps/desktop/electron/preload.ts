@@ -82,6 +82,7 @@ const api: DesktopApi = {
     openLogsFolder: () => ipcRenderer.invoke(CHANNELS.shell.openLogsFolder),
     getCloseToTray: () => ipcRenderer.invoke(CHANNELS.shell.getCloseToTray),
     setCloseToTray: (value) => ipcRenderer.invoke(CHANNELS.shell.setCloseToTray, value),
+    quit: () => ipcRenderer.invoke(CHANNELS.shell.quit),
   },
   data: {
     onChanged: (listener) => {

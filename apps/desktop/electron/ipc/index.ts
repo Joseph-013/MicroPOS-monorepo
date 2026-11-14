@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
 import { ALL_PERMISSIONS, isExportFormat, isReportKind, type Permission } from '@micropos/core';
 import type { AppDatabase } from '../db';
 import { listCategories, listProducts } from '../db/queries/catalog';
@@ -230,6 +230,12 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
   guarded(db, CHANNELS.auth.changePin, [], (_event, input: unknown) => changePin(db, input));
   guarded(db, CHANNELS.shell.getCloseToTray, 'settings.manage', () => getCloseToTray(db));
   guarded(db, CHANNELS.shell.setCloseToTray, 'settings.manage', (_event, value: unknown) => setCloseToTray(db, value));
+  // Quits for real, past the tray (app.quit runs before-quit, which lets the window close). After the answer has gone.
+  // The `shell` group is never offered to paired devices, so a phone cannot close the till.
+  guarded(db, CHANNELS.shell.quit, 'settings.manage', () => {
+    log.info('app', 'Quit from Settings');
+    setTimeout(() => app.quit(), 100);
+  });
   guarded(db, CHANNELS.users.list, ['users.manage'], () => listUsers(db));
   guarded(db, CHANNELS.users.create, ['users.manage'], (_event, input: unknown) => createUser(db, input));
   guarded(db, CHANNELS.users.update, ['users.manage'], (_event, id: unknown, input: unknown) => updateUser(db, id, input));

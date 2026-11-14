@@ -191,10 +191,11 @@ describe('SettingsPage', () => {
   describe('Window', () => {
     async function open(permissions: Parameters<typeof sessionUser>[0], initial = false) {
       const saved: boolean[] = [];
+      const quits: number[] = [];
       const api = {
         ...fakeAuthApi({ status: sessionUser(permissions) }).api,
         display: { isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined },
-        shell: { getCloseToTray: () => Promise.resolve(initial), setCloseToTray: (v: boolean) => (saved.push(v), Promise.resolve(true)), getLogsFolder: () => Promise.resolve('/logs'), openLogsFolder: () => Promise.resolve(true) },
+        shell: { getCloseToTray: () => Promise.resolve(initial), setCloseToTray: (v: boolean) => (saved.push(v), Promise.resolve(true)), quit: () => (quits.push(1), Promise.resolve()), getLogsFolder: () => Promise.resolve('/logs'), openLogsFolder: () => Promise.resolve(true) },
         debug: { get: () => Promise.resolve({ saveImages: false, folder: '/downloads/MicroPOS receipts' }) },
         printer: { settings: () => Promise.resolve({ printer: { connection: null, paperWidthMm: 58 }, shop: { name: '', address: '', footer: '' } }), getLogo: () => Promise.resolve(null), listUsb: () => Promise.resolve([]) },
       } as unknown as DesktopApi;
@@ -204,8 +205,27 @@ describe('SettingsPage', () => {
       await fixture.whenStable();
       await new Promise((r) => setTimeout(r, 20));
       await fixture.whenStable();
-      return { fixture, el: fixture.nativeElement as HTMLElement, saved };
+      return { fixture, el: fixture.nativeElement as HTMLElement, saved, quits };
     }
+
+    it('quits for real only after the admin confirms', async () => {
+      const { fixture, el, quits } = await open(['settings.manage'], true);
+      const quitButton = Array.from(el.querySelectorAll('app-window-settings button')).find((b) => b.textContent?.trim() === 'Quit') as HTMLButtonElement;
+      quitButton.click();
+      await fixture.whenStable();
+      expect(quits).toEqual([]); // only asked so far
+      const dialogButtons = (): HTMLButtonElement[] => Array.from(document.querySelectorAll('hlm-alert-dialog-content button'));
+      expect(document.body.textContent).toContain('Quit MicroPOS?');
+      dialogButtons().find((b) => b.textContent?.trim() === 'Cancel')!.click();
+      await fixture.whenStable();
+      expect(quits).toEqual([]);
+
+      quitButton.click();
+      await fixture.whenStable();
+      dialogButtons().find((b) => b.textContent?.trim() === 'Quit')!.click();
+      await fixture.whenStable();
+      expect(quits).toEqual([1]);
+    });
 
     it('lets an admin keep the app running in the tray when the window is closed', async () => {
       const { fixture, el, saved } = await open(['settings.manage'], true);
