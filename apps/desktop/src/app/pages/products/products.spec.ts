@@ -89,6 +89,7 @@ function fakeApi(initial: ProductRecord[]) {
     },
     data: { onChanged: () => () => undefined },
       shell: { getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true), getLogsFolder: () => Promise.resolve(null), openLogsFolder: () => Promise.resolve(false) },
+      backup: { list: () => Promise.resolve({ backups: [], folder: '' }), create: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve(false), exportTo: () => Promise.reject(new Error('unused')), importFrom: () => Promise.reject(new Error('unused')), restore: () => Promise.reject(new Error('unused')), openFolder: () => Promise.resolve(false) },
       lan: { state: () => Promise.reject(new Error('unused')), setEnabled: () => Promise.reject(new Error('unused')), devices: () => Promise.resolve([]), newPairing: () => Promise.resolve(null), revokeDevice: () => Promise.resolve(false) },
       dashboard: { get: () => Promise.reject(new Error('unused')) },
       tables: { columnOrders: () => Promise.resolve({}), saveColumnOrder: () => Promise.resolve(true) },

@@ -7,6 +7,7 @@ import { SettingRow, SettingsSearch, SettingsSection } from './settings-section'
 import { DebugSettings } from './debug-settings';
 import { LogsSettings } from './logs-settings';
 import { PrinterSettingsCard } from './printer-settings';
+import { BackupSettings } from './backup-settings';
 import { SessionSettingsCard } from './session-settings';
 import { WindowSettings } from './window-settings';
 import { CreditAlertSettingsCard } from './credit-alert-settings';
@@ -23,7 +24,7 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
 
 /** Per-device settings. */
 @Component({
-  imports: [SessionSettingsCard, DebugSettings, FilterInput, HlmAccordionImports, SettingRow, SettingsSection, LogsSettings, PrinterSettingsCard, WindowSettings, CreditAlertSettingsCard, CreditInterestSettings, HlmButtonImports, HlmSelectImports, HlmSwitchImports],
+  imports: [BackupSettings, SessionSettingsCard, DebugSettings, FilterInput, HlmAccordionImports, SettingRow, SettingsSection, LogsSettings, PrinterSettingsCard, WindowSettings, CreditAlertSettingsCard, CreditInterestSettings, HlmButtonImports, HlmSelectImports, HlmSwitchImports],
   template: `
     <div class="mx-auto w-full max-w-xl">
       <h1 class="mb-3 text-2xl">Settings</h1>
@@ -113,6 +114,7 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
           <app-printer-settings />
           <app-session-settings />
           <app-window-settings />
+          <app-backup-settings />
           <app-logs-settings />
           <app-debug-settings />
         }
