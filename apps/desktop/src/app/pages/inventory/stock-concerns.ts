@@ -14,7 +14,7 @@ type KindFilter = typeof ALL | StockConcernKind;
 /** What needs attention in stock (the Inventory badge): expired and expiring batches, products out of stock or low. A row opens the product. */
 @Component({
   host: { class: 'contents' },
-  imports: [DatePipe, FilterInput, HlmButtonImports, HlmDialogImports, HlmSelectImports],
+  imports: [FilterInput, HlmButtonImports, HlmDialogImports, HlmSelectImports],
   template: `
     <hlm-dialog-header>
       <h3 hlmDialogTitle>Stock concerns</h3>

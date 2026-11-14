@@ -11,7 +11,6 @@ import type { AppDatabase } from '../db';
  * Everything here takes plain paths, so it is tested without Electron.
  */
 
-const KINDS: readonly BackupKind[] = ['manual', 'auto', 'before-import'];
 const FILE = /^micropos-(manual|auto|before-import)-(\d{8}-\d{6})\.db$/;
 
 const pad = (n: number): string => String(n).padStart(2, '0');

@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { updatedAt } from './_columns';
 
 /** Key-value store for store-level settings (name, receipt text...). Values are JSON. */
