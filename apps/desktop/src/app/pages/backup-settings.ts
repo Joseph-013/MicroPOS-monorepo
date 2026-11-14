@@ -46,9 +46,10 @@ type Replacement = { kind: 'file' } | { kind: 'backup'; backup: BackupInfo };
         }
       </div>
 
-      <div appSetting="Export and import" settingKeywords="export import database file move transfer another computer" class="grid gap-3 py-1">
-        <p class="text-muted-foreground text-sm">Export saves a copy of all data as one file, for another computer or safekeeping. Import replaces all data here with such a file (or a backup).</p>
+      <div appSetting="Export and import" settingKeywords="export csv spreadsheet excel import database file move transfer another computer" class="grid gap-3 py-1">
+        <p class="text-muted-foreground text-sm">Export database saves a copy of all data as one file, for another computer or safekeeping. Export as CSV saves one spreadsheet file per kind of data (sales, products, customers…) in a new folder, for reading or analysis; it cannot be imported back. Import replaces all data here with such a file (or a backup).</p>
         <div class="flex flex-wrap justify-end gap-2">
+          <button hlmBtn variant="outline" type="button" class="px-5" [disabled]="busy()" (click)="exportCsv()">Export as CSV</button>
           <button hlmBtn variant="outline" type="button" class="px-5" [disabled]="busy()" (click)="exportDatabase()">Export database</button>
           <button hlmBtn variant="outline" type="button" class="px-5" [disabled]="busy()" (click)="asking.set({ kind: 'file' })">Import database</button>
         </div>
@@ -138,6 +139,18 @@ export class BackupSettings implements OnInit {
     } catch {
       this.banner.error('Could not open the backups folder', { key: 'backup' });
     }
+  }
+
+  protected async exportCsv(): Promise<void> {
+    this.busy.set(true);
+    try {
+      const result = await this.api!.backup.exportCsv();
+      if (result.ok) this.banner.success(`Saved to ${result.savedTo}`, { key: 'backup' });
+      else if (!result.canceled) this.banner.error(`Could not export: ${result.error}`, { key: 'backup' });
+    } catch {
+      this.banner.error('Could not export', { key: 'backup' });
+    }
+    this.busy.set(false);
   }
 
   protected async exportDatabase(): Promise<void> {

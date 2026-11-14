@@ -21,13 +21,14 @@ const info = (name: string, over: Partial<BackupInfo> = {}): BackupInfo => ({ na
 
 function setup(initial: BackupInfo[] = [info('micropos-auto-20261114-093000.db'), info('micropos-manual-20261113-101500.db', { kind: 'manual', size: 400 })]) {
   let backups = [...initial];
-  const calls = { created: 0, removed: [] as string[], exported: 0, imported: 0, restored: [] as string[] };
+  const calls = { created: 0, removed: [] as string[], exported: 0, csv: 0, imported: 0, restored: [] as string[] };
   const api = {
     backup: {
       list: () => Promise.resolve({ backups, folder: '/data/backups' }),
       create: () => (calls.created++, (backups = [info('micropos-manual-20261114-100000.db', { kind: 'manual' }), ...backups]), Promise.resolve({ ok: true as const, backup: backups[0]! })),
       remove: (name: string) => (calls.removed.push(name), (backups = backups.filter((b) => b.name !== name)), Promise.resolve(true)),
       exportTo: () => (calls.exported++, Promise.resolve({ ok: true as const, savedTo: '/home/me/micropos.db' })),
+      exportCsv: () => (calls.csv++, Promise.resolve({ ok: true as const, savedTo: '/home/me/micropos-csv-1' })),
       importFrom: () => (calls.imported++, Promise.resolve({ ok: false as const, error: 'This is not a MicroPOS database' })),
       restore: (name: string) => (calls.restored.push(name), Promise.resolve({ ok: true as const })),
       openFolder: () => Promise.resolve(true),
@@ -87,6 +88,16 @@ describe('BackupSettings', () => {
     await wait();
     expect(calls.exported).toBe(1);
     expect(TestBed.inject(BannerService).current()?.text).toBe('Saved to /home/me/micropos.db');
+  });
+
+  it('exports CSV files and says which folder they went to', async () => {
+    const calls = setup();
+    const { fixture, el } = await render();
+    button(el, 'Export as CSV')!.click();
+    await fixture.whenStable();
+    await wait();
+    expect(calls.csv).toBe(1);
+    expect(TestBed.inject(BannerService).current()?.text).toBe('Saved to /home/me/micropos-csv-1');
   });
 
   it('asks before replacing the data, and restores only after "Restore"', async () => {

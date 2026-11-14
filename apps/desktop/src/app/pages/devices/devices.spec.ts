@@ -21,7 +21,7 @@ function setup(initial: { state?: Partial<LanState>; devices?: LanDevice[]; pair
   let devices = initial.devices ?? [device()];
   const pairWith = (d: LanDevice): void => void (devices = [...devices, d]);
   const api = {
-    backup: { list: () => Promise.resolve({ backups: [], folder: '' }), create: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve(false), exportTo: () => Promise.reject(new Error('unused')), importFrom: () => Promise.reject(new Error('unused')), restore: () => Promise.reject(new Error('unused')), openFolder: () => Promise.resolve(false) },
+    backup: { list: () => Promise.resolve({ backups: [], folder: '' }), create: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve(false), exportTo: () => Promise.reject(new Error('unused')), exportCsv: () => Promise.reject(new Error('unused')), importFrom: () => Promise.reject(new Error('unused')), restore: () => Promise.reject(new Error('unused')), openFolder: () => Promise.resolve(false) },
     lan: {
       state: () => Promise.resolve(state),
       devices: () => Promise.resolve(devices),
