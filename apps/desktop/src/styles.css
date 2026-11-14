@@ -210,7 +210,7 @@ span[data-required]::after {
  * - The title row and the filter row are hidden until the "Sort and filter" button (in the page header) opens them: the
  *   titles become sort chips and each filter is stacked under its name.
  * - Each row is a card: the first column (`data-primary`) is its title next to the selection checkbox, and every other cell
- *   is "name ... value" on its own line (`data-label`, set by `appCol`). The columns keep the admin's order (CSS `order`).
+ *   is "name  value" on its own line, the value right beside the name (`data-label`, set by `appCol`). The columns keep the admin's order (CSS `order`).
  * Unlayered on purpose: it must beat the utility classes the desktop layout puts on the same elements.
  */
 @media (max-width: 47.9375rem) {
@@ -266,35 +266,39 @@ span[data-required]::after {
     align-items: start;
     padding: 0.75rem;
   }
+  /* A line per value: the name in a column of its own and the value right beside it (left-aligned, so a line is easy to follow). A cell with several parts (a number and its unit) stays together. */
   .table-cards > [role='rowgroup']:last-child [role='cell'] {
     grid-column: 1 / -1;
     display: flex;
-    justify-content: space-between;
-    gap: 1rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+    column-gap: 0.25rem;
     min-width: 0;
-    padding: 0;
-    text-align: right;
+    padding: 0.25rem 0;
+    text-align: left;
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   }
   .table-cards > [role='rowgroup']:last-child [role='cell'][data-label]::before {
     content: attr(data-label);
-    flex-shrink: 0;
+    flex: 0 0 7.5rem;
     font-size: 0.8125rem;
     color: var(--muted-foreground);
-    text-align: left;
   }
   /* The selection checkbox sits beside the title, on the card's first line. */
   .table-cards > [role='rowgroup']:last-child [role='cell']:first-child:not([data-label]) {
     grid-column: 1;
     grid-row: 1;
     align-self: center;
-    justify-content: flex-start;
+    border-bottom: 0;
+    padding: 0;
   }
   .table-cards > [role='rowgroup']:last-child [role='cell'][data-primary] {
     grid-column: 2;
     grid-row: 1;
     align-self: center;
     display: block;
-    text-align: left;
+    border-bottom: 0;
+    padding: 0;
     font-size: 1rem;
     font-weight: 500;
   }
