@@ -122,17 +122,26 @@
 
     <div class="min-h-0 flex-1 overflow-y-auto px-4">
       @if (lineTotals().length) {
-        <ul class="divide-border flex flex-col divide-y">
+        <!-- A table: the item, quantity and total columns have their own widths, shared by the title row and every line, so the quantity controls line up. -->
+        <div role="table" aria-label="Order items" class="[--cols:minmax(0,1fr)_12.5rem_6.5rem]">
+          <div role="rowgroup" class="bg-background sticky top-0 z-10">
+            <div role="row" class="text-muted-foreground grid grid-cols-(--cols) items-center gap-4 border-b px-3 py-2 text-sm">
+              <div role="columnheader">Item</div>
+              <div role="columnheader" class="text-center">Quantity</div>
+              <div role="columnheader" class="text-right">Total</div>
+            </div>
+          </div>
+          <div role="rowgroup" class="divide-border divide-y">
           @for (line of lineTotals(); track line.productId) {
-            <li
+            <div
               [attr.data-row-id]="line.productId"
               [hlmContextMenuTrigger]="lineMenu"
               [hlmContextMenuTriggerData]="{ $implicit: line }"
             >
               <app-swipe-actions [swipeLeft]="lineSwipeLeft" (action)="runLineAction($event, line)">
                 <!-- The line added or changed last stays highlighted (the class goes on the row inside the swipe wrapper). -->
-                <div class="grid grid-cols-[minmax(0,1fr)_auto_6rem] items-center gap-4 px-3 py-3" [class.row-target]="highlightId() === line.productId">
-                  <div class="min-w-0">
+                <div role="row" class="grid grid-cols-(--cols) items-center gap-4 px-3 py-3" [class.row-target]="highlightId() === line.productId">
+                  <div role="cell" class="min-w-0">
                     <p class="truncate text-base">{{ line.name }}</p>
                     <p class="text-muted-foreground text-sm">
                       {{ line.unitPrice | money }}
@@ -144,7 +153,7 @@
                       <p class="text-success truncate text-sm" data-line-discount>{{ line.off | money }} off@if (line.discount?.mode === 'percent') { ({{ formatDiscount(line.discount!) }}) }</p>
                     }
                   </div>
-                  <div class="flex items-center gap-1">
+                  <div role="cell" class="flex min-w-0 items-center gap-1">
                     <button
                       hlmBtn
                       variant="outline"
@@ -171,7 +180,7 @@
                         max="99999"
                         step="any"
                         [attr.inputmode]="settings.onScreenKeyboard() ? 'none' : 'decimal'"
-                        class="[field-sizing:content] max-w-40 min-w-14 text-center text-lg"
+                        class="min-w-0 flex-1 text-center text-lg"
                         aria-label="Quantity"
                         [value]="quantityLabel(line.quantityMilli)"
                         (keydown.enter)="finishInline(line, qty.value, true)"
@@ -183,7 +192,7 @@
                         hlmBtn
                         variant="ghost"
                         type="button"
-                        class="min-w-14 px-3 text-lg"
+                        class="min-w-0 flex-1 px-1 text-lg"
                         aria-label="Edit quantity"
                         (click)="editQuantity(line)"
                       >
@@ -206,12 +215,13 @@
                       <ng-icon name="lucidePlus" size="18" strokeWidth="1.5" />
                     </button>
                   </div>
-                  <span class="text-right text-lg">{{ line.net | money }}</span>
+                  <span role="cell" class="text-right text-lg">{{ line.net | money }}</span>
                 </div>
               </app-swipe-actions>
-            </li>
+            </div>
           }
-        </ul>
+          </div>
+        </div>
       } @else {
         <p class="text-muted-foreground py-8 text-center text-sm">No items yet</p>
       }

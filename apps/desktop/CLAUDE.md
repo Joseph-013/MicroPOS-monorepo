@@ -304,6 +304,8 @@ The Products table (`pages/products/`) is the reference; build every data table 
 
 ## Checkout order draft
 
+The order's items are a small table (`role="table"` grid, sticky title row Item / Quantity / Total; one column template `--cols` shared by the title and every line, with a fixed-width quantity column so the − / quantity / + controls line up down the list). Rows are `[data-row-id]` (specs select them that way, not `li`).
+
 - The order in progress saves itself: every change to the lines is written (debounced 300 ms, flushed when the page closes) through `window.micropos.checkout.*` to the `settings` table under the key `checkout.draft` (`electron/db/queries/draft.ts`, `CheckoutDraftService` in Angular). It is restored when Checkout opens, including after an app restart. The main process validates whatever the renderer sends before storing it.
 - In the ERD (`docs/erd.mmd`) the draft appears as the `checkout.draft` row of `settings`, with a dashed link to `products` (its lines hold product ids as JSON, with no foreign key). If drafts move to real `open` orders, update the ERD in the same change.
 - It is one draft per register for now. Once employees sign in, move it to an `open` order (with its lines) per employee.

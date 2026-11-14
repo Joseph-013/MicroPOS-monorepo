@@ -367,7 +367,7 @@ describe('CheckoutPage', () => {
       expect(el.textContent).not.toContain('NaN');
       expect(el.textContent).toContain('₱12.87'); // 3 x 4.29
       expect(el.textContent).not.toContain('Broken');
-      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')).toHaveLength(1);
     });
 
     it('does not wipe a saved draft just because the page opened empty', async () => {
@@ -716,7 +716,7 @@ describe('CheckoutPage', () => {
       complete().click();
       await fixture.whenStable();
 
-      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')).toHaveLength(1);
       expect(el.textContent).toContain('₱1.99');
       expect(el.textContent).not.toContain('Whole Milk (1 gal)');
       expect(TestBed.inject(BannerService).current()?.text).toContain('The price of Bananas (bunch) has changed');
@@ -730,7 +730,7 @@ describe('CheckoutPage', () => {
       store.result = { ok: false, error: 'Not enough stock for some items', lines: [{ productId: '2', kind: 'stock', error: 'Only 0 of Whole Milk (1 gal) in stock' }] };
       complete().click();
       await fixture.whenStable();
-      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')).toHaveLength(1);
       expect(TestBed.inject(BannerService).current()?.text).toContain('Only 0 of Whole Milk (1 gal) in stock');
     });
   });
@@ -795,7 +795,7 @@ describe('CheckoutPage', () => {
 
   describe('highlighting the latest line', () => {
     beforeEach(() => open());
-    const marked = (): string[] => [...el.querySelectorAll('li[data-row-id]')].filter((li) => li.querySelector('.row-target')).map((li) => li.textContent!.replace(/\s+/g, ' ').trim().slice(0, 12));
+    const marked = (): string[] => [...el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')].filter((li) => li.querySelector('.row-target')).map((li) => li.textContent!.replace(/\s+/g, ' ').trim().slice(0, 12));
     const last = (): CustomerDisplayState => store.published.at(-1)!;
 
     it('highlights the line that was added or changed last, keeps it highlighted, and moves it when another is touched', async () => {
@@ -820,7 +820,7 @@ describe('CheckoutPage', () => {
       scan(PRODUCTS[1].barcode!);
       scan(PRODUCTS[0].barcode!);
       await fixture.whenStable();
-      (el.querySelector('li[data-row-id] button[aria-label="Increase quantity"]') as HTMLButtonElement).click(); // the first line
+      (el.querySelector('[data-row-id] button[aria-label="Increase quantity"]') as HTMLButtonElement).click(); // the first line
       await fixture.whenStable();
       expect(last().highlight).toBe(0);
       expect(marked()).toEqual([expect.stringContaining('Whole Milk')]);
@@ -853,7 +853,7 @@ describe('CheckoutPage', () => {
     it('adds the weighed product with the weight on the label, priced per kg', async () => {
       scan(BEEF_LABEL);
       await fixture.whenStable();
-      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')).toHaveLength(1);
       expect(el.textContent?.replace(/\s+/g, ' ')).toContain('Ground Beef');
       expect(el.textContent?.replace(/\s+/g, ' ')).toContain('0.405 kg'); // 405 g
       expect(el.textContent).toContain('₱3.64'); // 8.99 x 0.405 = 3.640
@@ -863,18 +863,18 @@ describe('CheckoutPage', () => {
       scan(BEEF_LABEL);
       scan(BEEF_LABEL);
       await fixture.whenStable();
-      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')).toHaveLength(1);
       expect(el.textContent?.replace(/\s+/g, ' ')).toContain('0.81 kg');
     });
 
     it('reports a label whose PLU matches no weighed product, and ignores one with a bad check digit as an unknown code', async () => {
       scan('2999990004052'); // valid check digit, unknown PLU 99999
       await fixture.whenStable();
-      expect(el.querySelectorAll('li')).toHaveLength(0);
+      expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')).toHaveLength(0);
       expect(TestBed.inject(BannerService).current()?.text).toBe('Unknown PLU 99999');
       scan('2040110004050'); // wrong check digit
       await fixture.whenStable();
-      expect(el.querySelectorAll('li')).toHaveLength(0);
+      expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')).toHaveLength(0);
       expect(TestBed.inject(BannerService).current()?.text).toBe('Unknown barcode 2040110004050');
     });
   });
@@ -903,7 +903,7 @@ describe('CheckoutPage', () => {
       await fixture.whenStable();
       scan(PRODUCTS[3].barcode!);
       await fixture.whenStable();
-      expect(el.querySelectorAll('li').length).toBe(1);
+      expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]').length).toBe(1);
       TestBed.inject(CheckoutDraftService).flush();
       expect(store.draft?.lines).toHaveLength(1);
       expect(store.draft?.lines[0]?.quantityMilli).toBe(1000); // still one unit, not two
@@ -1097,7 +1097,7 @@ describe('CheckoutPage', () => {
       scan(PRODUCTS[0].barcode!);
       scan(PRODUCTS[1].barcode!);
       await fixture.whenStable();
-      const rows = el.querySelectorAll('li');
+      const rows = el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]');
       expect(rows).toHaveLength(2);
 
       rows[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 }));
@@ -1107,7 +1107,7 @@ describe('CheckoutPage', () => {
       item.click();
       await fixture.whenStable();
 
-      expect(el.querySelectorAll('li')).toHaveLength(1);
+      expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')).toHaveLength(1);
       expect(el.textContent).not.toContain('Bananas (bunch)');
       expect(el.textContent).toContain('Whole Milk (1 gal)');
     });
