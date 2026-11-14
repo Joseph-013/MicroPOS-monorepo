@@ -50,7 +50,7 @@ export function encodeReceipt(doc: ReceiptDocument, options: { paperWidthMm: Pap
         break;
       }
       case 'logo':
-        if (options.logo) encoder.align('center').image(options.logo, options.logo.width, options.logo.height, 'threshold').align('left').newline();
+        if (options.logo) encoder.align('center').image(options.logo, options.logo.width, options.logo.height, 'threshold').align('left'); // its own bottom gap is part of the picture
         break;
     }
   }

@@ -5,6 +5,8 @@ import type { Rasterizer } from './receipt-image';
 const CELL_WIDTH = 12;
 const CELL_HEIGHT = 24;
 const MARGIN = 24;
+/** The white left under the logo (LOGO_GAP_DOTS in logo.ts). */
+const LOGO_GAP = 12;
 
 /**
  * Draws the receipt on a canvas in a window that is never shown (Electron has no canvas of its own in the main
@@ -15,7 +17,7 @@ export const rasterizeWithWindow: Rasterizer = async ({ rows, columns, dots, log
   const window = new BrowserWindow({ show: false, width: dots, height: 200, webPreferences: { sandbox: true, contextIsolation: true } });
   try {
     await window.loadURL('data:text/html;charset=utf-8,<!doctype html><canvas id="c"></canvas>');
-    const input = JSON.stringify({ rows, columns, dots, logo: logo ? `data:image/png;base64,${logo.toString('base64')}` : null, cellWidth: CELL_WIDTH, cellHeight: CELL_HEIGHT, margin: MARGIN });
+    const input = JSON.stringify({ rows, columns, dots, logo: logo ? `data:image/png;base64,${logo.toString('base64')}` : null, cellWidth: CELL_WIDTH, cellHeight: CELL_HEIGHT, margin: MARGIN, logoGap: LOGO_GAP });
     const dataUrl: string = await window.webContents.executeJavaScript(`(${draw.toString()})(${input})`);
     return Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
   } finally {
@@ -24,8 +26,8 @@ export const rasterizeWithWindow: Rasterizer = async ({ rows, columns, dots, log
 };
 
 /** Runs inside the hidden window (so it cannot use anything from this file). */
-async function draw(input: { rows: ({ kind: 'text'; text: string; bold: boolean } | { kind: 'logo' } | { kind: 'qr'; matrix: boolean[][]; moduleDots: number; quietModules: number })[]; columns: number; dots: number; logo: string | null; cellWidth: number; cellHeight: number; margin: number }): Promise<string> {
-  const { rows, dots, cellWidth, cellHeight, margin } = input;
+async function draw(input: { rows: ({ kind: 'text'; text: string; bold: boolean } | { kind: 'logo' } | { kind: 'qr'; matrix: boolean[][]; moduleDots: number; quietModules: number })[]; columns: number; dots: number; logo: string | null; cellWidth: number; cellHeight: number; margin: number; logoGap: number }): Promise<string> {
+  const { rows, dots, cellWidth, cellHeight, margin, logoGap } = input;
   let logo: HTMLImageElement | null = null;
   if (input.logo) {
     const image = new Image();
@@ -36,7 +38,7 @@ async function draw(input: { rows: ({ kind: 'text'; text: string; bold: boolean 
   const logoWidth = logo ? Math.min(logo.naturalWidth, dots - 32) : 0;
   const logoHeight = logo ? Math.round((logo.naturalHeight * logoWidth) / logo.naturalWidth) : 0;
   const qrSide = (r: { matrix: boolean[][]; moduleDots: number; quietModules: number }): number => (r.matrix.length + 2 * r.quietModules) * r.moduleDots;
-  const height = margin * 2 + rows.reduce((sum, r) => sum + (r.kind === 'logo' ? (logo ? logoHeight + cellHeight : 0) : r.kind === 'qr' ? qrSide(r) : cellHeight), 0);
+  const height = margin * 2 + rows.reduce((sum, r) => sum + (r.kind === 'logo' ? (logo ? logoHeight + logoGap : 0) : r.kind === 'qr' ? qrSide(r) : cellHeight), 0);
   const canvas = document.getElementById('c') as HTMLCanvasElement;
   canvas.width = dots;
   canvas.height = height;
@@ -72,7 +74,7 @@ async function draw(input: { rows: ({ kind: 'text'; text: string; bold: boolean 
         picture.data[i + 3] = 255;
       }
       ctx.putImageData(picture, 0, y);
-      y += logoHeight + cellHeight;
+      y += logoHeight + logoGap;
       continue;
     }
     ctx.font = `${row.bold ? 'bold ' : ''}20px "DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, monospace`;

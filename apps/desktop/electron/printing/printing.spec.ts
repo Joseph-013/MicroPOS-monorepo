@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildSaleReceipt, buildTestReceipt, columnsFor, layoutReceipt, DEFAULT_PRINTER_SETTINGS, type PrinterSettings, type ReceiptDocument, type SalesOrderDetail, wrapText, formatReceiptMoney } from '@micropos/core';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from '../db';
-import { centerOnPaper, type Bitmap } from './bitmap';
+import { centerOnPaper, contentBounds, type Bitmap } from './bitmap';
 import { encodeReceipt } from './escpos';
 import { PrinterError } from './errors';
 import jsQR from 'jsqr';
@@ -174,6 +174,34 @@ describe('centring a logo', () => {
     const wide = centerOnPaper(solid(20, 1, [0, 0, 0, 255]), 16);
     expect(wide.width).toBe(16);
     expect(pixel(wide, 0, 0)).toEqual([0, 0, 0, 255]);
+  });
+});
+
+describe('trimming a logo', () => {
+  const picture = (width: number, height: number, dark: [number, number, number, number][]): Bitmap => {
+    const data = new Uint8ClampedArray(width * height * 4).fill(0); // fully transparent
+    for (const [x, y, v, a] of dark) data.set([v, v, v, a], (y * width + x) * 4);
+    return { width, height, data };
+  };
+
+  it('finds the box around what is drawn, ignoring transparent and near-white borders', () => {
+    expect(contentBounds(picture(10, 10, [[3, 2, 0, 255], [6, 7, 0, 255]]))).toEqual({ x: 3, y: 2, width: 4, height: 6 });
+    const white = picture(4, 4, []);
+    for (let i = 0; i < white.data.length; i += 4) white.data.set([255, 255, 255, 255], i); // opaque white
+    white.data.set([0, 0, 0, 255], (1 * 4 + 2) * 4);
+    expect(contentBounds(white)).toEqual({ x: 2, y: 1, width: 1, height: 1 });
+  });
+
+  it('says there is nothing in a blank picture', () => {
+    expect(contentBounds(picture(5, 5, []))).toBeNull();
+    expect(contentBounds(picture(5, 5, [[1, 1, 0, 8]]))).toBeNull(); // nearly transparent
+  });
+
+  it('leaves a gap of white under a centred picture, so the next line is not pushed away', () => {
+    const out = centerOnPaper(picture(8, 4, [[0, 0, 0, 255]]), 16, 12);
+    expect(out.height).toBe(16);
+    expect(out.data.slice((15 * 16) * 4, (15 * 16) * 4 + 4)).toEqual(new Uint8ClampedArray([255, 255, 255, 255]));
+    expect(centerOnPaper(picture(8, 4, []), 16).height).toBe(4); // no padding unless asked
   });
 });
 

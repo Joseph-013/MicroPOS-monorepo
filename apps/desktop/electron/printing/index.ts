@@ -5,7 +5,7 @@ import { getSaveReceiptImages } from './debug-settings';
 import { ReceiptImageSink } from './receipt-image';
 import { rasterizeWithWindow } from './receipt-image-electron';
 import { log } from '../logging';
-import { loadShopLogo, shopLogos } from './logo';
+import { loadShopLogo, trimmedLogoPng } from './logo';
 import { PrinterService } from './printer-service';
 import { loadPrinterSettings } from './settings';
 import { NetworkTransport } from './transports/network';
@@ -16,7 +16,7 @@ export const receiptImagesFolder = (): string => path.join(app.getPath('download
 
 /** The stand-in printer that saves receipts as images (Settings > Debug). */
 export function createReceiptImageSink(db: AppDatabase): ReceiptImageSink {
-  return new ReceiptImageSink({ folder: receiptImagesFolder, rasterize: rasterizeWithWindow, enabled: () => getSaveReceiptImages(db), logoPng: () => shopLogos.read() });
+  return new ReceiptImageSink({ folder: receiptImagesFolder, rasterize: rasterizeWithWindow, enabled: () => getSaveReceiptImages(db), logoPng: trimmedLogoPng });
 }
 
 /** The printer service with the real settings, transports and logo, for the main process. */
