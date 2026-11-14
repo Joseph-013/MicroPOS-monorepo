@@ -83,17 +83,6 @@ type Preset = UserRole | typeof CUSTOM;
         @if (errorFor('permissions'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
       </fieldset>
 
-      <label class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
-        <span class="flex flex-col">
-          <span>Active</span>
-          <span class="text-muted-foreground text-xs" data-active-hint>
-            {{ active() ? 'Can sign in. Turn off to lock them out; their history is kept.' : 'Inactive: cannot sign in. Turn on to let them in again.' }}
-          </span>
-        </span>
-        <hlm-switch aria-label="Active" [checked]="active()" (checkedChange)="active.set($event)" />
-      </label>
-      @if (errorFor('active'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
-
       @if (user) {
         <div class="flex flex-col gap-2 border-t pt-4">
           <label hlmLabel for="user-reset">Reset PIN ({{ pinRule }})</label>
@@ -103,6 +92,31 @@ type Preset = UserRole | typeof CUSTOM;
           </div>
           <p class="text-muted-foreground text-sm">They must choose a new PIN the next time they sign in.</p>
           @if (resetMessage(); as message) { <p class="text-sm" [class.text-destructive]="resetFailed()">{{ message }}</p> }
+        </div>
+
+        <!-- Deactivating is its own action, not a switch among the permissions: it locks the person out and keeps their history. -->
+        <div class="flex flex-col gap-2 border-t pt-4" data-account-status>
+          <p class="text-sm">
+            Account: <span class="font-medium" [class.text-destructive]="!user.active" data-status>{{ user.active ? 'Active' : 'Inactive' }}</span>
+          </p>
+          @if (user.active) {
+            @if (confirmingDeactivate()) {
+              <div class="border-destructive/50 flex flex-col gap-3 border p-3" role="alert">
+                <p class="text-sm">Deactivate {{ user.name }}? They are signed out at once and cannot sign in until you reactivate them. Their sales and history stay.</p>
+                <div class="flex justify-end gap-2">
+                  <button hlmBtn variant="outline" type="button" class="px-4" [disabled]="saving()" (click)="confirmingDeactivate.set(false)">Cancel</button>
+                  <button hlmBtn variant="destructive" type="button" class="px-4" [disabled]="saving()" (click)="setActive(false)">Deactivate</button>
+                </div>
+              </div>
+            } @else {
+              <button hlmBtn variant="outline" type="button" class="text-destructive self-start px-4" (click)="confirmingDeactivate.set(true)">Deactivate user</button>
+              <p class="text-muted-foreground text-sm">Locks them out. Their sales and history stay.</p>
+            }
+          } @else {
+            <button hlmBtn variant="outline" type="button" class="self-start px-4" [disabled]="saving()" (click)="setActive(true)">Reactivate user</button>
+            <p class="text-muted-foreground text-sm">They cannot sign in. Reactivating lets them sign in again with their PIN.</p>
+          }
+          @if (errorFor('active'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
         </div>
       }
       @if (formError(); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
@@ -127,7 +141,9 @@ export class UserForm {
   protected readonly name = signal(this.user?.name ?? '');
   protected readonly number = signal(this.user?.employeeNumber ?? '');
   protected readonly pin = signal('');
-  protected readonly active = signal(this.user?.active ?? true);
+  /** Whether the account is active when this form saves: unchanged here (a new user is active); deactivating and reactivating are their own actions (`setActive`). */
+  private readonly active = signal(this.user?.active ?? true);
+  protected readonly confirmingDeactivate = signal(false);
   protected readonly permissions = signal<Permission[]>(this.user ? [...this.user.permissions] : [...ROLE_PRESETS.cashier]);
   /** The role the permissions started from (kept as the label when they are then customised). */
   private readonly role = signal<UserRole>(this.user?.role ?? 'cashier');
@@ -179,6 +195,25 @@ export class UserForm {
     this.saving.set(false);
     if (result.ok) this.ref.close(true);
     else this.problem.set({ field: result.field, error: result.error });
+  }
+
+  /**
+   * Deactivates or reactivates the person: saves the account as it was last saved with only `active` changed (edits not yet
+   * saved in this form are left out, so the form is not saved by accident). The server refuses the last person who can manage
+   * users, and yourself.
+   */
+  protected async setActive(active: boolean): Promise<void> {
+    const user = this.user;
+    if (!user || this.saving()) return;
+    this.problem.set(null);
+    this.saving.set(true);
+    const result = await this.users.save(user.id, { name: user.name, employeeNumber: user.employeeNumber, role: user.role, permissions: user.permissions, active });
+    this.saving.set(false);
+    if (result.ok) this.ref.close(true);
+    else {
+      this.confirmingDeactivate.set(false);
+      this.problem.set({ field: result.field ?? 'active', error: result.error });
+    }
   }
 
   protected async resetPin(): Promise<void> {

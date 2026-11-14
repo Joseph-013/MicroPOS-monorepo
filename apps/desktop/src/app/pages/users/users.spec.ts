@@ -28,6 +28,7 @@ const user = (id: string, name: string, over: Partial<UserRecord> = {}): UserRec
 
 function fakeApi(initial: UserRecord[], signIns = 1) {
   const rows = [...initial];
+  let updateResult: Record<string, unknown> = { ok: false as const, field: 'permissions' as const, error: 'Someone must be able to manage users: this is the only one who can' };
   const calls = { created: [] as UserInput[], updated: [] as [string, UserInput][], resets: [] as [string, string][] };
   const api = {
     auth: { status: () => Promise.resolve(null), choices: () => Promise.resolve([]) },
@@ -42,7 +43,7 @@ function fakeApi(initial: UserRecord[], signIns = 1) {
       },
       update: (id: string, input: UserInput) => {
         calls.updated.push([id, input]);
-        return Promise.resolve({ ok: false as const, field: 'permissions' as const, error: 'Someone must be able to manage users: this is the only one who can' });
+        return Promise.resolve(updateResult);
       },
       resetPin: (id: string, pin: string) => {
         calls.resets.push([id, pin]);
@@ -50,7 +51,7 @@ function fakeApi(initial: UserRecord[], signIns = 1) {
       },
     },
   } as unknown as DesktopApi;
-  return { api, calls };
+  return { api, calls, setUpdate: (r: Record<string, unknown>) => void (updateResult = r) };
 }
 
 describe('UsersPage', () => {
@@ -125,23 +126,80 @@ describe('UsersPage', () => {
     expect(document.querySelector('#user-form')).toBeNull();
   });
 
-  it('has an Active switch that says what the state means, and saves a user as inactive when it is turned off', async () => {
+  it('has no switch for signing in: a new user is simply active', async () => {
     await open([]);
     button(el, 'Add user')!.click();
     await settle();
     const form = document.querySelector('#user-form')!;
-    const hint = (): string => form.querySelector('[data-active-hint]')!.textContent!.replace(/\s+/g, ' ').trim();
-    expect(form.textContent).not.toContain('Can sign in?');
-    expect(hint()).toContain('Can sign in. Turn off to lock them out');
+    expect(form.querySelector('[data-account-status]')).toBeNull(); // nothing to deactivate yet
+    expect(form.textContent).not.toContain('Can sign in');
     await type('#user-name', 'Sam', form);
     await type('#user-number', '2001', form);
     await type('#user-pin', '4321', form);
-    ([...form.querySelectorAll('label')].find((l) => l.querySelector('[data-active-hint]'))!.querySelector('hlm-switch button') as HTMLElement).click();
-    await settle();
-    expect(hint()).toContain('Inactive: cannot sign in');
     button(form, 'Save')!.click();
     await settle();
-    expect(fake.calls.created[0]).toMatchObject({ name: 'Sam', active: false });
+    expect(fake.calls.created[0]).toMatchObject({ name: 'Sam', active: true });
+  });
+
+  it('deactivates a user from its own button, after asking, and changes nothing else', async () => {
+    await open([user('a', 'Ana')]);
+    fake.setUpdate({ ok: true, user: user('a', 'Ana') });
+    (el.querySelector('[data-row-id="a"]') as HTMLElement).click();
+    await settle();
+    const form = document.querySelector('#user-form')!;
+    expect(form.querySelector('[data-status]')!.textContent!.trim()).toBe('Active');
+    await type('#user-name', 'Ana Renamed', form); // an unsaved edit is not part of it
+    button(form, 'Deactivate user')!.click();
+    await settle();
+    expect(fake.calls.updated).toEqual([]); // not yet: asks first
+    expect(form.textContent).toContain('Deactivate Ana? They are signed out at once');
+    button(form, 'Cancel')!.click();
+    await settle();
+    expect(document.querySelector('#user-form')).not.toBeNull(); // Cancel on the question keeps the form (the dialog's own Close is elsewhere)
+  });
+
+  it('sends active false, with the user as last saved, once confirmed', async () => {
+    await open([user('a', 'Ana')]);
+    fake.setUpdate({ ok: true, user: user('a', 'Ana') });
+    (el.querySelector('[data-row-id="a"]') as HTMLElement).click();
+    await settle();
+    const form = document.querySelector('#user-form')!;
+    await type('#user-name', 'Ana Renamed', form);
+    button(form, 'Deactivate user')!.click();
+    await settle();
+    button(form, 'Deactivate')!.click();
+    await settle();
+    expect(fake.calls.updated).toHaveLength(1);
+    expect(fake.calls.updated[0]![0]).toBe('a');
+    expect(fake.calls.updated[0]![1]).toMatchObject({ name: 'Ana', active: false });
+    expect(document.querySelector('#user-form')).toBeNull();
+  });
+
+  it('reactivates an inactive user with one press, and shows why when it is refused', async () => {
+    await open([user('a', 'Ana', { active: false })]);
+    fake.setUpdate({ ok: true, user: user('a', 'Ana') });
+    (el.querySelector('[data-row-id="a"]') as HTMLElement).click();
+    await settle();
+    const form = document.querySelector('#user-form')!;
+    expect(form.querySelector('[data-status]')!.textContent!.trim()).toBe('Inactive');
+    expect(button(form, 'Deactivate user')).toBeFalsy();
+    button(form, 'Reactivate user')!.click();
+    await settle();
+    expect(fake.calls.updated[0]![1]).toMatchObject({ active: true });
+  });
+
+  it('says why deactivating was refused (the last person who can manage users, or yourself)', async () => {
+    await open([user('a', 'Ana')]);
+    fake.setUpdate({ ok: false, field: 'active', error: 'You cannot deactivate yourself' });
+    (el.querySelector('[data-row-id="a"]') as HTMLElement).click();
+    await settle();
+    const form = document.querySelector('#user-form')!;
+    button(form, 'Deactivate user')!.click();
+    await settle();
+    button(form, 'Deactivate')!.click();
+    await settle();
+    expect(form.textContent).toContain('You cannot deactivate yourself');
+    expect(document.querySelector('#user-form')).not.toBeNull();
   });
 
   it('shows the reason when a change is refused', async () => {
