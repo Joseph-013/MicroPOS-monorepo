@@ -22,8 +22,6 @@ export const PERMISSIONS = [
   { id: 'catalog.view', group: 'Items', label: 'View items', description: 'Open Products, Categories and the stock overview.' },
   { id: 'catalog.manage', group: 'Items', label: 'Change products and categories', description: 'Add, edit, delete and restore products and categories.' },
   { id: 'inventory.manage', group: 'Items', label: 'Manage stock', description: 'Receive, adjust and repackage stock.' },
-  { id: 'cash.manage', group: 'Sales', label: 'Use the cash drawer', description: 'Open and close the cash drawer, count it, and record cash put in or taken out.' },
-  { id: 'reports.view', group: 'Sales', label: 'View reports', description: 'The daily sales report, and what each drawer count was expected to be.' },
   { id: 'purchasing.manage', group: 'Purchasing', label: 'Manage purchasing', description: 'Suppliers, purchase orders, receiving and paying suppliers.' },
   { id: 'settings.manage', group: 'Staff', label: 'Change shop settings', description: 'Settings that affect the whole till, such as whether the app keeps running when its window is closed.' },
   { id: 'users.manage', group: 'Staff', label: 'Manage users', description: 'Add users, change what they may do, reset PINs and see sign-ins.' },
@@ -38,7 +36,7 @@ export const isPermission = (value: unknown): value is Permission => (ALL_PERMIS
 export const ROLE_PRESETS: Record<UserRole, readonly Permission[]> = {
   admin: ALL_PERMISSIONS,
   manager: ALL_PERMISSIONS.filter((p) => p !== 'users.manage' && p !== 'settings.manage'),
-  cashier: ['checkout.sell', 'customers.view', 'customers.payments', 'cash.manage'],
+  cashier: ['checkout.sell', 'customers.view', 'customers.payments'],
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = { admin: 'Admin', manager: 'Manager', cashier: 'Cashier' };
@@ -60,8 +58,6 @@ export const PAGE_PERMISSIONS: readonly { path: string; permission: Permission }
   { path: '/items/overview', permission: 'catalog.view' },
   { path: '/orders', permission: 'orders.view' },
   { path: '/customers', permission: 'customers.view' },
-  { path: '/cash', permission: 'cash.manage' },
-  { path: '/reports', permission: 'reports.view' },
   { path: '/purchases', permission: 'purchasing.manage' },
   { path: '/users', permission: 'users.manage' },
 ];

@@ -19,8 +19,6 @@ import type {
   SupplierRecord,
 } from './purchasing.js';
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
-import type { CashDrawerState, CashMovementInput, CashResult, CashSessionRecord, CloseDrawerInput, OpenDrawerInput } from './cash.js';
-import type { DailyReport } from './reports.js';
 import type { PrinterDebug, PrinterSettings, PrintResult, SaveLogoResult, SavePrinterSettingsResult, UsbPrinterInfo } from './printing.js';
 import type { DataDomain, PurchaseConcern, StockConcern } from './concerns.js';
 import type { CreditAlertSettings } from './credit-alerts.js';
@@ -33,7 +31,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 41;
+export const DESKTOP_API_VERSION = 40;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -89,28 +87,12 @@ export interface DesktopApi {
     listUsb(): Promise<UsbPrinterInfo[]>;
     /** Prints a short test page with the saved settings. */
     testPrint(): Promise<PrintResult>;
-    /** Prints the daily sales report of a day. */
-    printDailyReport(day: string): Promise<PrintResult>;
     /** Prints the receipt of a recorded sale. */
     printOrder(orderId: string): Promise<PrintResult>;
   };
   log: {
     /** The page reports an error to the main process, which writes it to the log files. Nothing comes back. */
     write(entry: { level: 'error' | 'warn'; source: string; message: string; details?: string }): Promise<void>;
-  };
-  cash: {
-    /** The drawer: the open session (without what it should hold), its movements, and how the last one ended. */
-    state(): Promise<CashDrawerState>;
-    /** Counts the float and starts a session; refused while one is open. */
-    open(input: OpenDrawerInput): Promise<CashResult<CashDrawerState>>;
-    /** Cash put in or taken out by hand while a session is open. */
-    addMovement(input: CashMovementInput): Promise<CashResult<CashDrawerState>>;
-    /** Closes the session with the counted cash; the result says how it compared with what it should hold. */
-    close(input: CloseDrawerInput): Promise<CashResult<CashSessionRecord>>;
-  };
-  reports: {
-    /** The daily sales report for a day (`YYYY-MM-DD`, local time), or null when the day is not a date. */
-    daily(day: string): Promise<DailyReport | null>;
   };
   debug: {
     /** Whether receipts are saved as images instead of printed, and where. */

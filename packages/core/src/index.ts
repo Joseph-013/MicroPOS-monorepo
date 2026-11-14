@@ -212,22 +212,3 @@ export {
 } from './printing.js';
 export { layoutReceipt, type ReceiptRow } from './receipt-layout.js';
 export { ORDER_QR_PREFIX, orderQrPayload, parseOrderQr } from './order-qr.js';
-export {
-  CASH_MOVEMENT_TYPES,
-  cashFlowNet,
-  expectedCash,
-  MAX_CASH_NOTE,
-  MAX_CASH_REASON,
-  PAYMENT_METHOD_ORDER,
-  type CashDrawerState,
-  type CashField,
-  type CashFlow,
-  type CashMovementInput,
-  type CashMovementRecord,
-  type CashMovementType,
-  type CashResult,
-  type CashSessionRecord,
-  type CloseDrawerInput,
-  type OpenDrawerInput,
-} from './cash.js';
-export { buildDailyReceipt, dayOf, dayRange, type DailyReport, type ItemSold, type MethodTotal } from './reports.js';
