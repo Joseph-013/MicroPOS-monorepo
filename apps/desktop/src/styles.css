@@ -257,7 +257,7 @@ span[data-required]::after {
 
   .table-cards > [role='rowgroup']:last-child > div {
     /* A gutter at each side: the scroll bar (an overlay on iOS) sits in it instead of over the cards. */
-    margin: 0.5rem 0.875rem;
+    margin: 0.5rem 0.5rem;
     border: 1px solid var(--border);
   }
   .table-cards > [role='rowgroup']:last-child [role='row'] {
