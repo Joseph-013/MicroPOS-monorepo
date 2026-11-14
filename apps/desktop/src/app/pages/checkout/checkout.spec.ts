@@ -72,7 +72,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     data: { onChanged: () => () => undefined },
       shell: { getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true), getLogsFolder: () => Promise.resolve(null), openLogsFolder: () => Promise.resolve(false) },
       log: { write: () => Promise.resolve() },
-      printer: { settings: () => Promise.reject(new Error('unused')), save: () => Promise.reject(new Error('unused')), listUsb: () => Promise.resolve([]), testPrint: () => Promise.reject(new Error('unused')), printOrder: () => Promise.reject(new Error('unused')) },
+      printer: { getLogo: () => Promise.resolve(null), saveLogo: () => Promise.reject(new Error('unused')), removeLogo: () => Promise.resolve(), settings: () => Promise.reject(new Error('unused')), save: () => Promise.reject(new Error('unused')), listUsb: () => Promise.resolve([]), testPrint: () => Promise.reject(new Error('unused')), printOrder: () => Promise.reject(new Error('unused')) },
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: {
       listProducts: () => Promise.resolve(PRODUCTS),

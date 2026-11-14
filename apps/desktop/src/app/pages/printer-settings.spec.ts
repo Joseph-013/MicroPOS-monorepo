@@ -15,11 +15,18 @@ Element.prototype.scrollIntoView ??= () => undefined;
 const EMPTY: PrinterSettings = { printer: { connection: null, paperWidthMm: 58 }, shop: { name: '', address: '', footer: '' } };
 const wait = (ms = 20): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-function setup(initial: PrinterSettings = EMPTY, usb: UsbPrinterInfo[] = [], testResult: PrintResult = { ok: true }) {
+function setup(initial: PrinterSettings = EMPTY, usb: UsbPrinterInfo[] = [], testResult: PrintResult = { ok: true }, logo: { current: string | null; accept?: boolean } = { current: null }) {
   const saved: PrinterSettings[] = [];
+  const logos = { uploads: [] as Uint8Array[], removed: 0 };
   let tests = 0;
   const api = {
     printer: {
+      getLogo: () => Promise.resolve(logo.current),
+      saveLogo: (bytes: Uint8Array) => {
+        logos.uploads.push(bytes);
+        return Promise.resolve(logo.accept === false ? { ok: false as const, error: 'That file is not a picture the printer can use (use PNG or JPEG)' } : { ok: true as const, dataUrl: 'data:image/png;base64,SAVED' });
+      },
+      removeLogo: () => (logos.removed++, Promise.resolve()),
       settings: () => Promise.resolve(initial),
       save: (s: PrinterSettings): Promise<SavePrinterSettingsResult> => (saved.push(s), Promise.resolve({ ok: true, settings: s })),
       listUsb: () => Promise.resolve(usb),
@@ -27,7 +34,7 @@ function setup(initial: PrinterSettings = EMPTY, usb: UsbPrinterInfo[] = [], tes
     },
   } as unknown as DesktopApi;
   TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
-  return { saved, tests: () => tests };
+  return { saved, logos, tests: () => tests };
 }
 
 async function render(): Promise<{ el: HTMLElement; fixture: ReturnType<typeof TestBed.createComponent<PrinterSettingsCard>> }> {
@@ -134,6 +141,78 @@ describe('PrinterSettingsCard', () => {
     setup();
     const { el } = await render();
     expect(([...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Test print') as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('the logo in the printer settings', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.resetTestingModule();
+  });
+  const pick = async (el: HTMLElement, file: File, fixture: { whenStable(): Promise<unknown> }): Promise<void> => {
+    const input = el.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await fixture.whenStable();
+    await wait(40);
+    await fixture.whenStable();
+  };
+  const button = (el: HTMLElement, label: string): HTMLButtonElement | undefined => [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === label);
+  const preview = (el: HTMLElement): string | null => el.querySelector('img[alt="Shop logo"]')?.getAttribute('src') ?? null;
+
+  it('shows the saved logo, or says there is none', async () => {
+    setup(EMPTY, [], { ok: true }, { current: 'data:image/png;base64,ABC' });
+    const withLogo = await render();
+    expect(preview(withLogo.el)).toBe('data:image/png;base64,ABC');
+    expect(button(withLogo.el, 'Replace')).toBeDefined();
+    expect(button(withLogo.el, 'Remove')).toBeDefined();
+    TestBed.resetTestingModule();
+    setup();
+    const without = await render();
+    expect(preview(without.el)).toBeNull();
+    expect(without.el.textContent).toContain('No logo');
+    expect(button(without.el, 'Upload')).toBeDefined();
+    expect(button(without.el, 'Remove')).toBeUndefined();
+  });
+
+  it('sends the chosen picture to the main process and shows what was saved', async () => {
+    const fake = setup();
+    const { el, fixture } = await render();
+    await pick(el, new File([new Uint8Array([137, 80, 78, 71])], 'logo.png', { type: 'image/png' }), fixture);
+    expect(fake.logos.uploads).toHaveLength(1);
+    expect(Array.from(fake.logos.uploads[0]!)).toEqual([137, 80, 78, 71]);
+    expect(preview(el)).toBe('data:image/png;base64,SAVED');
+    expect(TestBed.inject(BannerService).current()?.text).toBe('Logo saved');
+  });
+
+  it('says why a file was refused and keeps what was shown', async () => {
+    setup(EMPTY, [], { ok: true }, { current: 'data:image/png;base64,ABC', accept: false });
+    const { el, fixture } = await render();
+    await pick(el, new File([new Uint8Array([1])], 'notes.txt', { type: 'text/plain' }), fixture);
+    expect(TestBed.inject(BannerService).current()).toMatchObject({ severity: 'error', text: expect.stringContaining('not a picture') });
+    expect(preview(el)).toBe('data:image/png;base64,ABC');
+  });
+
+  it('does not even send a file over the size limit', async () => {
+    const fake = setup();
+    const { el, fixture } = await render();
+    const big = new File([new Uint8Array(1)], 'big.png', { type: 'image/png' });
+    Object.defineProperty(big, 'size', { value: 6 * 1024 * 1024 });
+    await pick(el, big, fixture);
+    expect(fake.logos.uploads).toEqual([]);
+    expect(TestBed.inject(BannerService).current()?.text).toContain('too large');
+  });
+
+  it('removes the logo', async () => {
+    const fake = setup(EMPTY, [], { ok: true }, { current: 'data:image/png;base64,ABC' });
+    const { el, fixture } = await render();
+    button(el, 'Remove')!.click();
+    await fixture.whenStable();
+    await wait();
+    await fixture.whenStable();
+    expect(fake.logos.removed).toBe(1);
+    expect(preview(el)).toBeNull();
+    expect(el.textContent).toContain('No logo');
   });
 });
 

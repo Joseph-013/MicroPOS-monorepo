@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import {
   DEFAULT_PRINTER_PORT,
+  MAX_LOGO_BYTES,
   MAX_SHOP_ADDRESS,
   MAX_SHOP_FOOTER,
   MAX_SHOP_NAME,
@@ -114,6 +115,25 @@ const usbKey = (d: Pick<UsbPrinterInfo, 'vendorId' | 'productId' | 'serialNumber
           </div>
 
           <div class="flex flex-col gap-2">
+            <span hlmLabel id="pr-logo-label">Logo</span>
+            <div class="flex items-center gap-3">
+              <div class="flex h-16 w-40 min-w-0 shrink-0 items-center justify-center overflow-hidden border bg-white p-1" aria-labelledby="pr-logo-label">
+                @if (logo(); as src) {
+                  <img [src]="src" alt="Shop logo" class="max-h-14 max-w-full object-contain" />
+                } @else {
+                  <span class="text-xs text-neutral-500">No logo</span>
+                }
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button hlmBtn variant="outline" type="button" class="px-4" [disabled]="busy()" (click)="picker.click()">{{ logo() ? 'Replace' : 'Upload' }}</button>
+                @if (logo()) {
+                  <button hlmBtn variant="destructive" type="button" class="px-4" [disabled]="busy()" (click)="removeLogo()">Remove</button>
+                }
+              </div>
+              <input #picker type="file" accept="image/png,image/jpeg" class="hidden" tabindex="-1" aria-hidden="true" (change)="upload(picker)" />
+            </div>
+          </div>
+          <div class="flex flex-col gap-2">
             <label hlmLabel for="pr-name">Shop name</label>
             <input hlmInput id="pr-name" type="text" [attr.maxlength]="maxName" [forceInvalid]="invalid('shopName')" [value]="shopName()" (input)="shopName.set($any($event.target).value)" />
             @if (errorFor('shopName'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
@@ -158,6 +178,7 @@ export class PrinterSettingsCard {
   protected readonly usbChoice = signal('');
   private readonly usbSaved = signal<PrinterConnection | null>(null);
   private readonly usbFound = signal<UsbPrinterInfo[]>([]);
+  protected readonly logo = signal<string | null>(null);
   protected readonly paperWidth = signal<PaperWidthMm>(58);
   protected readonly shopName = signal('');
   protected readonly shopAddress = signal('');
@@ -180,6 +201,45 @@ export class PrinterSettingsCard {
       .settings()
       .then((s) => this.apply(s))
       .catch((error) => console.error('Failed to read the printer settings', error));
+    void this.api?.printer
+      .getLogo()
+      .then((src) => this.logo.set(src))
+      .catch((error) => console.error('Failed to read the shop logo', error));
+  }
+
+  /** The chosen picture goes to the main process, which checks it, scales it for the paper and keeps it. */
+  protected async upload(input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    input.value = ''; // choosing the same file again must still count
+    if (!file || this.busy()) return;
+    if (file.size > MAX_LOGO_BYTES) return void this.banner.error(`The picture is too large (the limit is ${MAX_LOGO_BYTES / 1024 / 1024} MB)`, { key: 'printer-logo' });
+    this.busy.set(true);
+    try {
+      const result = await this.api!.printer.saveLogo(new Uint8Array(await file.arrayBuffer()));
+      if (result.ok) {
+        this.logo.set(result.dataUrl);
+        this.banner.success('Logo saved', { key: 'printer-logo' });
+      } else this.banner.error(result.error, { key: 'printer-logo', duration: 'long' });
+    } catch (error) {
+      console.error('Failed to save the logo', error);
+      this.banner.error('Could not save the logo', { key: 'printer-logo' });
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected async removeLogo(): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    try {
+      await this.api!.printer.removeLogo();
+      this.logo.set(null);
+    } catch (error) {
+      console.error('Failed to remove the logo', error);
+      this.banner.error('Could not remove the logo', { key: 'printer-logo' });
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   private apply(s: PrinterSettings): void {

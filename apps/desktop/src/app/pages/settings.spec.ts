@@ -195,7 +195,7 @@ describe('SettingsPage', () => {
         ...fakeAuthApi({ status: sessionUser(permissions) }).api,
         display: { isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined },
         shell: { getCloseToTray: () => Promise.resolve(initial), setCloseToTray: (v: boolean) => (saved.push(v), Promise.resolve(true)), getLogsFolder: () => Promise.resolve('/logs'), openLogsFolder: () => Promise.resolve(true) },
-        printer: { settings: () => Promise.resolve({ printer: { connection: null, paperWidthMm: 58 }, shop: { name: '', address: '', footer: '' } }), listUsb: () => Promise.resolve([]) },
+        printer: { settings: () => Promise.resolve({ printer: { connection: null, paperWidthMm: 58 }, shop: { name: '', address: '', footer: '' } }), getLogo: () => Promise.resolve(null), listUsb: () => Promise.resolve([]) },
       } as unknown as DesktopApi;
       TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
       await TestBed.inject(AuthService).whenReady();
