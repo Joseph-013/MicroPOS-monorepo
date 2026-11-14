@@ -85,10 +85,12 @@ type Preset = UserRole | typeof CUSTOM;
 
       <label class="flex min-h-(--control-height) items-center justify-between gap-4 text-sm">
         <span class="flex flex-col">
-          <span>Can sign in</span>
-          <span class="text-muted-foreground text-xs">Off keeps their history but locks them out.</span>
+          <span>Active</span>
+          <span class="text-muted-foreground text-xs" data-active-hint>
+            {{ active() ? 'Can sign in. Turn off to lock them out; their history is kept.' : 'Inactive: cannot sign in. Turn on to let them in again.' }}
+          </span>
         </span>
-        <hlm-switch aria-label="Can sign in" [checked]="active()" (checkedChange)="active.set($event)" />
+        <hlm-switch aria-label="Active" [checked]="active()" (checkedChange)="active.set($event)" />
       </label>
       @if (errorFor('active'); as error) { <p class="text-destructive text-sm">{{ error }}</p> }
 

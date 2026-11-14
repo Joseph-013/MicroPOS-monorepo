@@ -125,6 +125,25 @@ describe('UsersPage', () => {
     expect(document.querySelector('#user-form')).toBeNull();
   });
 
+  it('has an Active switch that says what the state means, and saves a user as inactive when it is turned off', async () => {
+    await open([]);
+    button(el, 'Add user')!.click();
+    await settle();
+    const form = document.querySelector('#user-form')!;
+    const hint = (): string => form.querySelector('[data-active-hint]')!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(form.textContent).not.toContain('Can sign in?');
+    expect(hint()).toContain('Can sign in. Turn off to lock them out');
+    await type('#user-name', 'Sam', form);
+    await type('#user-number', '2001', form);
+    await type('#user-pin', '4321', form);
+    ([...form.querySelectorAll('label')].find((l) => l.querySelector('[data-active-hint]'))!.querySelector('hlm-switch button') as HTMLElement).click();
+    await settle();
+    expect(hint()).toContain('Inactive: cannot sign in');
+    button(form, 'Save')!.click();
+    await settle();
+    expect(fake.calls.created[0]).toMatchObject({ name: 'Sam', active: false });
+  });
+
   it('shows the reason when a change is refused', async () => {
     await open([user('a', 'Ana')]);
     (el.querySelector('[data-row-id="a"]') as HTMLElement).click();
