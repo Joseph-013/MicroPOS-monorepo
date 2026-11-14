@@ -18,10 +18,9 @@ import { SalesOrderViewer } from './core/sales-order-viewer';
 import { ScannerService } from './core/scanner';
 import { AppSettings } from './core/settings/app-settings.service';
 import { ThemeService } from './core/theme.service';
-import { TooSmallOverlay } from './core/viewport/too-small-overlay';
 
 @Component({
-  imports: [BannerHost, NavRail, RouterOutlet, SignInScreen, TooSmallOverlay],
+  imports: [BannerHost, NavRail, RouterOutlet, SignInScreen],
   selector: 'app-root',
   templateUrl: './app.html',
 })
