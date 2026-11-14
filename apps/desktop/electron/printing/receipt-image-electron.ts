@@ -24,7 +24,7 @@ export const rasterizeWithWindow: Rasterizer = async ({ rows, columns, dots, log
 };
 
 /** Runs inside the hidden window (so it cannot use anything from this file). */
-async function draw(input: { rows: ({ kind: 'text'; text: string; bold: boolean } | { kind: 'logo' })[]; columns: number; dots: number; logo: string | null; cellWidth: number; cellHeight: number; margin: number }): Promise<string> {
+async function draw(input: { rows: ({ kind: 'text'; text: string; bold: boolean } | { kind: 'logo' } | { kind: 'qr'; matrix: boolean[][]; moduleDots: number; quietModules: number })[]; columns: number; dots: number; logo: string | null; cellWidth: number; cellHeight: number; margin: number }): Promise<string> {
   const { rows, dots, cellWidth, cellHeight, margin } = input;
   let logo: HTMLImageElement | null = null;
   if (input.logo) {
@@ -35,7 +35,8 @@ async function draw(input: { rows: ({ kind: 'text'; text: string; bold: boolean 
   }
   const logoWidth = logo ? Math.min(logo.naturalWidth, dots - 32) : 0;
   const logoHeight = logo ? Math.round((logo.naturalHeight * logoWidth) / logo.naturalWidth) : 0;
-  const height = margin * 2 + rows.reduce((sum, r) => sum + (r.kind === 'logo' ? (logo ? logoHeight + cellHeight : 0) : cellHeight), 0);
+  const qrSide = (r: { matrix: boolean[][]; moduleDots: number; quietModules: number }): number => (r.matrix.length + 2 * r.quietModules) * r.moduleDots;
+  const height = margin * 2 + rows.reduce((sum, r) => sum + (r.kind === 'logo' ? (logo ? logoHeight + cellHeight : 0) : r.kind === 'qr' ? qrSide(r) : cellHeight), 0);
   const canvas = document.getElementById('c') as HTMLCanvasElement;
   canvas.width = dots;
   canvas.height = height;
@@ -46,6 +47,17 @@ async function draw(input: { rows: ({ kind: 'text'; text: string; bold: boolean 
   ctx.textBaseline = 'alphabetic';
   let y = margin;
   for (const row of rows) {
+    if (row.kind === 'qr') {
+      const side = qrSide(row);
+      const left = Math.floor((dots - side) / 2);
+      for (let r = 0; r < row.matrix.length; r++) {
+        for (let c = 0; c < row.matrix.length; c++) {
+          if (row.matrix[r]![c]) ctx.fillRect(left + (c + row.quietModules) * row.moduleDots, y + (r + row.quietModules) * row.moduleDots, row.moduleDots, row.moduleDots);
+        }
+      }
+      y += side;
+      continue;
+    }
     if (row.kind === 'logo') {
       if (!logo) continue;
       const x = Math.floor((dots - logoWidth) / 2);

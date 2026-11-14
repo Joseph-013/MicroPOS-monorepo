@@ -8,6 +8,9 @@ import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from '../d
 import { centerOnPaper, type Bitmap } from './bitmap';
 import { encodeReceipt } from './escpos';
 import { PrinterError } from './errors';
+import jsQR from 'jsqr';
+import { orderQrPayload, parseOrderQr } from '@micropos/core';
+import { qrBitmap, qrMatrix, qrModuleDots } from './qr';
 import { LogoStore } from './logo-store';
 import { ReceiptImageSink, slug } from './receipt-image';
 import { getSaveReceiptImages, setSaveReceiptImages } from './debug-settings';
@@ -93,6 +96,65 @@ describe('the receipt document', () => {
   });
 });
 
+describe('the order code on a receipt', () => {
+  it('is MICROPOS-ORDER- and the order number, and only that is read back', () => {
+    expect(orderQrPayload('SO-1001')).toBe('MICROPOS-ORDER-SO-1001');
+    expect(parseOrderQr('MICROPOS-ORDER-SO-1001')).toBe('SO-1001');
+    expect(parseOrderQr('  MICROPOS-ORDER-SO-1001\n')).toBe('SO-1001');
+    for (const other of ['SO-1001', '5900000000107', 'MICROPOS-ORDER-', 'MICROPOS-ORDER-SO-', 'micropos-order-so-1001', 'XMICROPOS-ORDER-SO-1001', '2710720033506']) expect(parseOrderQr(other), other).toBeNull();
+  });
+
+  it('ends every sale receipt, under the footer', () => {
+    const doc = buildSaleReceipt(order(), shop, 32);
+    const qr = doc.lines.filter((l) => l.kind === 'qr');
+    expect(qr).toEqual([{ kind: 'qr', data: 'MICROPOS-ORDER-SO-1001' }]);
+    const last = doc.lines.filter((l) => l.kind !== 'feed').at(-1);
+    expect(last).toEqual({ kind: 'qr', data: 'MICROPOS-ORDER-SO-1001' });
+    expect(doc.lines.findIndex((l) => l.kind === 'qr')).toBeGreaterThan(doc.lines.findIndex((l) => l.kind === 'text' && l.text === 'Thank you!'));
+    expect(layoutReceipt(doc).some((r) => r.kind === 'qr')).toBe(true);
+  });
+
+  it('scans back to the same text from the picture the printer gets, on both paper widths', () => {
+    for (const dots of [384, 576]) {
+      const picture = qrBitmap('MICROPOS-ORDER-SO-1001', dots);
+      expect(picture.width).toBe(dots); // centred inside its own strip
+      expect(picture.width % 8).toBe(0);
+      const found = jsQR(picture.data, picture.width, picture.height);
+      expect(found?.data, `${dots} dots`).toBe('MICROPOS-ORDER-SO-1001');
+    }
+  });
+
+  it('is big enough to scan, fits the paper, and stays centred', () => {
+    const matrix = qrMatrix('MICROPOS-ORDER-SO-1001');
+    for (const dots of [384, 576]) {
+      const module = qrModuleDots(matrix.length, dots);
+      expect(module).toBeGreaterThanOrEqual(2);
+      expect((matrix.length + 8) * module).toBeLessThanOrEqual(dots);
+      const picture = qrBitmap('MICROPOS-ORDER-SO-1001', dots);
+      const dark = (x: number, y: number): boolean => picture.data[(y * picture.width + x) * 4] === 0;
+      const columns = Array.from({ length: picture.width }, (_, x) => Array.from({ length: picture.height }, (_, y) => dark(x, y)).some(Boolean));
+      const first = columns.indexOf(true);
+      const last = columns.lastIndexOf(true);
+      expect(Math.abs(first - (picture.width - 1 - last))).toBeLessThanOrEqual(module + 1); // the same margin on both sides (a module's tolerance)
+    }
+  });
+
+  it('goes to the printer as a picture, and is drawn in the debug image from the same modules', async () => {
+    const doc: ReceiptDocument = { columns: 32, lines: [{ kind: 'qr', data: 'MICROPOS-ORDER-SO-1001' }] };
+    const bytes = encodeReceipt(doc, { paperWidthMm: 58 });
+    expect(Buffer.from(bytes).includes(Buffer.from([0x1d, 0x76, 0x30]))).toBe(true); // GS v 0: raster image
+    let seen: unknown;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'micropos-qr-'));
+    await new ReceiptImageSink({ folder: () => dir, rasterize: async (input) => ((seen = input), Buffer.from('PNG')), enabled: () => true, logoPng: () => null }).save(doc, 'SO-1001', 58);
+    fs.rmSync(dir, { recursive: true, force: true });
+    const row = (seen as { rows: { kind: string; matrix: boolean[][]; moduleDots: number; quietModules: number }[] }).rows[0]!;
+    expect(row.kind).toBe('qr');
+    expect(row.matrix).toEqual(qrMatrix('MICROPOS-ORDER-SO-1001'));
+    expect(row.moduleDots).toBe(qrModuleDots(row.matrix.length, 384));
+    expect(row.quietModules).toBe(4);
+  });
+});
+
 describe('centring a logo', () => {
   const solid = (width: number, height: number, rgba: [number, number, number, number]): Bitmap => ({ width, height, data: new Uint8ClampedArray(Array.from({ length: width * height }, () => rgba).flat()) });
   const pixel = (b: Bitmap, x: number, y: number): number[] => Array.from(b.data.slice((y * b.width + x) * 4, (y * b.width + x) * 4 + 4));
@@ -153,7 +215,8 @@ describe('the ESC/POS bytes', () => {
   });
 
   it('keeps every row to the paper width', () => {
-    const t = asText(bytes(buildSaleReceipt(order(), shop, 32))).split('\n');
+    const doc = buildSaleReceipt(order(), shop, 32);
+    const t = asText(bytes({ ...doc, lines: doc.lines.filter((l) => l.kind !== 'qr') })).split('\n'); // the code is a picture: its bytes are not text
     for (const row of t) expect(row.replace(/[\x00-\x1f\x80-\xff]/g, '').length).toBeLessThanOrEqual(40);
   });
 
@@ -409,7 +472,7 @@ describe('the logo store', () => {
 });
 
 describe('the receipt as printed rows', () => {
-  const rows = (doc: ReceiptDocument) => layoutReceipt(doc).flatMap((r) => (r.kind === 'text' ? [r.text] : ['<logo>']));
+  const rows = (doc: ReceiptDocument) => layoutReceipt(doc).map((r) => (r.kind === 'text' ? r.text : `<${r.kind}>`));
 
   it('lays every row out as wide as the paper, aligned the way the printer aligns it', () => {
     const doc: ReceiptDocument = {
@@ -431,7 +494,8 @@ describe('the receipt as printed rows', () => {
 
   it('shows a whole sale receipt within the paper, with the totals lined up on the right', () => {
     const lines = rows(buildSaleReceipt(order(), shop, 32));
-    for (const l of lines) expect(l.length).toBe(32);
+    for (const l of lines.filter((r) => !r.startsWith('<'))) expect(l.length).toBe(32);
+    expect(lines.filter((r) => r.startsWith('<'))).toEqual(['<qr>']);
     expect(lines).toContain('TOTAL                 PHP 121.00');
     expect(lines).toContain('  2 x 4.29                  8.58');
     expect(lines[0]).toBe('        Aling Nena Store        ');
@@ -454,7 +518,7 @@ describe('saving receipts as images instead of printing', () => {
     expect(result).toEqual({ ok: true, savedTo: file });
     expect(fs.readFileSync(file, 'utf8')).toBe('PNGDATA');
     expect(seen).toMatchObject({ columns: 48, dots: 576 });
-    expect((seen as { rows: unknown[] }).rows).toEqual(layoutReceipt(doc)); // what was drawn is exactly what is laid out
+    expect((seen as { rows: { kind: string }[] }).rows.filter((r) => r.kind !== 'qr')).toEqual(layoutReceipt(doc).filter((r) => r.kind !== 'qr')); // what was drawn is exactly what is laid out (the code is drawn from its modules)
     expect(((seen as unknown) as { logo: Buffer }).logo.toString()).toBe('LOGO');
   });
 
@@ -511,5 +575,26 @@ describe('the debug setting', () => {
     expect(getSaveReceiptImages(handle.db)).toBe(true);
     setSaveReceiptImages(handle.db, false);
     expect(getSaveReceiptImages(handle.db)).toBe(false);
+  });
+});
+
+describe('finding an order by the number on its receipt', () => {
+  it('returns the id of that order, and null for a number that is not one', async () => {
+    const { completeOrder, orderIdByNumber } = await import('../db/queries/orders');
+    const { createProduct } = await import('../db/queries/products');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'micropos-qrfind-'));
+    const handle = createDatabase(path.join(dir, 'test.db'), { migrationsFolder: SOURCE_MIGRATIONS_FOLDER });
+    try {
+      const made = createProduct(handle.db, { name: 'Milk', unit: 'each', tracking: 'none', price: 429, active: true, categoryIds: [] });
+      if (!made.ok) throw new Error('product');
+      const sold = completeOrder(handle.db, { lines: [{ productId: made.product.id, quantityMilli: 1000, unitPrice: 429 }], discount: 0, payment: { method: 'cash', tendered: 500 } });
+      if (!sold.ok) throw new Error('order');
+      expect(orderIdByNumber(handle.db, sold.orderNumber)).toBe(sold.orderId);
+      expect(orderIdByNumber(handle.db, ` ${sold.orderNumber} `)).toBe(sold.orderId);
+      for (const other of ['SO-9999', '', 42, null, undefined]) expect(orderIdByNumber(handle.db, other)).toBeNull();
+    } finally {
+      handle.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

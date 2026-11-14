@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { qrMatrix, qrModuleDots, QUIET_MODULES } from './qr';
 import { columnsFor, dotsFor, layoutReceipt, type PaperWidthMm, type PrintResult, type ReceiptDocument, type ReceiptRow } from '@micropos/core';
 
 /** Draws the rows of a receipt as a PNG as wide as the paper's printable dots; `logo` is the logo picture (PNG), if any. */
-export type Rasterizer = (input: { rows: ReceiptRow[]; columns: number; dots: number; logo: Buffer | null }) => Promise<Buffer>;
+/** A row to draw: the laid-out rows, with each QR code already turned into its modules and the dots a module is drawn with. */
+export type RasterRow = Exclude<ReceiptRow, { kind: 'qr' }> | { kind: 'qr'; matrix: boolean[][]; moduleDots: number; quietModules: number };
+export type Rasterizer = (input: { rows: RasterRow[]; columns: number; dots: number; logo: Buffer | null }) => Promise<Buffer>;
 
 export interface ReceiptImageSinkDeps {
   /** The folder the images go in. */
@@ -39,7 +42,13 @@ export class ReceiptImageSink {
 
   async save(doc: ReceiptDocument, label: string, paperWidthMm: PaperWidthMm): Promise<PrintResult> {
     try {
-      const png = await this.deps.rasterize({ rows: layoutReceipt(doc), columns: columnsFor(paperWidthMm), dots: dotsFor(paperWidthMm), logo: this.deps.logoPng() });
+      const dots = dotsFor(paperWidthMm);
+      const rows: RasterRow[] = layoutReceipt(doc).map((row) => {
+        if (row.kind !== 'qr') return row;
+        const matrix = qrMatrix(row.data); // the same code and size the printer gets
+        return { kind: 'qr', matrix, moduleDots: qrModuleDots(matrix.length, dots), quietModules: QUIET_MODULES };
+      });
+      const png = await this.deps.rasterize({ rows, columns: columnsFor(paperWidthMm), dots, logo: this.deps.logoPng() });
       const at = (this.deps.now ?? (() => new Date()))();
       const stamp = `${at.getFullYear()}${pad(at.getMonth() + 1)}${pad(at.getDate())}-${pad(at.getHours())}${pad(at.getMinutes())}${pad(at.getSeconds())}`;
       fs.mkdirSync(this.folder, { recursive: true });

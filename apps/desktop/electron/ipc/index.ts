@@ -11,7 +11,7 @@ import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPur
 import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
 import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-interest';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
-import { completeOrder, getOrder, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
+import { completeOrder, getOrder, orderIdByNumber, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
 import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../db/queries/repackage-draft';
 import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/queries/product-draft';
@@ -174,6 +174,7 @@ export function registerIpcHandlers(db: AppDatabase): void {
   guarded(db, CHANNELS.customers.alertSettings, 'customers.manage', () => getCreditAlertSettings(db));
   guarded(db, CHANNELS.customers.saveAlertSettings, 'customers.manage', (_event, input: unknown) => saveCreditAlertSettings(db, input));
   guarded(db, CHANNELS.orders.list, ['orders.view', 'customers.view'], () => listOrders(db));
+  guarded(db, CHANNELS.orders.idByNumber, ['orders.view', 'customers.view'], (_event, orderNumber: unknown) => orderIdByNumber(db, orderNumber));
   guarded(db, CHANNELS.orders.get, ['orders.view', 'customers.view'], (_event, id: unknown) => getOrder(db, id));
   // The renderer sends an order id and a reason; voidOrder / refundOrder validate both and decide whether the order may be reversed.
   guarded(db, CHANNELS.orders.void, 'orders.reverse', (_event, input: unknown) => voidOrder(db, input));

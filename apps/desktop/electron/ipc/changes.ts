@@ -78,6 +78,7 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.customers.alertSettings,
   CHANNELS.orders.list,
   CHANNELS.orders.get,
+  CHANNELS.orders.idByNumber,
   CHANNELS.auth.status,
   CHANNELS.auth.choices,
   CHANNELS.auth.signIn,

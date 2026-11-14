@@ -1,6 +1,7 @@
 import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder';
 import { columnsFor, dotsFor, type PaperWidthMm, type ReceiptDocument } from '@micropos/core';
 import type { Bitmap } from './bitmap';
+import { qrBitmap } from './qr';
 
 /**
  * Turns a receipt into ESC/POS bytes for a printer with paper `paperWidthMm` wide. Every job states what it relies on
@@ -42,6 +43,12 @@ export function encodeReceipt(doc: ReceiptDocument, options: { paperWidthMm: Pap
       case 'feed':
         encoder.newline(line.lines);
         break;
+      case 'qr': {
+        // Sent as a picture, centred inside it like the logo: it prints the same on any printer (not every one has a QR command).
+        const picture = qrBitmap(line.data, dots);
+        encoder.align('center').image(picture, picture.width, picture.height, 'threshold').align('left');
+        break;
+      }
       case 'logo':
         if (options.logo) encoder.align('center').image(options.logo, options.logo.width, options.logo.height, 'threshold').align('left').newline();
         break;

@@ -213,6 +213,12 @@ export function completeOrder(db: AppDatabase, raw: unknown, now = Date.now()): 
   }
 }
 
+/** The id of the order with this number ("SO-1001"), or null. */
+export function orderIdByNumber(db: AppDatabase, orderNumber: unknown): string | null {
+  if (typeof orderNumber !== 'string') return null;
+  return db.select({ id: orders.id }).from(orders).where(eq(orders.orderNumber, orderNumber.trim())).get()?.id ?? null;
+}
+
 /** One order with its lines and payments for viewing, or null when `id` is not an order. */
 export function getOrder(db: AppDatabase, id: unknown): SalesOrderDetail | null {
   if (typeof id !== 'string') return null;

@@ -145,6 +145,7 @@ const api: DesktopApi = {
   orders: {
     list: () => ipcRenderer.invoke(CHANNELS.orders.list),
     get: (id) => ipcRenderer.invoke(CHANNELS.orders.get, id),
+    idByNumber: (orderNumber) => ipcRenderer.invoke(CHANNELS.orders.idByNumber, orderNumber),
     void: (input) => ipcRenderer.invoke(CHANNELS.orders.void, input),
     refund: (input) => ipcRenderer.invoke(CHANNELS.orders.refund, input),
   },
