@@ -213,3 +213,19 @@ export {
 export { layoutReceipt, type ReceiptRow } from './receipt-layout.js';
 export { ORDER_QR_PREFIX, orderQrPayload, parseOrderQr } from './order-qr.js';
 export { dayOf, dayRange, PAYMENT_METHOD_ORDER, type ItemSold, type MethodTotal, type SalesReport } from './reports.js';
+export {
+  buildReportDocument,
+  EXPORT_FORMATS,
+  isExportFormat,
+  isReportKind,
+  methodName,
+  REPORT_KINDS,
+  REPORT_LABELS,
+  reportToCsv,
+  reportToHtml,
+  type ExportFormat,
+  type ExportResult,
+  type ReportDocument,
+  type ReportKind,
+  type ReportSection,
+} from './report-document.js';

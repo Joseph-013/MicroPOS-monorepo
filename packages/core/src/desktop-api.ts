@@ -21,6 +21,7 @@ import type {
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
 import type { PrinterDebug, PrinterSettings, PrintResult, SaveLogoResult, SavePrinterSettingsResult, UsbPrinterInfo } from './printing.js';
 import type { SalesReport } from './reports.js';
+import type { ExportFormat, ExportResult, ReportKind } from './report-document.js';
 import type { DataDomain, PurchaseConcern, StockConcern } from './concerns.js';
 import type { CreditAlertSettings } from './credit-alerts.js';
 import type { InterestDefaults } from './credit-interest.js';
@@ -32,7 +33,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 41;
+export const DESKTOP_API_VERSION = 42;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -98,6 +99,8 @@ export interface DesktopApi {
   reports: {
     /** The sales summary for the local days `from` to `to` inclusive (`YYYY-MM-DD`), or null when they are not dates in order. */
     sales(from: string, to: string): Promise<SalesReport | null>;
+    /** Saves a report as CSV or PDF (the person picks the file) or prints it with the system's print dialog. */
+    export(kind: ReportKind, from: string, to: string, format: ExportFormat): Promise<ExportResult>;
   };
   debug: {
     /** Whether receipts are saved as images instead of printed, and where. */

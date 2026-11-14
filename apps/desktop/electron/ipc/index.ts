@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import { ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
-import type { Permission } from '@micropos/core';
+import { BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
+import { isExportFormat, isReportKind, type Permission } from '@micropos/core';
 import type { AppDatabase } from '../db';
 import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
@@ -10,6 +10,7 @@ import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageSto
 import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, purchaseConcerns, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
 import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
 import { salesReport } from '../db/queries/reports';
+import { exportReport } from '../reports/export';
 import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-interest';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
 import { completeOrder, getOrder, orderIdByNumber, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
@@ -98,6 +99,11 @@ export function registerIpcHandlers(db: AppDatabase): void {
     return order ? printer.printSale(order) : ({ ok: false, code: 'unknown', error: 'Order not found' } as const);
   });
   guarded(db, CHANNELS.reports.sales, 'reports.view', (_event, from: unknown, to: unknown) => salesReport(db, from, to));
+  guarded(db, CHANNELS.reports.export, 'reports.view', async (event, kind: unknown, from: unknown, to: unknown, format: unknown) => {
+    const report = isReportKind(kind) && isExportFormat(format) ? salesReport(db, from, to) : null;
+    if (!report || !isReportKind(kind) || !isExportFormat(format)) return { ok: false, error: 'That report cannot be made' } as const;
+    return exportReport(kind, report, format, BrowserWindow.fromWebContents(event.sender), loadPrinterSettings(db).shop.name);
+  });
   guarded(db, CHANNELS.debug.get, 'settings.manage', () => ({ saveImages: getSaveReceiptImages(db), folder: receiptImagesFolder() }));
   guarded(db, CHANNELS.debug.setSaveImages, 'settings.manage', (_event, value: unknown) => setSaveReceiptImages(db, value));
   guarded(db, CHANNELS.debug.openReceiptsFolder, 'settings.manage', async () => {

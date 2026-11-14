@@ -1,102 +1,87 @@
-import { Component, inject, signal } from '@angular/core';
-import { dayOf, formatQuantity, type SalesReport } from '@micropos/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { buildReportDocument, dayOf, type ExportFormat, REPORT_KINDS, REPORT_LABELS, type ReportKind, type SalesReport } from '@micropos/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmInputImports } from '@spartan-ng/helm/input';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { BannerService } from '../../core/banner';
 import { ReportsService } from '../../core/data/reports.service';
-import { MoneyPipe } from '../../core/money.pipe';
+import { DEFAULT_CURRENCY, DEFAULT_LOCALE } from '../../core/money.pipe';
 
-const METHOD_NAMES: Record<string, string> = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', bank_transfer: 'Bank transfer', other: 'Other' };
+const pesos = new Intl.NumberFormat(DEFAULT_LOCALE, { style: 'currency', currency: DEFAULT_CURRENCY });
 
 /**
- * Reports: a summary of sales for a day or a range of days: what was sold, refunds and voids, what was taken by each
- * payment method, credit given and paid back, and the items sold. Admins compare it with their own counts by hand.
+ * Reports: pick a report and a day or range of days, read it here, and save it as CSV or PDF or print it with the
+ * system's print dialog. The page, the CSV and the PDF are all made from the same `ReportDocument`, so they agree.
+ * Admins compare the figures with their own counts by hand.
  */
 @Component({
-  imports: [MoneyPipe, HlmCardImports, HlmInputImports],
+  imports: [HlmButtonImports, HlmCardImports, HlmInputImports, HlmSelectImports],
   template: `
     <div class="mx-auto grid w-full max-w-3xl gap-3">
       <section hlmCard class="gap-0">
         <header class="flex min-h-(--control-height) flex-wrap items-center justify-between gap-3 px-4 pb-3">
           <h1 class="text-2xl">Reports</h1>
           <div class="flex flex-wrap items-center gap-2">
+            <span id="rp-kind-label" class="sr-only">Report</span>
+            <hlm-select [value]="kind()" (valueChange)="setKind($event)" [itemToString]="kindLabel">
+              <hlm-select-trigger class="w-52" aria-labelledby="rp-kind-label" id="rp-kind">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                @for (k of kinds; track k) {
+                  <hlm-select-item [value]="k">{{ kindLabel(k) }}</hlm-select-item>
+                }
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+        </header>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+          <div class="flex flex-wrap items-center gap-2">
             <label class="text-sm" for="rp-from">From</label>
             <input hlmInput id="rp-from" type="date" class="w-44" [value]="from()" [attr.max]="today" (change)="setFrom($any($event.target).value)" />
             <label class="text-sm" for="rp-to">To</label>
             <input hlmInput id="rp-to" type="date" class="w-44" [value]="to()" [attr.max]="today" (change)="setTo($any($event.target).value)" />
           </div>
-        </header>
+          <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Export">
+            <button hlmBtn variant="outline" type="button" class="px-4" [disabled]="!report() || exporting()" (click)="exportAs('csv')">CSV</button>
+            <button hlmBtn variant="outline" type="button" class="px-4" [disabled]="!report() || exporting()" (click)="exportAs('pdf')">PDF</button>
+            <button hlmBtn variant="outline" type="button" class="px-4" [disabled]="!report() || exporting()" (click)="exportAs('print')">Print</button>
+          </div>
+        </div>
       </section>
 
-      @if (report(); as r) {
-        <section hlmCard class="gap-0">
-          <header class="px-4 pb-3"><h2 class="text-xl">Sales</h2></header>
-          <dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-1 border-t px-4 py-3 text-sm">
-            <dt class="text-muted-foreground">{{ r.sales.count }} {{ r.sales.count === 1 ? 'sale' : 'sales' }}</dt>
-            <dd class="text-right">{{ r.sales.gross | money }}</dd>
-            @if (r.sales.discounts) {
-              <dt class="text-muted-foreground">Discounts</dt>
-              <dd class="text-right">-{{ r.sales.discounts | money }}</dd>
-            }
-            @if (r.refunds.count) {
-              <dt class="text-muted-foreground">{{ r.refunds.count }} {{ r.refunds.count === 1 ? 'refund' : 'refunds' }}</dt>
-              <dd class="text-destructive text-right">{{ r.refunds.total | money }}</dd>
-            }
-            <dt class="font-medium">Net sales</dt>
-            <dd class="font-heading text-right text-2xl" data-net>{{ r.netAfterRefunds | money }}</dd>
-            @if (r.voids.count) {
-              <dt class="text-muted-foreground">{{ r.voids.count }} voided</dt>
-              <dd class="text-muted-foreground text-right">{{ r.voids.total | money }}</dd>
-            }
-          </dl>
-        </section>
-
-        <section hlmCard class="gap-0">
-          <header class="px-4 pb-3"><h2 class="text-xl">Taken by</h2></header>
-          <dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-1 border-t px-4 py-3 text-sm">
-            @for (m of r.byMethod; track m.method) {
-              <dt class="text-muted-foreground">{{ methodName(m.method) }}</dt>
-              <dd class="text-right">{{ m.amount | money }}</dd>
-            } @empty {
-              <dt class="text-muted-foreground">Nothing taken</dt>
-              <dd></dd>
-            }
-          </dl>
-        </section>
-
-        @if (r.credit.given || r.credit.interest || r.credit.paymentsReceived.length) {
+      @if (document(); as doc) {
+        <p class="text-muted-foreground px-1 text-sm" data-period>{{ doc.period }}</p>
+        @for (section of doc.sections; track section.heading) {
           <section hlmCard class="gap-0">
-            <header class="px-4 pb-3"><h2 class="text-xl">Customer credit</h2></header>
-            <dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-1 border-t px-4 py-3 text-sm">
-              @if (r.credit.given) {
-                <dt class="text-muted-foreground">Put on account</dt>
-                <dd class="text-right">{{ r.credit.given | money }}</dd>
-              }
-              @if (r.credit.interest) {
-                <dt class="text-muted-foreground">Interest charged</dt>
-                <dd class="text-right">{{ r.credit.interest | money }}</dd>
-              }
-              @for (m of r.credit.paymentsReceived; track m.method) {
-                <dt class="text-muted-foreground">Paid back: {{ methodName(m.method) }}</dt>
-                <dd class="text-right">{{ m.amount | money }}</dd>
-              }
-            </dl>
+            <header class="px-4 pb-3"><h2 class="text-xl">{{ section.heading }}</h2></header>
+            <div class="overflow-x-auto border-t">
+              <table class="w-full text-sm">
+                @if (section.head) {
+                  <thead>
+                    <tr class="text-muted-foreground">
+                      @for (h of section.head; track $index) {
+                        <th class="px-4 py-2 font-normal" [class.text-right]="section.right[$index]" [class.text-left]="!section.right[$index]">{{ h }}</th>
+                      }
+                    </tr>
+                  </thead>
+                }
+                <tbody class="divide-border divide-y">
+                  @for (row of section.rows; track $index) {
+                    <tr [class.font-medium]="section.strong?.includes($index)">
+                      @for (cell of row; track $index) {
+                        <td class="px-4 py-2 align-top" [class.text-right]="section.right[$index]" [class.whitespace-nowrap]="section.right[$index]" [class.max-w-0]="!section.right[$index]" [class.truncate]="!section.right[$index]">{{ cell }}</td>
+                      }
+                    </tr>
+                  } @empty {
+                    <tr><td class="text-muted-foreground px-4 py-6 text-center" colspan="3">Nothing to show</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           </section>
         }
-
-        <section hlmCard class="gap-0">
-          <header class="px-4 pb-3"><h2 class="text-xl">Items sold</h2></header>
-          <ul class="divide-border flex flex-col divide-y border-t" aria-label="Items sold">
-            @for (item of r.items; track item.name + item.unit) {
-              <li class="grid grid-cols-[minmax(0,1fr)_auto_6rem] items-baseline gap-x-4 px-4 py-2 text-sm">
-                <p class="min-w-0 truncate">{{ item.name }}</p>
-                <p class="text-muted-foreground text-right">{{ quantity(item) }}</p>
-                <p class="text-right">{{ item.total | money }}</p>
-              </li>
-            } @empty {
-              <li class="text-muted-foreground px-4 py-6 text-center text-sm">Nothing sold</li>
-            }
-          </ul>
-        </section>
       } @else {
         <p class="text-muted-foreground py-8 text-center text-sm">{{ loading() ? 'Loading report' : 'The report could not be loaded' }}</p>
       }
@@ -105,19 +90,28 @@ const METHOD_NAMES: Record<string, string> = { cash: 'Cash', card: 'Card', ewall
 })
 export class ReportsPage {
   private readonly reports = inject(ReportsService);
+  private readonly banner = inject(BannerService);
 
+  protected readonly kinds = REPORT_KINDS;
+  protected readonly kindLabel = (k: ReportKind): string => REPORT_LABELS[k];
   protected readonly today = dayOf(Date.now());
+  protected readonly kind = signal<ReportKind>('summary');
   protected readonly from = signal(this.today);
   protected readonly to = signal(this.today);
   protected readonly report = signal<SalesReport | null>(null);
   protected readonly loading = signal(true);
-  protected readonly methodName = (method: string): string => METHOD_NAMES[method] ?? method;
-  protected quantity(item: { quantityMilli: number; unit: string | null }): string {
-    return `${formatQuantity(item.quantityMilli)}${item.unit && item.unit !== 'each' ? ' ' + item.unit : ''}`;
-  }
+  protected readonly exporting = signal(false);
+  protected readonly document = computed(() => {
+    const r = this.report();
+    return r ? buildReportDocument(this.kind(), r, (c) => pesos.format(c / 100)) : null;
+  });
 
   constructor() {
     void this.load();
+  }
+
+  protected setKind(kind: ReportKind | null | undefined): void {
+    if (kind) this.kind.set(kind);
   }
 
   protected setFrom(day: string): void {
@@ -141,6 +135,17 @@ export class ReportsPage {
     if (from === this.from() && to === this.to()) {
       this.report.set(report);
       this.loading.set(false);
+    }
+  }
+
+  protected async exportAs(format: ExportFormat): Promise<void> {
+    this.exporting.set(true);
+    try {
+      const result = await this.reports.export(this.kind(), this.from(), this.to(), format);
+      if (result.ok) this.banner.success(result.savedTo ? `Saved ${result.savedTo}` : 'Sent to the printer', { key: 'export-report' });
+      else if (!result.canceled) this.banner.error(result.error, { key: 'export-report', duration: 'long' });
+    } finally {
+      this.exporting.set(false);
     }
   }
 }

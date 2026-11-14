@@ -41,6 +41,7 @@ const api: DesktopApi = {
   },
   reports: {
     sales: (from, to) => ipcRenderer.invoke(CHANNELS.reports.sales, from, to),
+    export: (kind, from, to, format) => ipcRenderer.invoke(CHANNELS.reports.export, kind, from, to, format),
   },
   debug: {
     get: () => ipcRenderer.invoke(CHANNELS.debug.get),

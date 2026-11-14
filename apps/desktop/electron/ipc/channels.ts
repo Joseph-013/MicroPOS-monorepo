@@ -3,7 +3,7 @@
  * Convention: `<area>:<action>`. Every channel is a request/response (`invoke`/`handle`).
  */
 /** Must equal `DESKTOP_API_VERSION` in @micropos/core (a test checks); bump both when the contract changes. */
-export const API_VERSION = 41;
+export const API_VERSION = 42;
 
 export const CHANNELS = {
   app: {
@@ -69,6 +69,7 @@ export const CHANNELS = {
   },
   reports: {
     sales: 'reports:sales',
+    export: 'reports:export',
   },
   debug: {
     get: 'debug:get',

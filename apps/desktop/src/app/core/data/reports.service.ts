@@ -1,5 +1,5 @@
 import { inject, Service } from '@angular/core';
-import type { SalesReport } from '@micropos/core';
+import type { ExportFormat, ExportResult, ReportKind, SalesReport } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
 
 /** Reports over IPC. */
@@ -14,6 +14,16 @@ export class ReportsService {
     } catch (error) {
       console.error('Failed to load the sales report', error);
       return null;
+    }
+  }
+
+  /** Saves the report as CSV or PDF, or prints it with the system's print dialog. */
+  async export(kind: ReportKind, from: string, to: string, format: ExportFormat): Promise<ExportResult> {
+    try {
+      return (await this.api?.reports.export(kind, from, to, format)) ?? { ok: false, error: 'Not connected to the database' };
+    } catch (error) {
+      console.error('Failed to export the report', error);
+      return { ok: false, error: 'Could not export the report' };
     }
   }
 }
