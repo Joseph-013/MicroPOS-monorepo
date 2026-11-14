@@ -1,9 +1,27 @@
 REMOVING THE OLD MICROPOS FROM WINDOWS
 ======================================
 
-The first MicroPOS (version 1.0.0) and the current one share the same identity
-(Squirrel id "micropos", program "micropos.exe"), so these steps clean up either.
-Not tested on a Windows machine.
+The first MicroPOS (version 1.0.0) was a Squirrel install (id "micropos",
+program "micropos.exe" in %LOCALAPPDATA%\micropos). The new MicroPOS (2.21 and
+later) uses its own Inno Setup installer, but keeps its data in the same
+%APPDATA%\micropos folder.
+
+THE QUICK WAY
+  Double-click remove-old-micropos.cmd (next to this file), as the Windows user
+  who used the old MicroPOS. It does every step below: closes the old app,
+  copies the old database and logo to a "MicroPOS 1.0.0 backup ..." folder on
+  the Desktop, runs the old uninstaller, deletes the leftover folders, old
+  shortcuts and the old Installed apps entry, then pauses so you can read it.
+  It never touches the new MicroPOS: it leaves the data folder alone when it
+  looks like the new app's (run with -Force to delete it anyway).
+  Options (from PowerShell: .\remove-old-micropos.ps1 <options>):
+    -WhatIf      show what it would do, change nothing
+    -NoBackup    do not copy the old database first
+    -BackupTo X  put the backup in folder X instead of the Desktop
+    -Yes         do not ask before starting
+
+THE MANUAL WAY
+  Not tested against a real 1.0.0 install.
 
 BEFORE YOU START
   To keep the old sales data, copy this file somewhere safe first:
