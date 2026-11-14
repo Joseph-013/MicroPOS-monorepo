@@ -11,6 +11,8 @@ import { CHANNELS } from './ipc/channels';
 import { emitDataChanged, onDataChanged } from './ipc/changes';
 import { registerIpcHandlers, rpcHandlers } from './ipc';
 import { LanService } from './lan';
+import { applyPendingImport, autoBackup } from './backup/backup';
+import { BackupService } from './backup/service';
 import { closeCustomerDisplay, registerCustomerDisplay } from './display';
 import { initLogging, log } from './logging';
 import { purgeLegacyData } from './legacy-data';
@@ -113,6 +115,7 @@ function createWindow(): void {
 }
 
 let database: ReturnType<typeof createDatabase> | undefined;
+let backupTimer: ReturnType<typeof setInterval> | undefined;
 let interestTimer: ReturnType<typeof setInterval> | undefined;
 let concernsClock: ReturnType<typeof startConcernsClock> | undefined;
 let lanService: LanService | undefined;
@@ -125,6 +128,11 @@ function databaseFile(): string {
   return app.isPackaged
     ? path.join(app.getPath('userData'), 'micropos.db')
     : path.join(app.getAppPath(), 'local-data', 'micropos-dev.db');
+}
+
+/** Backups of the database: next to it in the per-user data folder when packaged, `local-data/backups` in development. */
+function backupsFolder(): string {
+  return app.isPackaged ? path.join(app.getPath('userData'), 'backups') : path.join(app.getAppPath(), 'local-data', 'backups');
 }
 
 /** Generated SQL migrations: copied next to the app when packaged (see forge.config.js extraResource). */
@@ -173,6 +181,12 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
   else void app.whenReady().then(async () => {
     // Browser storage (the old page's local storage, caches) is held by Chromium: clear it through its own API too.
     if (purged) await session.defaultSession.clearStorageData();
+    // A database chosen in Settings > Backup (import or restore) is put in place before anything opens the file.
+    try {
+      if (applyPendingImport(databaseFile())) log.info('backup', 'Imported database put in place');
+    } catch (error) {
+      log.error('backup', 'Could not put the imported database in place', error);
+    }
     database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
     ensureOwner(database.db); // a fresh install gets an owner account to sign in with
     closeToTray = getCloseToTray(database.db);
@@ -204,7 +218,23 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
       devServerUrl: devServerUrl ?? null,
       announce: (domains) => emitDataChanged(domains),
     });
-    registerIpcHandlers(database.db, lanService);
+    const backups = new BackupService({
+      db: database.db,
+      dbFile: databaseFile(),
+      folder: backupsFolder(),
+      migrationsFolder: migrationsFolder(),
+      restart: () => {
+        app.relaunch();
+        app.quit();
+      },
+    });
+    registerIpcHandlers(database.db, lanService, backups);
+    // One automatic backup a day (checked at startup and hourly, for a till left running for days).
+    const dailyBackup = (): void => {
+      if (database) autoBackup(database.db, backupsFolder()).catch((error) => log.error('backup', 'Could not make the daily backup', error));
+    };
+    dailyBackup();
+    backupTimer = setInterval(dailyBackup, 60 * 60 * 1000);
     void lanService.startIfEnabled();
     // Every window hears when data changes; the clock adds the moments when time alone makes something a concern.
     const broadcast = (domains: readonly DataDomain[]): void => {
@@ -231,6 +261,7 @@ app.on('before-quit', () => {
 app.on('will-quit', () => {
   trayIcon.hide();
   if (interestTimer) clearInterval(interestTimer);
+  if (backupTimer) clearInterval(backupTimer);
   concernsClock?.stop();
   if (database) signOut(database.db); // records the sign-out of whoever was signed in
   database?.close();

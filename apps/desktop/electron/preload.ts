@@ -39,6 +39,15 @@ const api: DesktopApi = {
     testPrint: () => ipcRenderer.invoke(CHANNELS.printer.testPrint),
     printOrder: (orderId) => ipcRenderer.invoke(CHANNELS.printer.printOrder, orderId),
   },
+  backup: {
+    list: () => ipcRenderer.invoke(CHANNELS.backup.list),
+    create: () => ipcRenderer.invoke(CHANNELS.backup.create),
+    remove: (name) => ipcRenderer.invoke(CHANNELS.backup.remove, name),
+    exportTo: () => ipcRenderer.invoke(CHANNELS.backup.exportTo),
+    importFrom: () => ipcRenderer.invoke(CHANNELS.backup.importFrom),
+    restore: (name) => ipcRenderer.invoke(CHANNELS.backup.restore, name),
+    openFolder: () => ipcRenderer.invoke(CHANNELS.backup.openFolder),
+  },
   lan: {
     state: () => ipcRenderer.invoke(CHANNELS.lan.state),
     setEnabled: (enabled) => ipcRenderer.invoke(CHANNELS.lan.setEnabled, enabled),

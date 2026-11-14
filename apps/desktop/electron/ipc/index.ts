@@ -12,6 +12,7 @@ import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPur
 import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
 import { getColumnOrders, saveColumnOrder } from '../table-columns';
 import { salesReport } from '../db/queries/reports';
+import type { BackupService } from '../backup/service';
 import { exportReport } from '../reports/export';
 import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-interest';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
@@ -79,7 +80,7 @@ function guarded(db: AppDatabase, channel: string, needed: Permission | readonly
  * Registers every IPC handler. The renderer only ever reaches the database through these;
  * keep handlers thin (validate input, call a query function, return plain data).
  */
-export function registerIpcHandlers(db: AppDatabase, lan?: LanService): void {
+export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: BackupService): void {
   handle(CHANNELS.app.version, () => API_VERSION);
   const printer = createPrinterService(db);
   // The page reports its errors here. Open to every window (an error can happen before sign-in), so it is bounded: a few entries a minute, short fields.
@@ -233,6 +234,15 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService): void {
   guarded(db, CHANNELS.users.resetPin, ['users.manage'], (_event, id: unknown, pin: unknown) => resetPin(db, id, pin));
   guarded(db, CHANNELS.users.signInLog, ['users.manage'], () => signInLog(db));
   // Connecting other devices (admins only; the till's own window: a paired device cannot reach these).
+  if (backup) {
+    guarded(db, CHANNELS.backup.list, 'settings.manage', () => backup.list());
+    guarded(db, CHANNELS.backup.create, 'settings.manage', () => backup.create());
+    guarded(db, CHANNELS.backup.remove, 'settings.manage', (_event, name: unknown) => backup.remove(name));
+    guarded(db, CHANNELS.backup.exportTo, 'settings.manage', (event) => backup.exportTo(BrowserWindow.fromWebContents(event.sender)));
+    guarded(db, CHANNELS.backup.importFrom, 'settings.manage', (event) => backup.importFrom(BrowserWindow.fromWebContents(event.sender)));
+    guarded(db, CHANNELS.backup.restore, 'settings.manage', (_event, name: unknown) => backup.restore(name));
+    guarded(db, CHANNELS.backup.openFolder, 'settings.manage', () => backup.openFolder());
+  }
   if (lan) {
     guarded(db, CHANNELS.lan.state, 'settings.manage', () => lan.state());
     guarded(db, CHANNELS.lan.setEnabled, 'settings.manage', (_event, enabled: unknown) => lan.setEnabled(enabled));

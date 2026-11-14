@@ -19,7 +19,7 @@ export type RpcHandler = (event: unknown, ...args: unknown[]) => unknown;
  * What a paired device may not call: things that belong to the till itself (its window, printer setup, files and
  * folders on its disk, the customer display, this server's own settings).
  */
-const DENIED_GROUPS = new Set(['shell', 'debug', 'display', 'scanner', 'lan']);
+const DENIED_GROUPS = new Set(['shell', 'debug', 'display', 'scanner', 'lan', 'backup']);
 const DENIED_CHANNELS = new Set<string>([
   CHANNELS.reports.export,
   CHANNELS.printer.settings,
