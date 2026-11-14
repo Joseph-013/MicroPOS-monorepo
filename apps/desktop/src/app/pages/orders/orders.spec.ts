@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { type DesktopApi, type SalesOrderSummary } from '@micropos/core';
 import { BannerService } from '../../core/banner';
+import { withSession } from '../../core/auth/testing';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { OrdersPage } from './orders';
@@ -56,7 +57,7 @@ describe('OrdersPage', () => {
         refund: (input: unknown) => (reversed.push(['refund', input]), Promise.resolve({ ok: true as const, orderId: (input as { orderId: string }).orderId, orderNumber: 'SO-X', refundOrderId: 'r', refundOrderNumber: 'SO-R' })),
       },
     } as unknown as DesktopApi;
-    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: withSession(api) }] });
     await TestBed.inject(Router).navigateByUrl('/orders');
     fixture = TestBed.createComponent(OrdersPage);
     await fixture.whenStable();
@@ -260,7 +261,7 @@ describe('OrdersPage paging and highlighting', () => {
   async function open(url = '/orders'): Promise<void> {
     const detail = (id: string) => ({ id, orderNumber: `SO-${id.slice(1)}`, status: 'completed', employeeName: 'Casey Cashier', subtotal: 0, discountTotal: 0, total: 0, createdAt: 0, completedAt: null, customer: null, onAccount: 0, refundOf: null, refundedBy: null, lines: [], payments: [] });
     const api = { orders: { list: () => Promise.resolve(MANY), get: (id: string) => Promise.resolve(detail(id)) } } as unknown as DesktopApi;
-    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: withSession(api) }] });
     TestBed.inject(SalesOrderViewer); // started at launch by the app root, before the first navigation
     await TestBed.inject(Router).navigateByUrl(url);
     fixture = TestBed.createComponent(OrdersPage);
@@ -357,7 +358,7 @@ describe('OrdersPage refund rows', () => {
   it('reads Refund for a refund order (not Completed) and filters it separately', async () => {
     const list = [order('s', 1, { methods: ['ewallet', 'bank_transfer'] }), order('r', 2, { isRefund: true, total: -1000 }), order('v', 3, { status: 'voided' })];
     const api = { orders: { list: () => Promise.resolve(list), get: () => Promise.resolve(null) } } as unknown as DesktopApi;
-    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: withSession(api) }] });
     const fixture = TestBed.createComponent(OrdersPage);
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
@@ -380,7 +381,7 @@ describe('OrdersPage refund rows', () => {
   it('shows the customer and what is on account, and filters by customer', async () => {
     const list = [order('s', 1, { customerName: 'Aling Nena', onAccount: 700 }), order('t', 2), order('u', 3, { customerName: 'Bong', onAccount: 0 })];
     const api = { orders: { list: () => Promise.resolve(list), get: () => Promise.resolve(null) } } as unknown as DesktopApi;
-    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: withSession(api) }] });
     const fixture = TestBed.createComponent(OrdersPage);
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;

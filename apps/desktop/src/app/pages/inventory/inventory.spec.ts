@@ -16,6 +16,7 @@ import {
 import { BannerService } from '../../core/banner';
 import { NavBadges } from '../../core/nav-badges';
 import { ProductViewer } from '../../core/product-viewer';
+import { withSession } from '../../core/auth/testing';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { provideRouter, Router } from '@angular/router';
 import { NewProductViewer } from '../../core/new-product-viewer';
@@ -166,7 +167,7 @@ describe('InventoryPage', () => {
     calls = fake.calls;
     drafts = fake.drafts;
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), { provide: DESKTOP_API, useValue: fake.api }, { provide: NavBadges, useValue: { count: () => concernRows.length, refresh: () => Promise.resolve(), stockConcerns: () => concernRows } }],
+      providers: [provideRouter([]), { provide: DESKTOP_API, useValue: withSession(fake.api) }, { provide: NavBadges, useValue: { count: () => concernRows.length, refresh: () => Promise.resolve(), stockConcerns: () => concernRows } }],
     });
     TestBed.inject(ScannerService);
     if (url) await TestBed.inject(Router).navigateByUrl(url);

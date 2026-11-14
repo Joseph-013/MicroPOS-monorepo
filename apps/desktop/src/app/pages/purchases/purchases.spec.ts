@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { purchaseConcern, type DesktopApi, type PurchaseConcern, type PayPurchaseInput, type PurchaseDetail, type PurchaseInput, type PurchaseSummary, type ReceivePurchaseInput } from '@micropos/core';
 import { NavBadges } from '../../core/nav-badges';
+import { withSession } from '../../core/auth/testing';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
 import { ScannerService } from '../../core/scanner';
@@ -130,7 +131,7 @@ describe('PurchasesPage', () => {
   async function open(rows = SAMPLE(), url = '/purchases'): Promise<void> {
     fake = fakeApi(rows);
     TestBed.configureTestingModule({
-      providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: fake.api }, { provide: NavBadges, useValue: { count: () => badges().length, refresh: () => Promise.resolve(), purchaseConcerns: badges } }],
+      providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: withSession(fake.api) }, { provide: NavBadges, useValue: { count: () => badges().length, refresh: () => Promise.resolve(), purchaseConcerns: badges } }],
     });
     TestBed.inject(ScannerService);
     TestBed.inject(PurchaseViewer); // started at launch by the app root, before the first navigation

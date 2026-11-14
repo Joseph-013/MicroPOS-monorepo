@@ -1,4 +1,4 @@
-import type { DesktopApi, Permission, SessionUser, SignInResult } from '@micropos/core';
+import { ALL_PERMISSIONS, type DesktopApi, type Permission, type SessionUser, type SignInResult } from '@micropos/core';
 
 /** Fakes for specs that need someone signed in (or a till to sign in to). */
 export const sessionUser = (permissions: Permission[], over: Partial<SessionUser> = {}): SessionUser => ({
@@ -34,3 +34,7 @@ export function fakeAuthApi(options: FakeAuth = {}) {
   } as unknown as DesktopApi;
   return { api, calls };
 }
+
+/** A fake bridge with someone signed in (everything allowed unless `permissions` says otherwise), for specs whose subject is not the sign-in. */
+export const withSession = (api: DesktopApi, permissions: readonly Permission[] = ALL_PERMISSIONS): DesktopApi =>
+  ({ ...fakeAuthApi({ status: sessionUser([...permissions]) }).api, ...api }) as DesktopApi;

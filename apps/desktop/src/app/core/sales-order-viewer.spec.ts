@@ -2,6 +2,8 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { DESKTOP_API_VERSION, type DesktopApi, type ProductRecord, type SalesOrderDetail } from '@micropos/core';
+import { fakeAuthApi, sessionUser, withSession } from './auth/testing';
+import { AuthService } from './auth/auth.service';
 import { DESKTOP_API } from './api/desktop-api';
 import { BannerService } from './banner';
 import { CustomerViewer } from './customer-viewer';
@@ -90,7 +92,7 @@ function setup() {
   } as unknown as DesktopApi;
   void DESKTOP_API_VERSION;
   TestBed.configureTestingModule({
-    providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }],
+    providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: withSession(api) }],
   });
   const viewer = TestBed.inject(SalesOrderViewer);
   TestBed.inject(ProductViewer); // all of them are started at launch by the app root
@@ -135,6 +137,25 @@ describe('SalesOrderViewer', () => {
     print().click();
     await settle();
     expect(TestBed.inject(BannerService).current()).toMatchObject({ text: 'Receipt for SO-1001 not printed: No printer is set up', severity: 'error' });
+  });
+
+  it('waits for someone to sign in before loading anything: an address restored at launch opens its dialog after sign-in', async () => {
+    const gets: string[] = [];
+    const auth = fakeAuthApi({ status: null, signIn: () => ({ ok: true, user: sessionUser(['orders.view']) }) });
+    const api = { ...auth.api, orders: { get: (id: string) => (gets.push(id), Promise.resolve(ORDER)), list: () => Promise.resolve([]) }, products: { list: () => Promise.resolve([]) } } as unknown as DesktopApi;
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: api }] });
+    TestBed.inject(SalesOrderViewer);
+    await TestBed.inject(AuthService).whenReady();
+    await TestBed.inject(Router).navigateByUrl('/customers?view-sales-order=o1'); // what the last-page restore does at launch
+    await settle();
+    expect(gets).toEqual([]); // the main process would have refused it
+    expect(dialogText()).toBe('');
+    expect(TestBed.inject(Router).url).toBe('/customers?view-sales-order=o1'); // and the address still names the order
+    await TestBed.inject(AuthService).signIn('u1', '1234');
+    await settle();
+    expect(gets).toEqual(['o1']);
+    expect(dialogText()).toContain('SO-1001');
   });
 
   it('open(id) sets the parameter and keeps the rest of the address', async () => {

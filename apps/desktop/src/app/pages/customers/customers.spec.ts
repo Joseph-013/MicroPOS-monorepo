@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import type { CustomerAccount, CustomerInput, CustomerRecord, DesktopApi, LedgerEntryRecord, ReceivePaymentInput } from '@micropos/core';
+import { withSession } from '../../core/auth/testing';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { BannerService } from '../../core/banner';
 import { CustomerViewer } from '../../core/customer-viewer';
@@ -106,7 +107,7 @@ describe('CustomersPage', () => {
 
   async function open(rows = SAMPLE(), url = '/customers'): Promise<void> {
     fake = fakeApi(rows);
-    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: fake.api }] });
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: Blank }]), { provide: DESKTOP_API, useValue: withSession(fake.api) }] });
     TestBed.inject(CustomerViewer); // started at launch by the app root, before the first navigation
     await TestBed.inject(Router).navigateByUrl(url);
     fixture = TestBed.createComponent(CustomersPage);
