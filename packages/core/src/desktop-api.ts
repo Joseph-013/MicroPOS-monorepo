@@ -22,6 +22,7 @@ import type { CustomerDisplayMode, CustomerDisplayState } from './customer-displ
 import type { PrinterDebug, PrinterSettings, PrintResult, SaveLogoResult, SavePrinterSettingsResult, UsbPrinterInfo } from './printing.js';
 import type { TableColumnOrders } from './table-columns.js';
 import type { SessionActivity } from './session-timeout.js';
+import type { BackupList, BackupResult, ExportDatabaseResult, ImportDatabaseResult } from './backup.js';
 import type { LanDevice, LanPairing, LanState } from './lan.js';
 import type { DashboardData, DashboardQuery } from './dashboard.js';
 import type { SalesReport } from './reports.js';
@@ -37,7 +38,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 48;
+export const DESKTOP_API_VERSION = 49;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -99,6 +100,22 @@ export interface DesktopApi {
   log: {
     /** The page reports an error to the main process, which writes it to the log files. Nothing comes back. */
     write(entry: { level: 'error' | 'warn'; source: string; message: string; details?: string }): Promise<void>;
+  };
+  backup: {
+    /** The backups kept in the app's backups folder, newest first. */
+    list(): Promise<BackupList>;
+    /** Makes a backup now. */
+    create(): Promise<BackupResult>;
+    /** Deletes one backup. */
+    remove(name: string): Promise<boolean>;
+    /** Saves a copy of the database where the person chooses (a save dialog). */
+    exportTo(): Promise<ExportDatabaseResult>;
+    /** Asks for a database file (an export or a backup), checks it, backs up the current data and restarts the app with the file in place. */
+    importFrom(): Promise<ImportDatabaseResult>;
+    /** The same, from a backup in the backups folder. */
+    restore(name: string): Promise<ImportDatabaseResult>;
+    /** Opens the backups folder in the system's file manager. */
+    openFolder(): Promise<boolean>;
   };
   lan: {
     /** Whether the till is serving other devices, and where. */

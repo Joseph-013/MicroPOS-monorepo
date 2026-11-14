@@ -253,3 +253,5 @@ export {
 export { discountCents, formatDiscount, isDiscountSpec, MAX_DISCOUNT_REASON, MAX_ORDER_NOTE, parseDiscount, type DiscountSpec } from './discount.js';
 export { deviceNameFromAgent, LAN_DEFAULT_PORT, LAN_PAIRING_MS, MAX_DEVICE_NAME, type LanDevice, type LanPairing, type LanState } from './lan.js';
 export { isSessionTimeoutMinutes, MAX_SESSION_TIMEOUT_MINUTES, MIN_SESSION_TIMEOUT_MINUTES, type SessionActivity } from './session-timeout.js';
+
+export { AUTO_BACKUPS_KEPT, BACKUP_KIND_LABELS, type BackupInfo, type BackupKind, type BackupList, type BackupResult, type ExportDatabaseResult, type ImportDatabaseResult } from './backup.js';
