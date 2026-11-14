@@ -74,9 +74,11 @@
   [role='combobox'] {
     cursor: pointer;
   }
+  /* Spartan marks an element data-disabled="true" (or empty) when disabled, but also data-disabled="false" when it is not. */
   :disabled,
   [aria-disabled='true'],
-  [data-disabled] {
+  [data-disabled='true'],
+  [data-disabled=''] {
     cursor: not-allowed;
   }
 
