@@ -193,6 +193,7 @@ export {
   DEFAULT_PRINTER_PORT,
   DEFAULT_PRINTER_SETTINGS,
   isPaperWidth,
+  MAX_LOGO_BYTES,
   MAX_SHOP_ADDRESS,
   MAX_SHOP_FOOTER,
   MAX_SHOP_NAME,
@@ -204,6 +205,7 @@ export {
   type PrinterSettingsField,
   type PrintResult,
   type ReceiptShopSettings,
+  type SaveLogoResult,
   type SavePrinterSettingsResult,
   type UsbPrinterInfo,
 } from './printing.js';

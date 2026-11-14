@@ -32,6 +32,9 @@ const api: DesktopApi = {
   printer: {
     settings: () => ipcRenderer.invoke(CHANNELS.printer.settings),
     save: (settings) => ipcRenderer.invoke(CHANNELS.printer.save, settings),
+    getLogo: () => ipcRenderer.invoke(CHANNELS.printer.getLogo),
+    saveLogo: (bytes) => ipcRenderer.invoke(CHANNELS.printer.saveLogo, bytes),
+    removeLogo: () => ipcRenderer.invoke(CHANNELS.printer.removeLogo),
     listUsb: () => ipcRenderer.invoke(CHANNELS.printer.listUsb),
     testPrint: () => ipcRenderer.invoke(CHANNELS.printer.testPrint),
     printOrder: (orderId) => ipcRenderer.invoke(CHANNELS.printer.printOrder, orderId),

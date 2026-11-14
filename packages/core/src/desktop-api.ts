@@ -19,7 +19,7 @@ import type {
   SupplierRecord,
 } from './purchasing.js';
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
-import type { PrinterSettings, PrintResult, SavePrinterSettingsResult, UsbPrinterInfo } from './printing.js';
+import type { PrinterSettings, PrintResult, SaveLogoResult, SavePrinterSettingsResult, UsbPrinterInfo } from './printing.js';
 import type { DataDomain, PurchaseConcern, StockConcern } from './concerns.js';
 import type { CreditAlertSettings } from './credit-alerts.js';
 import type { InterestDefaults } from './credit-interest.js';
@@ -31,7 +31,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 37;
+export const DESKTOP_API_VERSION = 38;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -78,6 +78,11 @@ export interface DesktopApi {
     /** The receipt printer's connection and paper width, and what the shop prints on receipts. */
     settings(): Promise<PrinterSettings>;
     save(settings: PrinterSettings): Promise<SavePrinterSettingsResult>;
+    /** The shop logo printed at the top of receipts, as a data URL for showing it; null when there is none. */
+    getLogo(): Promise<string | null>;
+    /** Saves a picture (PNG or JPEG file bytes) as the logo, scaled to fit the widest paper. */
+    saveLogo(bytes: Uint8Array): Promise<SaveLogoResult>;
+    removeLogo(): Promise<void>;
     /** USB devices that look like printers, for choosing one. */
     listUsb(): Promise<UsbPrinterInfo[]>;
     /** Prints a short test page with the saved settings. */

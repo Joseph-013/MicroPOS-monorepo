@@ -51,3 +51,9 @@ export type PrinterSettingsField = 'host' | 'port' | 'usb' | 'paperWidth' | 'sho
 export type SavePrinterSettingsResult = { ok: true; settings: PrinterSettings } | { ok: false; field: PrinterSettingsField | null; error: string };
 
 export const isPaperWidth = (value: unknown): value is PaperWidthMm => (PAPER_WIDTHS_MM as readonly unknown[]).includes(value);
+
+/** Most bytes of a logo file accepted. */
+export const MAX_LOGO_BYTES = 5 * 1024 * 1024;
+
+/** The result of uploading a logo: the saved picture as a data URL for the preview, or why it was refused. */
+export type SaveLogoResult = { ok: true; dataUrl: string } | { ok: false; error: string };

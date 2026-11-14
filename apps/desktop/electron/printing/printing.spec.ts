@@ -3,11 +3,12 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildSaleReceipt, columnsFor, DEFAULT_PRINTER_SETTINGS, type PrinterSettings, type ReceiptDocument, type SalesOrderDetail, wrapText, formatReceiptMoney } from '@micropos/core';
+import { buildSaleReceipt, buildTestReceipt, columnsFor, DEFAULT_PRINTER_SETTINGS, type PrinterSettings, type ReceiptDocument, type SalesOrderDetail, wrapText, formatReceiptMoney } from '@micropos/core';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from '../db';
 import { centerOnPaper, type Bitmap } from './bitmap';
 import { encodeReceipt } from './escpos';
 import { PrinterError } from './errors';
+import { LogoStore } from './logo-store';
 import { PrinterService } from './printer-service';
 import { loadPrinterSettings, sanitizePrinterSettings, savePrinterSettings } from './settings';
 import { NetworkTransport } from './transports/network';
@@ -64,9 +65,29 @@ describe('the receipt document', () => {
     expect(credit).toContain('Subtotal|126.00');
   });
 
-  it('has no header block for a shop with nothing set up, and prints the logo first when there is one', () => {
+  it('has no header block for a shop with nothing set up', () => {
     expect(buildSaleReceipt(order(), { name: '', address: '', footer: '', hasLogo: false }, 32).lines[0]).toMatchObject({ kind: 'text', text: 'Order SO-1001' });
-    expect(buildSaleReceipt(order(), { ...shop, hasLogo: true }, 32).lines[0]).toEqual({ kind: 'logo' });
+  });
+
+  it('prints the shop name as plain bold text when there is no logo, and the logo in its place when there is', () => {
+    const noLogo = buildSaleReceipt(order(), shop, 32).lines;
+    expect(noLogo[0]).toEqual({ kind: 'text', text: 'Aling Nena Store', align: 'center', bold: true });
+    expect(noLogo[1]).toEqual({ kind: 'text', text: '12 Rizal St, Cebu', align: 'center' });
+    expect(noLogo.some((l) => l.kind === 'logo')).toBe(false);
+
+    const withLogo = buildSaleReceipt(order(), { ...shop, hasLogo: true }, 32).lines;
+    expect(withLogo[0]).toEqual({ kind: 'logo' });
+    expect(withLogo.some((l) => l.kind === 'text' && l.text === 'Aling Nena Store')).toBe(false); // the logo stands for the name
+    expect(withLogo[1]).toEqual({ kind: 'text', text: '12 Rizal St, Cebu', align: 'center' }); // the address still follows
+
+    // A long name wraps, every line bold; the test page does the same.
+    const long = buildSaleReceipt(order(), { ...shop, name: 'The Very Long Named Neighbourhood Store', address: '' }, 32).lines;
+    expect(long.slice(0, 2)).toEqual([
+      { kind: 'text', text: 'The Very Long Named', align: 'center', bold: true },
+      { kind: 'text', text: 'Neighbourhood Store', align: 'center', bold: true },
+    ]);
+    const test = buildTestReceipt(shop, 32, 0).lines;
+    expect(test[0]).toMatchObject({ kind: 'text', text: 'Aling Nena Store', bold: true });
   });
 });
 
@@ -334,5 +355,53 @@ describe('the saved printer settings', () => {
     expect(bad({ connection: null, paperWidthMm: 58 }, { name: 'a', footer: 'x'.repeat(201) })).toMatchObject({ field: 'shopFooter' });
     expect(savePrinterSettings(db, form({ printer: { connection: null, paperWidthMm: 1 } }))).toMatchObject({ ok: false, field: 'paperWidth' });
     expect(loadPrinterSettings(db)).toEqual(DEFAULT_PRINTER_SETTINGS); // a refused save changes nothing
+  });
+});
+
+describe('the logo store', () => {
+  let dir: string;
+  beforeEach(() => (dir = fs.mkdtempSync(path.join(os.tmpdir(), 'micropos-logo-'))));
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = (): string => path.join(dir, 'data', 'receipt-logo.png');
+  const PNG = Buffer.from('fake-png-bytes');
+  const store = (decode: (b: Uint8Array) => { png: Buffer } | null = () => ({ png: PNG })) => new LogoStore(file, decode);
+
+  it('has no logo until one is saved, then keeps it and shows it as a data URL', () => {
+    const logos = store();
+    expect(logos.has()).toBe(false);
+    expect(logos.dataUrl()).toBeNull();
+    expect(logos.read()).toBeNull();
+    const saved = logos.save(new Uint8Array([1, 2, 3]));
+    expect(saved).toEqual({ ok: true, dataUrl: `data:image/png;base64,${PNG.toString('base64')}` });
+    expect(logos.has()).toBe(true);
+    expect(logos.read()!.equals(PNG)).toBe(true);
+    expect(logos.dataUrl()).toBe((saved as { dataUrl: string }).dataUrl);
+    expect(fs.readdirSync(path.dirname(file()))).toEqual(['receipt-logo.png']); // no leftover temporary file
+  });
+
+  it('replaces the logo, and removes it again', () => {
+    const logos = store();
+    logos.save(new Uint8Array([1]));
+    const other = Buffer.from('another');
+    new LogoStore(file, () => ({ png: other })).save(new Uint8Array([2]));
+    expect(logos.read()!.equals(other)).toBe(true);
+    logos.remove();
+    expect(logos.has()).toBe(false);
+    expect(() => logos.remove()).not.toThrow();
+  });
+
+  it('refuses what is not a usable picture, and keeps the logo it had', () => {
+    const logos = store();
+    logos.save(new Uint8Array([1]));
+    expect(store(() => null).save(new Uint8Array([1, 2]))).toMatchObject({ ok: false, error: expect.stringContaining('not a picture') });
+    expect(logos.save('not bytes')).toMatchObject({ ok: false });
+    expect(logos.save(new Uint8Array(0))).toMatchObject({ ok: false });
+    expect(logos.save(new Uint8Array(5 * 1024 * 1024 + 1))).toMatchObject({ ok: false, error: expect.stringContaining('too large') });
+    expect(logos.read()!.equals(PNG)).toBe(true);
+  });
+
+  it('reports a failure to write without leaving anything behind', () => {
+    fs.writeFileSync(path.join(dir, 'data'), 'a file where the folder should be');
+    expect(store().save(new Uint8Array([1]))).toMatchObject({ ok: false, error: expect.stringContaining('could not be saved') });
   });
 });

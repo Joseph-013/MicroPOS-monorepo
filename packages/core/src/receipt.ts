@@ -95,6 +95,16 @@ function pair(label: string, value: string, columns: number, bold = false): Rece
 }
 
 /**
+ * The top of a receipt: the logo when the shop has one (it stands for the shop's name), otherwise the name as plain
+ * bold text; then the address.
+ */
+function header(lines: ReceiptLine[], shop: ReceiptShop, columns: number): void {
+  if (shop.hasLogo) lines.push({ kind: 'logo' });
+  else for (const l of wrapText(shop.name, columns)) lines.push({ kind: 'text', text: l, align: 'center', bold: true });
+  for (const l of wrapText(shop.address, columns)) lines.push({ kind: 'text', text: l, align: 'center' });
+}
+
+/**
  * The receipt of a recorded sale, laid out for `columns` characters per line: shop header, order details, one entry
  * per item (name, then quantity x price and the line total), totals, payments, what went on account, and the footer.
  * Voided and refunded orders say so; a refund order carries its negative amounts as they are.
@@ -104,9 +114,7 @@ export function buildSaleReceipt(order: SalesOrderDetail, shop: ReceiptShop, col
   const text = (t: string, align: ReceiptAlign = 'left', bold = false): void => void lines.push({ kind: 'text', text: t, align, bold });
   const centered = (block: string, bold = false): void => wrapText(block, columns).forEach((l) => text(l, 'center', bold));
 
-  if (shop.hasLogo) lines.push({ kind: 'logo' });
-  centered(shop.name, true);
-  centered(shop.address);
+  header(lines, shop, columns);
   if (shop.name || shop.address || shop.hasLogo) lines.push({ kind: 'rule', style: 'dash' });
 
   if (order.status === 'voided') text('*** VOIDED ***', 'center', true);
@@ -152,8 +160,7 @@ export function buildSaleReceipt(order: SalesOrderDetail, shop: ReceiptShop, col
 export function buildTestReceipt(shop: ReceiptShop, columns: number, now: number): ReceiptDocument {
   const ruler = Array.from({ length: columns }, (_, i) => ((i + 1) % 10 === 0 ? String(((i + 1) / 10) % 10) : '-')).join('');
   const lines: ReceiptLine[] = [];
-  if (shop.hasLogo) lines.push({ kind: 'logo' });
-  if (shop.name) lines.push({ kind: 'text', text: shop.name, align: 'center', bold: true });
+  header(lines, shop, columns);
   lines.push(
     { kind: 'text', text: 'Printer test', align: 'center', bold: true },
     { kind: 'text', text: dateText(now), align: 'center' },

@@ -20,6 +20,7 @@ import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/
 import { getCloseToTray, setCloseToTray } from '../close-to-tray';
 import { log, logDirectory } from '../logging';
 import { createPrinterService } from '../printing';
+import { shopLogos } from '../printing/logo';
 import { loadPrinterSettings, savePrinterSettings } from '../printing/settings';
 import { listUsbPrinters } from '../printing/transports/usb';
 import { API_VERSION, CHANNELS } from './channels';
@@ -77,6 +78,9 @@ export function registerIpcHandlers(db: AppDatabase): void {
   });
   guarded(db, CHANNELS.printer.settings, 'settings.manage', () => loadPrinterSettings(db));
   guarded(db, CHANNELS.printer.save, 'settings.manage', (_event, input: unknown) => savePrinterSettings(db, input));
+  guarded(db, CHANNELS.printer.getLogo, 'settings.manage', () => shopLogos.dataUrl());
+  guarded(db, CHANNELS.printer.saveLogo, 'settings.manage', (_event, bytes: unknown) => shopLogos.save(bytes));
+  guarded(db, CHANNELS.printer.removeLogo, 'settings.manage', () => shopLogos.remove());
   guarded(db, CHANNELS.printer.listUsb, 'settings.manage', async () => {
     try {
       return await listUsbPrinters();
