@@ -74,16 +74,15 @@ describe('the receipt document', () => {
     expect(buildSaleReceipt(order(), { name: '', address: '', footer: '', hasLogo: false }, 32).lines[0]).toMatchObject({ kind: 'text', text: 'Order SO-1001' });
   });
 
-  it('prints the shop name as plain bold text when there is no logo, and the logo in its place when there is', () => {
+  it('prints the shop name as plain bold text and the address under the logo, or from the top when there is no logo', () => {
+    const name = { kind: 'text', text: 'Aling Nena Store', align: 'center', bold: true };
+    const address = { kind: 'text', text: '12 Rizal St, Cebu', align: 'center' };
     const noLogo = buildSaleReceipt(order(), shop, 32).lines;
-    expect(noLogo[0]).toEqual({ kind: 'text', text: 'Aling Nena Store', align: 'center', bold: true });
-    expect(noLogo[1]).toEqual({ kind: 'text', text: '12 Rizal St, Cebu', align: 'center' });
+    expect(noLogo.slice(0, 2)).toEqual([name, address]);
     expect(noLogo.some((l) => l.kind === 'logo')).toBe(false);
 
     const withLogo = buildSaleReceipt(order(), { ...shop, hasLogo: true }, 32).lines;
-    expect(withLogo[0]).toEqual({ kind: 'logo' });
-    expect(withLogo.some((l) => l.kind === 'text' && l.text === 'Aling Nena Store')).toBe(false); // the logo stands for the name
-    expect(withLogo[1]).toEqual({ kind: 'text', text: '12 Rizal St, Cebu', align: 'center' }); // the address still follows
+    expect(withLogo.slice(0, 3)).toEqual([{ kind: 'logo' }, name, address]); // the logo first, then the name and address below it
 
     // A long name wraps, every line bold; the test page does the same.
     const long = buildSaleReceipt(order(), { ...shop, name: 'The Very Long Named Neighbourhood Store', address: '' }, 32).lines;
@@ -93,6 +92,7 @@ describe('the receipt document', () => {
     ]);
     const test = buildTestReceipt(shop, 32, 0).lines;
     expect(test[0]).toMatchObject({ kind: 'text', text: 'Aling Nena Store', bold: true });
+    expect(buildTestReceipt({ ...shop, hasLogo: true }, 32, 0).lines.slice(0, 2)).toEqual([{ kind: 'logo' }, name]);
   });
 });
 

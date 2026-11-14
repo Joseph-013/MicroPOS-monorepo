@@ -98,12 +98,12 @@ function pair(label: string, value: string, columns: number, bold = false): Rece
 }
 
 /**
- * The top of a receipt: the logo when the shop has one (it stands for the shop's name), otherwise the name as plain
- * bold text; then the address.
+ * The top of a receipt: the logo when the shop has one, then the shop name as plain bold text and the address, all
+ * centred. Without a logo it starts at the name.
  */
 function header(lines: ReceiptLine[], shop: ReceiptShop, columns: number): void {
   if (shop.hasLogo) lines.push({ kind: 'logo' });
-  else for (const l of wrapText(shop.name, columns)) lines.push({ kind: 'text', text: l, align: 'center', bold: true });
+  for (const l of wrapText(shop.name, columns)) lines.push({ kind: 'text', text: l, align: 'center', bold: true });
   for (const l of wrapText(shop.address, columns)) lines.push({ kind: 'text', text: l, align: 'center' });
 }
 
