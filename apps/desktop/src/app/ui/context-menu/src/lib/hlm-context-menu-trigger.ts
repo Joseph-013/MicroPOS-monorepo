@@ -16,6 +16,7 @@ import {
   type MenuSide,
 } from '@spartan-ng/brain/core';
 import { classes } from '@spartan-ng/helm/utils';
+import { LongPressContextMenu } from '../../../../core/ui/long-press-context-menu.directive';
 import { injectHlmContextMenuConfig } from './hlm-context-menu-token';
 
 @Directive({
@@ -35,6 +36,8 @@ import { injectHlmContextMenuConfig } from './hlm-context-menu-token';
         'cdkContextMenuClosed: hlmContextMenuClosed',
       ],
     },
+    // Safari never opens a context menu on a long press by itself: this does it (see the directive).
+    LongPressContextMenu,
   ],
   host: {
     'data-slot': 'context-menu-trigger',

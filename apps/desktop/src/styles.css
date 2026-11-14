@@ -314,3 +314,10 @@ span[data-required]::after {
   border-color: var(--primary);
   transform: scale(0.94);
 }
+
+/* A finger resting on a context-menu trigger (see `LongPressContextMenu`): no text selection loupe or link callout over the long press. */
+[data-pressing] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
