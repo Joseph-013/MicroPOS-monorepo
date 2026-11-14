@@ -1,4 +1,5 @@
 import { ColumnConfig } from '../../core/ui/column-config';
+import { AppCol } from '../../core/ui/table-column.directive';
 import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
@@ -49,6 +50,7 @@ const COLUMN_DEFS = [
 @Component({
   imports: [
     AppPager,
+    AppCol,
     ColumnConfig,
     ConfirmItems,
     DatePipe,

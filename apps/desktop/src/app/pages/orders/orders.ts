@@ -1,4 +1,5 @@
 import { ColumnConfig } from '../../core/ui/column-config';
+import { AppCol } from '../../core/ui/table-column.directive';
 import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
@@ -69,7 +70,7 @@ export const DATE_PARAM = 'date';
 /** Sales Orders: every recorded sale, newest first. Open one to see its lines and payment. */
 @Component({
   imports: [
-    ColumnConfig, AppPager,
+    AppCol, ColumnConfig, AppPager,
     DatePipe,
     DateRangeFilter,
     FilterInput,

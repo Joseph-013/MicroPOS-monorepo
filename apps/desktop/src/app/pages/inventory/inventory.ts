@@ -1,4 +1,5 @@
 import { ColumnConfig } from '../../core/ui/column-config';
+import { AppCol } from '../../core/ui/table-column.directive';
 import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
@@ -74,7 +75,7 @@ const COLUMN_DEFS = [
 /** Inventory: every batch with stock left, its expiry and quantity; receive, adjust and write off stock. */
 @Component({
   imports: [
-    ColumnConfig, AppPager,
+    AppCol, ColumnConfig, AppPager,
     ConcernsButton,
     ConfirmItems,
     DatePipe,

@@ -203,3 +203,102 @@ span[data-required]::after {
   background-color: color-mix(in oklab, var(--primary) 12%, transparent);
   box-shadow: inset 3px 0 0 var(--primary);
 }
+
+/*
+ * Phone-sized screens: a page table (`.table-cards`, see "Table design" in CLAUDE.md) becomes a list of cards, so nothing
+ * scrolls sideways and a swipe on a card is only ever the card's swipe action.
+ * - The title row and the filter row are hidden until the "Sort and filter" button (in the page header) opens them: the
+ *   titles become sort chips and each filter is stacked under its name.
+ * - Each row is a card: the first column (`data-primary`) is its title next to the selection checkbox, and every other cell
+ *   is "name ... value" on its own line (`data-label`, set by `appCol`). The columns keep the admin's order (CSS `order`).
+ * Unlayered on purpose: it must beat the utility classes the desktop layout puts on the same elements.
+ */
+@media (max-width: 47.9375rem) {
+  .table-cards {
+    min-width: 0;
+  }
+  .table-cards > [role='rowgroup']:first-child {
+    display: none;
+    position: static;
+  }
+  .table-cards[data-filters='open'] > [role='rowgroup']:first-child {
+    display: block;
+    padding: 0.5rem 0.75rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-cards > [role='rowgroup']:first-child > [role='row'] {
+    border-bottom: 0;
+  }
+  .table-cards > [role='rowgroup']:first-child > [role='row']:first-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding-bottom: 0.5rem;
+  }
+  .table-cards > [role='rowgroup']:first-child > [role='row']:first-child > [role='columnheader'] {
+    border: 1px solid var(--border);
+  }
+  .table-cards > [role='rowgroup']:first-child > [role='row']:nth-child(2) {
+    display: block;
+  }
+  .table-cards > [role='rowgroup']:first-child > [role='row']:nth-child(2) > [role='columnheader'] {
+    display: block;
+    padding: 0.25rem 0;
+  }
+  .table-cards > [role='rowgroup']:first-child > [role='row']:nth-child(2) > [role='columnheader']:empty {
+    display: none;
+  }
+  .table-cards > [role='rowgroup']:first-child > [role='row']:nth-child(2) > [role='columnheader'][data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+  }
+
+  .table-cards > [role='rowgroup']:last-child > div {
+    margin: 0.5rem 0;
+    border: 1px solid var(--border);
+  }
+  .table-cards > [role='rowgroup']:last-child [role='row'] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.25rem 0.75rem;
+    align-items: start;
+    padding: 0.75rem;
+  }
+  .table-cards > [role='rowgroup']:last-child [role='cell'] {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+    padding: 0;
+    text-align: right;
+  }
+  .table-cards > [role='rowgroup']:last-child [role='cell'][data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    color: var(--muted-foreground);
+    text-align: left;
+  }
+  /* The selection checkbox sits beside the title, on the card's first line. */
+  .table-cards > [role='rowgroup']:last-child [role='cell']:first-child:not([data-label]) {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    justify-content: flex-start;
+  }
+  .table-cards > [role='rowgroup']:last-child [role='cell'][data-primary] {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    display: block;
+    text-align: left;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+  .table-cards > [role='rowgroup']:last-child [role='cell'][data-primary]::before {
+    display: none;
+  }
+}

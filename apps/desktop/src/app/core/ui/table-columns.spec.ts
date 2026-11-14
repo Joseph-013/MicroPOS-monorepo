@@ -36,6 +36,25 @@ async function setup(permissions: Permission[], saved: TableColumnOrders = {}) {
   return { fixture, writes, layout: fixture.componentInstance.layout };
 }
 
+describe('table cells on a phone', () => {
+  it('gives each cell its order, its label and whether it is the card title (the first column)', async () => {
+    const { layout } = await setup(['settings.manage'], { things: ['price', 'name'] });
+    expect(layout.col('price')).toEqual({ order: 1, label: 'Price', primary: true });
+    expect(layout.col('name')).toEqual({ order: 2, label: 'Name', primary: false });
+    expect(layout.col('nope').label).toBe('');
+  });
+
+  it('has a Sort and filter button, for anyone, that opens the title and filter rows', async () => {
+    const { fixture, layout } = await setup(['checkout.sell']);
+    const button = (fixture.nativeElement as HTMLElement).querySelector('button[aria-label="Sort and filter"]') as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    expect(layout.filtersOpen()).toBe(false);
+    button.click();
+    expect(layout.filtersOpen()).toBe(true);
+    expect(button.classList.contains('md:hidden')).toBe(true); // phone-sized screens only
+  });
+});
+
 describe('table column order', () => {
   it('lists the columns in the saved order, with the selection and actions columns fixed at the ends', async () => {
     const { layout } = await setup(['settings.manage'], { things: ['price', 'name'] });

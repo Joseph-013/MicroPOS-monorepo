@@ -1,23 +1,38 @@
 import { Component, inject, input, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideColumns3, lucideGripVertical } from '@ng-icons/lucide';
+import { lucideColumns3, lucideGripVertical, lucideListFilter } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { AuthService } from '../auth/auth.service';
 import type { TableLayout } from './table-columns';
 
 /**
- * "Columns" button for a page table's header, for admins only (`settings.manage`): opens a list of the columns with a drag
+ * Buttons for a page table's header. "Sort and filter" (phone-sized screens only) opens the table's title and filter rows,
+ * which the card layout keeps hidden. "Columns", for admins only (`settings.manage`) and not on a phone: opens a list of the columns with a drag
  * handle at the right of each row to reorder them. The handle also takes the arrow keys. No hiding of columns (yet).
  * The order is saved for everyone.
  */
 @Component({
   selector: 'app-column-config',
   imports: [NgIcon, HlmButtonImports, HlmDropdownMenuImports],
-  providers: [provideIcons({ lucideColumns3, lucideGripVertical })],
+  providers: [provideIcons({ lucideColumns3, lucideGripVertical, lucideListFilter })],
   template: `
+    <!-- Phone-sized screens: the table is a list of cards, and its sort and filter rows open from here. -->
+    <button
+      hlmBtn
+      [variant]="layout().filtersOpen() ? 'default' : 'outline'"
+      size="icon"
+      type="button"
+      class="md:hidden"
+      aria-label="Sort and filter"
+      title="Sort and filter"
+      [attr.aria-pressed]="layout().filtersOpen()"
+      (click)="layout().filtersOpen.set(!layout().filtersOpen())"
+    >
+      <ng-icon name="lucideListFilter" size="18" />
+    </button>
     @if (auth.can('settings.manage')) {
-      <button hlmBtn variant="outline" size="icon" type="button" aria-label="Columns" title="Columns" [hlmDropdownMenuTrigger]="menu" align="end">
+      <button hlmBtn variant="outline" size="icon" type="button" class="max-md:hidden" aria-label="Columns" title="Columns" [hlmDropdownMenuTrigger]="menu" align="end">
         <ng-icon name="lucideColumns3" size="18" />
       </button>
       <ng-template #menu>

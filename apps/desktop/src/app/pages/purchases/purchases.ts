@@ -1,4 +1,5 @@
 import { ColumnConfig } from '../../core/ui/column-config';
+import { AppCol } from '../../core/ui/table-column.directive';
 import { tableLayout } from '../../core/ui/table-columns';
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
@@ -58,7 +59,7 @@ const COLUMN_DEFS = [
 
 /** Purchases: stock ordered from suppliers, often in advance and paid later. Open one to receive it or record payments. */
 @Component({
-  imports: [ColumnConfig, AppPager, ConcernsButton, DatePipe, DateRangeFilter, FilterInput, MoneyPipe, NgIcon, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmSelectImports],
+  imports: [AppCol, ColumnConfig, AppPager, ConcernsButton, DatePipe, DateRangeFilter, FilterInput, MoneyPipe, NgIcon, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmSelectImports],
   providers: [provideIcons({ lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX })],
   templateUrl: './purchases.html',
 })

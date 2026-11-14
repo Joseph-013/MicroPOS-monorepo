@@ -1,4 +1,5 @@
 import { ColumnConfig } from '../../core/ui/column-config';
+import { AppCol } from '../../core/ui/table-column.directive';
 import { tableLayout } from '../../core/ui/table-columns';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -52,7 +53,7 @@ const COLUMN_DEFS = [
 /** Suppliers: who the store buys from and what is still owed to each. Their purchase orders are on the Purchases page. */
 @Component({
   imports: [
-    ColumnConfig, AppPager,
+    AppCol, ColumnConfig, AppPager,
     ConfirmItems,
     FilterInput,
     MoneyPipe,

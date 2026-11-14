@@ -47,6 +47,13 @@ export class TableColumnsService {
   }
 }
 
+/** A cell's part in the layout: see `TableLayout.col`. */
+export interface ColumnCell {
+  order: number;
+  label: string;
+  primary: boolean;
+}
+
 export interface ColumnDef {
   key: string;
   label: string;
@@ -79,6 +86,15 @@ export class TableLayout {
     private readonly lead = '',
     private readonly tail = '',
   ) {}
+
+  /** On a phone the sort and filter rows are hidden until this is turned on (the "Sort & filter" button). */
+  readonly filtersOpen = signal(false);
+
+  /** What a cell of this column needs from `appCol`: its place in the order, its name (the label on a phone's card) and whether it is the card's title. */
+  col(key: string): ColumnCell {
+    const order = this.order(key);
+    return { order, label: this.defs.find((d) => d.key === key)?.label ?? '', primary: order === 1 };
+  }
 
   /** The CSS `order` of a column's cells (the selection cell has none, so it stays first). */
   order(key: string): number {
