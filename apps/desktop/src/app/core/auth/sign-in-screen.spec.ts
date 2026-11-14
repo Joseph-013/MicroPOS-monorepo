@@ -3,7 +3,7 @@ import { provideRouter } from '@angular/router';
 import { DESKTOP_API } from '../api/desktop-api';
 import { AuthService } from './auth.service';
 import { fakeAuthApi, sessionUser } from './testing';
-import { SignInScreen } from './sign-in-screen';
+import { SIGN_IN_FILTER_FROM, SignInScreen } from './sign-in-screen';
 
 describe('SignInScreen', () => {
   let fixture: ComponentFixture<SignInScreen>;
@@ -27,7 +27,7 @@ describe('SignInScreen', () => {
 
   it('lists who can sign in, then asks for their PIN', async () => {
     await open();
-    expect(Array.from(el.querySelectorAll('li button')).map((b) => b.textContent!.trim())).toEqual(['Sam', 'Alex']);
+    expect(Array.from(el.querySelectorAll('li button')).map((b) => b.getAttribute('aria-label'))).toEqual(['Sam', 'Alex']);
     await press('Sam');
     expect(el.textContent).toContain('Enter your PIN');
   });
@@ -50,6 +50,49 @@ describe('SignInScreen', () => {
     await fixture.whenStable();
     expect(el.textContent).toContain('Wrong PIN');
     expect(el.querySelectorAll('[data-pin-dots] span')).toHaveLength(0);
+  });
+
+  it('shows each person with their initials and role', async () => {
+    await open(fakeAuthApi({ choices: [{ id: 'u1', name: 'Store Owner', role: 'admin' }] }));
+    const tile = button('Store Owner');
+    expect(tile.textContent).toContain('SO');
+    expect(tile.textContent).toContain('Admin');
+    expect(el.textContent).toContain('Sign in as');
+  });
+
+  it('offers a name filter only for a long list, ignoring case and accents', async () => {
+    const many = Array.from({ length: SIGN_IN_FILTER_FROM }, (_, i) => ({ id: `u${i}`, name: i === 0 ? 'José Cruz' : `Person ${i}`, role: 'cashier' as const }));
+    await open(fakeAuthApi({ choices: many.slice(0, SIGN_IN_FILTER_FROM - 1) }));
+    expect(el.querySelector('input[type="search"]')).toBeNull();
+
+    TestBed.resetTestingModule();
+    await open(fakeAuthApi({ choices: many }));
+    const search = el.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = 'jose';
+    search.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    expect(Array.from(el.querySelectorAll('li button')).map((b) => b.getAttribute('aria-label'))).toEqual(['José Cruz']);
+    search.value = 'nobody';
+    search.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    expect(el.textContent).toContain('Nobody matches');
+  });
+
+  it('shows the shop name instead of the wordmark when there is one', async () => {
+    await open(fakeAuthApi({ branding: { shopName: 'Aling Nena Store', logo: null } }));
+    expect(el.textContent).toContain('Aling Nena Store');
+    expect(el.querySelector('app-logo')).toBeNull();
+  });
+
+  it('offers Restore from backup only on a fresh install, and says why it failed', async () => {
+    await open();
+    expect(button('Restore from backup')).toBeUndefined();
+
+    TestBed.resetTestingModule();
+    const fake = await open(fakeAuthApi({ fresh: true, importFresh: { ok: false, error: 'This is not a MicroPOS database' } }));
+    await press('Restore from backup');
+    expect(fake.calls.importFresh).toBe(1);
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('This is not a MicroPOS database');
   });
 
   it('asks for a new PIN of their own after signing in with a starting one', async () => {

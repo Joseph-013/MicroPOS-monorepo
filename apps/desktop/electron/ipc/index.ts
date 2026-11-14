@@ -22,7 +22,7 @@ import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../
 import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/queries/product-draft';
 import { setScannerEnabled } from '../scanner';
 import { setSessionTimeout } from '../auth/session-timeout';
-import { changePin, isAllowed, recordActivity, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
+import { changePin, isAllowed, isFreshInstall, recordActivity, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
 import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/users';
 import { getCloseToTray, setCloseToTray } from '../close-to-tray';
 import { log, logDirectory } from '../logging';
@@ -222,6 +222,7 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
   handle(CHANNELS.auth.status, () => currentUser(db));
   handle(CHANNELS.auth.activity, () => recordActivity(db));
   handle(CHANNELS.auth.choices, () => signInChoices(db));
+  handle(CHANNELS.auth.branding, () => ({ shopName: loadPrinterSettings(db).shop.name, logo: shopLogos.dataUrl() }));
   handle(CHANNELS.auth.signIn, (_event, input: unknown) => signIn(db, input));
   guarded(db, CHANNELS.auth.signOut, [], () => signOut(db));
   guarded(db, CHANNELS.auth.setSessionTimeout, 'settings.manage', (_event, minutes: unknown) => setSessionTimeout(db, minutes));
@@ -243,6 +244,12 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
     guarded(db, CHANNELS.backup.importFrom, 'settings.manage', (event) => backup.importFrom(BrowserWindow.fromWebContents(event.sender)));
     guarded(db, CHANNELS.backup.restore, 'settings.manage', (_event, name: unknown) => backup.restore(name));
     guarded(db, CHANNELS.backup.openFolder, 'settings.manage', () => backup.openFolder());
+    // A fresh install's sign-in screen may restore a backup before anyone signs in (the `backup` group is never offered
+    // to paired devices); the main process re-checks that it is still fresh, so this cannot replace anyone's data.
+    handle(CHANNELS.backup.freshInstall, () => isFreshInstall(db));
+    handle(CHANNELS.backup.importFresh, (event) =>
+      isFreshInstall(db) ? backup.importFrom(BrowserWindow.fromWebContents(event.sender)) : { ok: false as const, error: 'Not allowed: this till is already in use. Restore from Settings > Backup.' },
+    );
   }
   if (lan) {
     guarded(db, CHANNELS.lan.state, 'settings.manage', () => lan.state());

@@ -1,5 +1,5 @@
 import type { DataDomain } from '@micropos/core';
-import { app, BrowserWindow, Menu, powerMonitor, screen } from 'electron';
+import { app, BrowserWindow, dialog, Menu, powerMonitor, screen } from 'electron';
 import path from 'node:path';
 import { ensureOwner, signOut } from './auth/auth';
 import { accrueInterest } from './db/queries/credit-interest';
@@ -11,7 +11,7 @@ import { CHANNELS } from './ipc/channels';
 import { emitDataChanged, onDataChanged } from './ipc/changes';
 import { registerIpcHandlers, rpcHandlers } from './ipc';
 import { LanService } from './lan';
-import { applyPendingImport, autoBackup } from './backup/backup';
+import { applyPendingImport, autoBackup, finishImport, rollbackImport } from './backup/backup';
 import { BackupService } from './backup/service';
 import { closeCustomerDisplay, registerCustomerDisplay } from './display';
 import { initLogging, log } from './logging';
@@ -160,12 +160,25 @@ app.on('second-instance', () => showMainWindow());
 if (!gotLock) app.quit();
 else void app.whenReady().then(async () => {
   // A database chosen in Settings > Backup (import or restore) is put in place before anything opens the file.
+  let imported = false;
   try {
-    if (applyPendingImport(databaseFile())) log.info('backup', 'Imported database put in place');
+    imported = applyPendingImport(databaseFile());
+    if (imported) log.info('backup', 'Imported database put in place');
   } catch (error) {
     log.error('backup', 'Could not put the imported database in place', error);
   }
-  database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
+  try {
+    database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
+  } catch (error) {
+    // The import was checked and upgraded on a copy before the restart, so this should not happen; if the imported file
+    // still will not open, the data from before the import goes back instead of leaving a till that cannot start.
+    if (!imported || !rollbackImport(databaseFile())) throw error;
+    log.error('backup', 'The imported database could not be opened: the data from before the import was put back', error);
+    imported = false;
+    database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
+    dialog.showErrorBox('Import failed', 'MicroPOS could not open the imported database, so the data from before the import was put back. Details are in the log (Settings > Logs).');
+  }
+  if (imported) finishImport(databaseFile());
   ensureOwner(database.db); // a fresh install gets an owner account to sign in with
   closeToTray = getCloseToTray(database.db);
   if (closeToTray) trayIcon.show();

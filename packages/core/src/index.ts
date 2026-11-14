@@ -165,6 +165,7 @@ export {
   type SessionUser,
   SIGN_IN_PAUSE_MS,
   suggestEmployeeNumber,
+  type SignInBranding,
   type SignInChoice,
   type SignInLogEntry,
   type SignInResult,

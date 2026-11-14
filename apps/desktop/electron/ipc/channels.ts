@@ -3,7 +3,7 @@
  * Convention: `<area>:<action>`. Every channel is a request/response (`invoke`/`handle`).
  */
 /** Must equal `DESKTOP_API_VERSION` in @micropos/core (a test checks); bump both when the contract changes. */
-export const API_VERSION = 50;
+export const API_VERSION = 51;
 
 export const CHANNELS = {
   app: {
@@ -75,6 +75,8 @@ export const CHANNELS = {
     importFrom: 'backup:importFrom',
     restore: 'backup:restore',
     openFolder: 'backup:openFolder',
+    freshInstall: 'backup:freshInstall',
+    importFresh: 'backup:importFresh',
   },
   lan: {
     state: 'lan:state',
@@ -155,6 +157,7 @@ export const CHANNELS = {
   auth: {
     status: 'auth:status',
     choices: 'auth:choices',
+    branding: 'auth:branding',
     signIn: 'auth:signIn',
     signOut: 'auth:signOut',
     changePin: 'auth:changePin',

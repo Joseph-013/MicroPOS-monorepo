@@ -5,10 +5,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ALL_PERMISSIONS, MAX_FAILED_SIGN_INS, type UserInput } from '@micropos/core';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from '../db';
-import { auditLog, employees, loginSessions } from '../db/schema';
+import { auditLog, employees, loginSessions, products } from '../db/schema';
 import { sellingEmployee } from '../db/queries/orders';
 import { currentActorId } from './actor';
-import { changePin, currentUser, ensureOwner, INITIAL_OWNER_PIN, isAllowed, recordActivity, signIn, signInChoices, signOut } from './auth';
+import { changePin, currentUser, ensureOwner, INITIAL_OWNER_PIN, isAllowed, isFreshInstall, recordActivity, signIn, signInChoices, signOut } from './auth';
 import { getSessionTimeout, setSessionTimeout } from './session-timeout';
 import { hashPin } from './pin';
 import { createUser, listUsers, resetPin, signInLog, updateUser } from './users';
@@ -33,6 +33,11 @@ const signInAsOwner = (): void => {
   ensureOwner(db);
   const result = signIn(db, { userId: ownerId(), pin: INITIAL_OWNER_PIN });
   expect(result.ok).toBe(true);
+};
+/** Adds a cashier who can sign in. */
+const createUserAs = (name: string, employeeNumber: string): boolean => {
+  db.insert(employees).values({ name, employeeNumber, role: 'cashier', pinHash: hashPin('4321') }).run();
+  return true;
 };
 const form = (over: Partial<UserInput> = {}): UserInput => ({
   name: 'Sam',
@@ -62,6 +67,35 @@ describe('the first owner', () => {
     db.insert(employees).values({ name: 'Register', employeeNumber: '0000', pinHash: '!' }).run();
     ensureOwner(db);
     expect(signInChoices(db).map((c) => c.name)).toEqual(['Store Owner']);
+  });
+});
+
+describe('the sign-in list', () => {
+  it('names each person with their role, and puts whoever signed in last first', () => {
+    signInAsOwner();
+    signOut(db);
+    for (const [name, number] of [['Ana', '2002'], ['Zed', '2003']] as const) {
+      expect(createUserAs(name, number)).toBe(true);
+    }
+    expect(signInChoices(db).map((c) => [c.name, c.role])).toEqual([['Store Owner', 'admin'], ['Ana', 'cashier'], ['Zed', 'cashier']]);
+
+    const zed = signInChoices(db).find((c) => c.name === 'Zed')!;
+    db.insert(loginSessions).values({ employeeId: zed.id, loggedInAt: Date.now() + 1000 }).run();
+    expect(signInChoices(db).map((c) => c.name)).toEqual(['Zed', 'Ana', 'Store Owner']);
+  });
+});
+
+describe('a fresh install', () => {
+  it('is fresh until someone signs in or there are products', () => {
+    ensureOwner(db);
+    expect(isFreshInstall(db)).toBe(true);
+    db.insert(products).values({ name: 'Rice', price: 100 }).run();
+    expect(isFreshInstall(db)).toBe(false);
+  });
+
+  it('is no longer fresh once the owner has signed in', () => {
+    signInAsOwner();
+    expect(isFreshInstall(db)).toBe(false);
   });
 });
 

@@ -1,4 +1,4 @@
-import type { ChangePinInput, ChangePinResult, ResetPinResult, SaveUserResult, SessionUser, SignInChoice, SignInLogEntry, SignInResult, UserInput, UserRecord } from './auth.js';
+import type { ChangePinInput, ChangePinResult, ResetPinResult, SaveUserResult, SessionUser, SignInBranding, SignInChoice, SignInLogEntry, SignInResult, UserInput, UserRecord } from './auth.js';
 import type { AdjustStockInput, BatchRecord, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from './inventory.js';
 import type { CatalogCategory, CatalogProduct, CategoryInput, CategoryRecord, RestoreCategoriesResult, SaveCategoryResult, ProductDraft, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from './catalog.js';
 import type {
@@ -38,7 +38,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 50;
+export const DESKTOP_API_VERSION = 51;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -118,6 +118,10 @@ export interface DesktopApi {
     restore(name: string): Promise<ImportDatabaseResult>;
     /** Opens the backups folder in the system's file manager. */
     openFolder(): Promise<boolean>;
+    /** Whether this is a fresh install nobody has signed in to yet (no sign-ins, products or sales): the sign-in screen then offers Restore from backup. Open before sign-in. */
+    freshInstall(): Promise<boolean>;
+    /** `importFrom` for the sign-in screen: allowed only while `freshInstall` is true, refused afterwards. */
+    importFresh(): Promise<ImportDatabaseResult>;
   };
   lan: {
     /** Whether the till is serving other devices, and where. */
@@ -295,8 +299,10 @@ export interface DesktopApi {
   auth: {
     /** Who is signed in, or null when the till is locked. */
     status(): Promise<SessionUser | null>;
-    /** The people who can sign in (active, with a PIN), by name. */
+    /** The people who can sign in (active, with a PIN): whoever signed in last first, then by name. */
     choices(): Promise<SignInChoice[]>;
+    /** The shop's name and logo for the sign-in screen (open before sign-in). */
+    branding(): Promise<SignInBranding>;
     /** Signs in with a PIN. Too many wrong PINs in a row pause that person's sign-in for a minute. */
     signIn(input: { userId: string; pin: string }): Promise<SignInResult>;
     /** Locks the till and records the sign-out. */

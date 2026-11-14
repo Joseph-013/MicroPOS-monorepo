@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { employees } from '../db/schema';
 import { createDatabase, SOURCE_MIGRATIONS_FOLDER, type AppDatabase } from '../db';
-import { applyPendingImport, autoBackup, backupFileName, checkDatabaseFile, createBackup, csvCell, deleteBackup, exportCsv, exportDatabase, isBackupName, listBackups, pendingImportFile, stageImport } from './backup';
+import { applyPendingImport, autoBackup, backupFileName, checkDatabaseFile, createBackup, csvCell, deleteBackup, exportCsv, exportDatabase, finishImport, isBackupName, listBackups, pendingImportFile, replacedFile, rollbackImport, stageImport } from './backup';
 
 let dir: string;
 let dbFile: string;
@@ -155,5 +155,97 @@ describe('export and import', () => {
     db = handle.db;
     expect(names()).toEqual(['New']);
     expect(applyPendingImport(dbFile)).toBe(false);
+  });
+});
+
+describe('importing a file from another version', () => {
+  interface Journal { entries: { idx: number; when: number; tag: string }[] }
+  /** A copy of the app's migrations folder with its journal changed (an older app has fewer; a different history other times). */
+  function migrationsCopy(name: string, change: (journal: Journal, folder: string) => void): string {
+    const folder = path.join(dir, name);
+    fs.cpSync(SOURCE_MIGRATIONS_FOLDER, folder, { recursive: true });
+    const file = path.join(folder, 'meta', '_journal.json');
+    const journal = JSON.parse(fs.readFileSync(file, 'utf8')) as Journal;
+    change(journal, folder);
+    fs.writeFileSync(file, JSON.stringify(journal));
+    return folder;
+  }
+  const appliedCount = (file: string): number => {
+    const h = createDatabase(file);
+    const n = (h.db.$client.prepare('SELECT COUNT(*) AS n FROM __drizzle_migrations').get() as { n: number }).n;
+    h.close();
+    return n;
+  };
+  const known = (): number => (JSON.parse(fs.readFileSync(path.join(SOURCE_MIGRATIONS_FOLDER, 'meta', '_journal.json'), 'utf8')) as Journal).entries.length;
+
+  it('takes a backup made by an older version and brings it up to this one before the restart', () => {
+    const older = migrationsCopy('older', (j) => j.entries.splice(Math.max(1, j.entries.length - 3)));
+    const file = path.join(dir, 'old-backup.db');
+    const old = createDatabase(file, { migrationsFolder: older });
+    old.db.insert(employees).values({ name: 'From the old version', employeeNumber: 'o', role: 'cashier', pinHash: 'x' }).run();
+    old.close();
+    expect(appliedCount(file)).toBeLessThan(known());
+
+    expect(stageImport(file, dbFile, SOURCE_MIGRATIONS_FOLDER)).toEqual({ ok: true });
+    const staged = pendingImportFile(dbFile);
+    expect(appliedCount(staged)).toBe(known()); // already upgraded: the next start has nothing left to do
+    expect(fs.existsSync(`${staged}-wal`)).toBe(false);
+    expect(appliedCount(file)).toBeLessThan(known()); // the chosen file itself is untouched
+  });
+
+  it('refuses a file whose history is not this version of the app (same number of steps, different steps)', () => {
+    const other = migrationsCopy('other', (j) => {
+      j.entries[1]!.when += 1; // a step in the middle differs; still older than the next one
+    });
+    const file = path.join(dir, 'other-history.db');
+    createDatabase(file, { migrationsFolder: other }).close();
+    expect(stageImport(file, dbFile, SOURCE_MIGRATIONS_FOLDER)).toEqual({ ok: false, error: 'This file comes from a MicroPOS version this one cannot read' });
+    expect(fs.existsSync(pendingImportFile(dbFile))).toBe(false);
+  });
+
+  it('refuses a file that cannot be upgraded, with the reason, and stages nothing', () => {
+    // This version has one more migration than the file, and it fails on the file's data.
+    const breaking = migrationsCopy('breaking', (j, folder) => {
+      const last = j.entries[j.entries.length - 1]!;
+      j.entries.push({ ...last, idx: last.idx + 1, when: last.when + 1000, tag: '9999_breaks' });
+      fs.writeFileSync(path.join(folder, '9999_breaks.sql'), 'CREATE UNIQUE INDEX one_role ON employees (role);');
+    });
+    const file = path.join(dir, 'two-cashiers.db');
+    const h = createDatabase(file, { migrationsFolder: SOURCE_MIGRATIONS_FOLDER });
+    for (const n of ['a', 'b']) h.db.insert(employees).values({ name: n, employeeNumber: n, role: 'cashier', pinHash: 'x' }).run();
+    h.close();
+
+    const result = stageImport(file, dbFile, breaking);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toMatch(/^This file could not be brought up to this version of MicroPOS: /);
+    expect(fs.existsSync(pendingImportFile(dbFile))).toBe(false);
+  });
+
+  it('keeps the replaced database until the imported one opens, and can put it back', () => {
+    add('Before');
+    const file = path.join(dir, 'other.db');
+    const other = createDatabase(file, { migrationsFolder: SOURCE_MIGRATIONS_FOLDER });
+    other.db.insert(employees).values({ name: 'Imported', employeeNumber: 'i', role: 'cashier', pinHash: 'x' }).run();
+    other.close();
+    expect(stageImport(file, dbFile, SOURCE_MIGRATIONS_FOLDER)).toEqual({ ok: true });
+    handle.close();
+
+    expect(applyPendingImport(dbFile)).toBe(true);
+    expect(fs.existsSync(replacedFile(dbFile))).toBe(true);
+    expect(rollbackImport(dbFile)).toBe(true); // the imported file would not open: the old data goes back
+    handle = createDatabase(dbFile, { migrationsFolder: SOURCE_MIGRATIONS_FOLDER });
+    db = handle.db;
+    expect(names()).toEqual(['Before']);
+    expect(rollbackImport(dbFile)).toBe(false);
+
+    // And the normal path: once the imported file opens, the replaced one is dropped.
+    expect(stageImport(file, dbFile, SOURCE_MIGRATIONS_FOLDER)).toEqual({ ok: true });
+    handle.close();
+    applyPendingImport(dbFile);
+    handle = createDatabase(dbFile, { migrationsFolder: SOURCE_MIGRATIONS_FOLDER });
+    db = handle.db;
+    finishImport(dbFile);
+    expect(names()).toEqual(['Imported']);
+    expect(fs.existsSync(replacedFile(dbFile))).toBe(false);
   });
 });

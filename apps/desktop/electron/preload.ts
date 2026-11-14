@@ -48,6 +48,8 @@ const api: DesktopApi = {
     importFrom: () => ipcRenderer.invoke(CHANNELS.backup.importFrom),
     restore: (name) => ipcRenderer.invoke(CHANNELS.backup.restore, name),
     openFolder: () => ipcRenderer.invoke(CHANNELS.backup.openFolder),
+    freshInstall: () => ipcRenderer.invoke(CHANNELS.backup.freshInstall),
+    importFresh: () => ipcRenderer.invoke(CHANNELS.backup.importFresh),
   },
   lan: {
     state: () => ipcRenderer.invoke(CHANNELS.lan.state),
@@ -127,6 +129,7 @@ const api: DesktopApi = {
   auth: {
     status: () => ipcRenderer.invoke(CHANNELS.auth.status),
     choices: () => ipcRenderer.invoke(CHANNELS.auth.choices),
+    branding: () => ipcRenderer.invoke(CHANNELS.auth.branding),
     signIn: (input) => ipcRenderer.invoke(CHANNELS.auth.signIn, input),
     signOut: () => ipcRenderer.invoke(CHANNELS.auth.signOut),
     changePin: (input) => ipcRenderer.invoke(CHANNELS.auth.changePin, input),

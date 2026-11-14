@@ -86,10 +86,18 @@ export interface SessionUser {
   pinChangeRequired: boolean;
 }
 
-/** What the sign-in screen lists: name only. */
+/** What the sign-in screen lists: the name and the preset the person started from (to tell similar names apart). */
 export interface SignInChoice {
   id: string;
   name: string;
+  role: UserRole;
+}
+
+/** What the sign-in screen shows above the people: the shop's name and logo from the receipt settings (empty / null when not set). */
+export interface SignInBranding {
+  shopName: string;
+  /** The receipt logo as a data URL. */
+  logo: string | null;
 }
 
 export type SignInResult = { ok: true; user: SessionUser } | { ok: false; error: string; pausedUntil?: number };
