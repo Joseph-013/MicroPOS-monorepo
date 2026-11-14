@@ -1,6 +1,7 @@
 import { inject, Service, signal } from '@angular/core';
 import type { CatalogCategory, CatalogProduct } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
+import { refreshOnChange } from './refresh-on-change';
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -13,12 +14,17 @@ export class CatalogService {
   readonly categories = signal<CatalogCategory[]>([]);
   readonly status = signal<LoadStatus>('idle');
 
+  constructor() {
+    // Product writes (and sales and stock changes) announce `stock`: the list follows them, so checkout and the item browser stay current.
+    refreshOnChange(['stock'], () => this.status() !== 'idle', () => this.load());
+  }
+
   async load(): Promise<void> {
     if (!this.api) {
       this.status.set('error');
       return;
     }
-    this.status.set('loading');
+    if (this.status() !== 'ready') this.status.set('loading'); // a refresh of a loaded list keeps showing it
     try {
       const [products, categories] = await Promise.all([
         this.api.catalog.listProducts(),

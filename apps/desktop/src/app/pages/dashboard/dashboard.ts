@@ -5,6 +5,7 @@ import { type BatchRecord, expiryState, formatQuantity, methodName } from '@micr
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
+import { DEFAULT_CURRENCY, DEFAULT_LOCALE } from '../../core/money.pipe';
 import { DashboardService } from '../../core/data/dashboard.service';
 import { MoneyPipe } from '../../core/money.pipe';
 
@@ -20,6 +21,7 @@ const MOVEMENT_LABELS: Record<string, string> = {
   repack_in: 'Repackaged in',
   supplier_return: 'Returned to supplier',
 };
+const compact = new Intl.NumberFormat(DEFAULT_LOCALE, { style: 'currency', currency: DEFAULT_CURRENCY, notation: 'compact', maximumFractionDigits: 1 });
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
@@ -49,6 +51,10 @@ export class DashboardPage {
 
   protected barHeight(net: number): number {
     return Math.max(net > 0 ? 3 : 0, Math.round((Math.max(net, 0) / this.chartMax()) * 100));
+  }
+  /** A short amount for above a bar ("₱1.2K"), so the chart can be read without hovering. */
+  protected compactMoney(cents: number): string {
+    return compact.format(cents / 100);
   }
   protected weekday(day: string): string {
     const [y, m, d] = day.split('-').map(Number) as [number, number, number];

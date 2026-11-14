@@ -6,6 +6,7 @@ import { BannerService } from '../../core/banner';
 import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { sessionUser } from '../../core/auth/testing';
+import { CatalogService } from '../../core/data/catalog.service';
 import { ProductViewer } from '../../core/product-viewer';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { ScannerService } from '../../core/scanner';
@@ -533,6 +534,38 @@ describe('CheckoutPage', () => {
       const opened = vi.spyOn(TestBed.inject(ProductViewer), 'open').mockResolvedValue(true);
       (el.querySelector('button[aria-label="View Whole Milk (1 gal)"]') as HTMLButtonElement).click();
       expect(opened).toHaveBeenCalledWith('2');
+    });
+
+    describe('following the catalog live', () => {
+      it('takes a changed price and name over and says so', async () => {
+        scan(PRODUCTS[1].barcode!); // 4.29
+        await fixture.whenStable();
+        TestBed.inject(CatalogService).products.set(PRODUCTS.map((x) => (x.id === '2' ? { ...x, name: 'Whole Milk (2 gal)', price: 500 } : x)));
+        await fixture.whenStable();
+        expect(el.textContent).toContain('Whole Milk (2 gal)');
+        expect(el.textContent).toContain('₱5.00');
+        expect(TestBed.inject(BannerService).current()?.text).toBe('The price of Whole Milk (2 gal) is now ₱5.00');
+      });
+
+      it('takes off an item that is no longer for sale, and leaves the others', async () => {
+        scan(PRODUCTS[0].barcode!);
+        scan(PRODUCTS[1].barcode!);
+        await fixture.whenStable();
+        TestBed.inject(CatalogService).products.set(PRODUCTS.filter((x) => x.id !== '2'));
+        await fixture.whenStable();
+        expect(el.querySelectorAll('[role="table"][aria-label="Order items"] [data-row-id]')).toHaveLength(1);
+        expect(el.textContent).toContain('Bananas');
+        expect(TestBed.inject(BannerService).current()?.text).toBe('Whole Milk (1 gal) is no longer available and was taken off the order');
+      });
+
+      it('says nothing when nothing on the order changed', async () => {
+        scan(PRODUCTS[1].barcode!);
+        await fixture.whenStable();
+        TestBed.inject(BannerService).clear();
+        TestBed.inject(CatalogService).products.set([...PRODUCTS]);
+        await fixture.whenStable();
+        expect(el.textContent).toContain('₱4.29');
+      });
     });
 
     describe('discounts and notes', () => {

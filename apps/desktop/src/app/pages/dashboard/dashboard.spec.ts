@@ -41,6 +41,8 @@ describe('DashboardPage', () => {
     const bars = [...el.querySelectorAll<HTMLElement>('[data-bar]')];
     expect(bars).toHaveLength(14);
     expect(bars.at(-1)!.style.height).toBe('100%');
+    const values = [...el.querySelectorAll('[data-bar-value]')].map((v) => v.textContent!.trim());
+    expect(values.slice(-3)).toEqual(['₱0', '₱100', '₱120']); // written above each bar, so no hovering is needed
     expect(bars[0]!.style.height).toBe('0%');
     expect(t).toContain('Cash₱300.00');
     expect(t).toContain('E-wallet₱200.00');

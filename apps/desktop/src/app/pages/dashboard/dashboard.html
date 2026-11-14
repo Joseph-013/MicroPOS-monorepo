@@ -39,10 +39,11 @@
       <section hlmCard class="gap-0 [grid-column:1/-1]">
         <div hlmCardHeader><h2 hlmCardTitle>Net sales, last 14 days</h2></div>
         <div hlmCardContent>
-          <div class="flex h-40 items-end gap-1.5" role="list" aria-label="Net sales by day">
+          <div class="flex h-40 items-end gap-1.5 pt-5" role="list" aria-label="Net sales by day">
             @for (day of d.daily; track day.day) {
               <div class="flex h-full min-w-0 flex-1 flex-col justify-end" role="listitem" [attr.aria-label]="day.day + ': ' + (day.net | money)" [attr.title]="day.day + ': ' + (day.net | money) + ' (' + day.count + ' sales)'">
-                <div class="bg-primary w-full" [style.height.%]="barHeight(day.net)" data-bar></div>
+                <span class="text-muted-foreground shrink-0 text-center text-[10px] leading-4 whitespace-nowrap" data-bar-value>{{ compactMoney(day.net) }}</span>
+                <div class="bg-primary w-full shrink-0" [style.height.%]="barHeight(day.net)" data-bar></div>
               </div>
             }
           </div>

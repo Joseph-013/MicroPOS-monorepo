@@ -231,6 +231,11 @@ export class CheckoutPage {
       if (this.draftRestored()) this.draft.save(lines);
     });
     effect(() => this.display.publish(this.displayState()));
+    // Live: when a product is edited, deleted or made inactive, the lines follow it (without waiting for Complete Order to refuse).
+    effect(() => {
+      const products = this.catalog.products();
+      if (this.catalog.status() === 'ready' && this.draftRestored()) untracked(() => this.followCatalog(products));
+    });
     // The thank-you gives way to the next customer's items as soon as one is added.
     effect(() => {
       if (this.lines().length) untracked(() => this.paidSale.set(null));
@@ -468,6 +473,31 @@ export class CheckoutPage {
     } finally {
       this.completing.set(false);
     }
+  }
+
+  /**
+   * Brings the lines in line with the catalog as it is now: a changed price, name or unit is taken over and said in a
+   * banner; an item that is gone or no longer active comes off the order (the main process would refuse it anyway).
+   */
+  private followCatalog(products: readonly CatalogProduct[]): void {
+    const lines = this.lines();
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const messages: string[] = [];
+    const next: DraftLine[] = [];
+    for (const line of lines) {
+      const product = byId.get(line.productId);
+      if (!product) {
+        messages.push(`${line.name} is no longer available and was taken off the order`);
+        continue;
+      }
+      if (product.price !== line.unitPrice || product.name !== line.name || product.unit !== line.unit) {
+        if (product.price !== line.unitPrice) messages.push(`The price of ${product.name} is now ${formatMoney(product.price)}`);
+        next.push({ ...line, name: product.name, unitPrice: product.price, unit: product.unit });
+      } else next.push(line);
+    }
+    if (!messages.length) return;
+    this.lines.set(next);
+    this.banner.warning(messages.join('. '), { duration: 'long', key: 'catalog-changed' });
   }
 
   /** Brings the lines in line with what the main process found: new prices in, unavailable items out. */
