@@ -19,12 +19,15 @@
   #error OldCleanup is not defined: build with `pnpm make` (scripts/make.mjs)
 #endif
 
+; The installed app's id. Never change it: it is how a later Setup finds this install (to upgrade it, or to refuse to
+; put an older version over it).
+#define AppGuid "AC933739-ED4B-4281-93EE-725399434856"
 #define AppName "MicroPOS"
 #define AppExe "micropos.exe"
 
 [Setup]
-; Never change AppId: it is how a later Setup finds this install to upgrade it.
-AppId={{AC933739-ED4B-4281-93EE-725399434856}
+; Never change AppGuid (above). "{{" is a literal "{" here.
+AppId={{{#AppGuid}}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
@@ -75,8 +78,10 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags
 
 [Code]
 var
-  OldAppPage: TInputOptionWizardPage;
-  DataPage: TInputOptionWizardPage;
+  OldAppPage: TWizardPage;
+  OldRemoveBox: TNewCheckBox;
+  DataPage: TWizardPage;
+  KeepRadio, DeleteRadio, CopyRadio: TNewRadioButton;
 
 function DataDir(): String;
 begin
@@ -92,7 +97,38 @@ end;
 
 function RemoveOldApp(): Boolean;
 begin
-  Result := (OldAppPage <> nil) and OldAppPage.Values[0];
+  Result := (OldAppPage <> nil) and OldRemoveBox.Checked;
+end;
+
+{ A page laid out here rather than Inno's option-list page (whose list drew its radio buttons cut off at some display
+  scalings): a wrapping text block, then the choices as ordinary buttons placed under it. Returns the page; Top is
+  where the first choice goes. }
+function CreateChoicePage(AfterID: Integer; ACaption, ADescription, AText: String; var Top: Integer): TWizardPage;
+var
+  Text: TNewStaticText;
+begin
+  Result := CreateCustomPage(AfterID, ACaption, ADescription);
+  Text := TNewStaticText.Create(Result);
+  Text.Parent := Result.Surface;
+  Text.Left := 0;
+  Text.Top := 0;
+  Text.Width := Result.SurfaceWidth;
+  Text.WordWrap := True;
+  Text.AutoSize := True;
+  Text.Caption := AText;
+  Top := Text.Top + Text.Height + ScaleY(16);
+end;
+
+function AddRadio(Page: TWizardPage; ACaption: String; var Top: Integer): TNewRadioButton;
+begin
+  Result := TNewRadioButton.Create(Page);
+  Result.Parent := Page.Surface;
+  Result.Left := 0;
+  Result.Top := Top;
+  Result.Width := Page.SurfaceWidth;
+  Result.Height := ScaleY(20);
+  Result.Caption := ACaption;
+  Top := Top + Result.Height + ScaleY(8);
 end;
 
 { True when the data folder exists and holds anything. }
@@ -125,57 +161,92 @@ begin
 end;
 
 { Data page choices: 0 keep, 1 delete, 2 save a copy on the Desktop and delete. }
+{ The version of MicroPOS already installed (for this user or for all users), or '' when there is none. }
+function InstalledVersion(): String;
+var
+  Key: String;
+begin
+  Result := '';
+  Key := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#AppGuid}}_is1';
+  if not RegQueryStringValue(HKCU, Key, 'DisplayVersion', Result) then
+    if not RegQueryStringValue(HKLM64, Key, 'DisplayVersion', Result) then
+      RegQueryStringValue(HKLM32, Key, 'DisplayVersion', Result);
+end;
+
+{ Never installs an older MicroPOS over a newer one: the newer one may have brought the database up to a layout this
+  version cannot open. The same version may be installed again (a repair). }
+function InitializeSetup(): Boolean;
+var
+  Installed: String;
+  InstalledPacked, ThisPacked: Int64;
+begin
+  Result := True;
+  Installed := InstalledVersion();
+  Log('Installed MicroPOS version: "' + Installed + '" (this setup: {#AppVersion})');
+  if (Installed = '') or not StrToVersion(Installed, InstalledPacked) or not StrToVersion('{#AppVersion}', ThisPacked) then Exit;
+  if ComparePackedVersion(InstalledPacked, ThisPacked) > 0 then
+  begin
+    SuppressibleMsgBox('MicroPOS ' + Installed + ' is installed, which is newer than this setup (' + '{#AppVersion}' + ').' + #13#10#13#10 +
+      'Setup will not install an older version over it: the newer one may have updated the data to a ' +
+      'format this version cannot open. Use the setup for ' + Installed + ' or later.', mbError, MB_OK, IDOK);
+    Result := False;
+  end;
+end;
+
+{ Data page choices: keep, delete, or save a copy on the Desktop and delete. }
 function WipeData(): Boolean;
 begin
-  Result := (DataPage <> nil) and (DataPage.Values[1] or DataPage.Values[2]);
+  Result := (DataPage <> nil) and (DeleteRadio.Checked or CopyRadio.Checked);
 end;
 
 function CopyDataFirst(): Boolean;
 begin
-  Result := (DataPage <> nil) and DataPage.Values[2];
+  Result := (DataPage <> nil) and CopyRadio.Checked;
 end;
 
 procedure InitializeWizard();
 var
-  AfterID: Integer;
+  AfterID, Top: Integer;
   Old: Boolean;
+  Intro: String;
 begin
   AfterID := wpSelectDir;
   if OldAppFound() then
   begin
-    OldAppPage := CreateInputOptionPage(AfterID,
+    OldAppPage := CreateChoicePage(AfterID,
       'Old MicroPOS found',
       'The first MicroPOS (version 1) is installed on this computer.',
       'It is a separate program from this one. Removing it closes it and takes away its program files, shortcuts and ' +
-      'its entry in Installed apps. What to do with its data is the next question.',
-      False, False);
-    OldAppPage.Add('Remove the old MicroPOS (recommended)');
-    OldAppPage.Values[0] := True;
+      'its entry in Installed apps. What to do with its data is the next question.', Top);
+    OldRemoveBox := TNewCheckBox.Create(OldAppPage);
+    OldRemoveBox.Parent := OldAppPage.Surface;
+    OldRemoveBox.Left := 0;
+    OldRemoveBox.Top := Top;
+    OldRemoveBox.Width := OldAppPage.SurfaceWidth;
+    OldRemoveBox.Height := ScaleY(20);
+    OldRemoveBox.Caption := 'Remove the old MicroPOS (recommended)';
+    OldRemoveBox.Checked := True;
     AfterID := OldAppPage.ID;
   end;
   if not HasData() then Exit;
   Old := DataLooksOld();
   if Old then
-    DataPage := CreateInputOptionPage(AfterID,
-      'Existing data',
-      'Data from the old MicroPOS (version 1) was found on this computer.',
-      'Data folder:' + #13#10 + DataDir() + #13#10#13#10 +
-      'This version cannot open it, and MicroPOS will not start while it is there. Save a copy to keep the old records.',
-      True, False)
+    Intro := 'This version cannot open it, and MicroPOS will not start while it is there. Save a copy to keep the old records.'
   else
-    DataPage := CreateInputOptionPage(AfterID,
-      'Existing data',
-      'MicroPOS data was found on this computer.',
-      'Data folder:' + #13#10 + DataDir() + #13#10#13#10 +
-      'It holds the database, backups, logs, the shop logo and settings. Choose what to do with it.',
-      True, False);
-  DataPage.Add('Keep existing data');
-  DataPage.Add('Delete existing data and start fresh (cannot be undone)');
-  DataPage.Add('Save a copy of the database on the Desktop, then delete the data');
+    Intro := 'It holds the database, backups, logs, the shop logo and settings. Choose what to do with it.';
   if Old then
-    DataPage.Values[2] := True
+    DataPage := CreateChoicePage(AfterID, 'Existing data', 'Data from the old MicroPOS (version 1) was found on this computer.',
+      'Data folder:' + #13#10 + DataDir() + #13#10#13#10 + Intro, Top)
   else
-    DataPage.Values[0] := True;
+    DataPage := CreateChoicePage(AfterID, 'Existing data', 'MicroPOS data was found on this computer.',
+      'Data folder:' + #13#10 + DataDir() + #13#10#13#10 + Intro, Top);
+  KeepRadio := AddRadio(DataPage, 'Keep existing data', Top);
+  DeleteRadio := AddRadio(DataPage, 'Delete existing data and start fresh (cannot be undone)', Top);
+  CopyRadio := AddRadio(DataPage, 'Save a copy of the database on the Desktop, then delete the data', Top);
+  if Old then
+    CopyRadio.Checked := True
+  else
+    KeepRadio.Checked := True;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
