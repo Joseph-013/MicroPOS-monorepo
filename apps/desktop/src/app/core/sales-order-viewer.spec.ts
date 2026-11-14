@@ -134,7 +134,7 @@ describe('SalesOrderViewer', () => {
     fake.printResult = { ok: false, code: 'not-configured', error: 'No printer is set up' };
     print().click();
     await settle();
-    expect(TestBed.inject(BannerService).current()).toMatchObject({ text: 'No printer is set up', severity: 'error' });
+    expect(TestBed.inject(BannerService).current()).toMatchObject({ text: 'Receipt for SO-1001 not printed: No printer is set up', severity: 'error' });
   });
 
   it('open(id) sets the parameter and keeps the rest of the address', async () => {

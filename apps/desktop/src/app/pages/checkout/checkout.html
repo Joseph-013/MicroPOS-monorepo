@@ -349,6 +349,10 @@
     </div>
 
     <div hlmCardContent class="grid grid-cols-[1fr_auto] gap-2 border-t pt-3">
+      <label class="col-span-2 flex min-h-(--control-height) items-center justify-between gap-3 text-sm">
+        <span>Print receipt</span>
+        <hlm-switch aria-label="Print receipt after each sale" [checked]="settings.printReceiptAfterSale()" (checkedChange)="settings.printReceiptAfterSale.set($event)" />
+      </label>
       <button hlmBtn type="button" size="lg" [disabled]="!canComplete()" (click)="complete()">Complete Order</button>
       <hlm-alert-dialog>
         <button

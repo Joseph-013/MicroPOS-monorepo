@@ -147,6 +147,7 @@
   @if (orderById(id); as order) {
     <div hlmDropdownMenu>
       <button hlmDropdownMenuItem type="button" (click)="view(order)">View</button>
+      <button hlmDropdownMenuItem type="button" (click)="printReceipt(order)">Print receipt</button>
       @if (canReverse(order)) {
         <button hlmDropdownMenuItem variant="destructive" type="button" (click)="reverse('void', targetsFor(order))">Void</button>
         <button hlmDropdownMenuItem type="button" (click)="reverse('refund', targetsFor(order))">Refund</button>

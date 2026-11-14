@@ -39,6 +39,9 @@ export class AppSettings {
    * bigger). The display window is a separate page that shares this storage: it follows a change made in the
    * till's window as soon as it is saved.
    */
+  /** Print the receipt as soon as a sale is completed (per device; Checkout has the switch). */
+  readonly printReceiptAfterSale = signal(this.storage.get('printReceiptAfterSale', false, isBoolean));
+
   readonly customerDisplayScale = signal<number>(this.storage.get(SCALE_KEY, DEFAULT_CUSTOMER_DISPLAY_SCALE, isScale));
 
   constructor() {
@@ -53,5 +56,6 @@ export class AppSettings {
     effect(() => this.storage.set('customerDisplayOnStart', this.customerDisplayOnStart()));
     effect(() => this.storage.set('onScreenKeyboard', this.onScreenKeyboard()));
     effect(() => this.storage.set('showNumpad', this.showNumpad()));
+    effect(() => this.storage.set('printReceiptAfterSale', this.printReceiptAfterSale()));
   }
 }

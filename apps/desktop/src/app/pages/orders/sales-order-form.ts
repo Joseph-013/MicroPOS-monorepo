@@ -10,8 +10,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { OrdersService } from '../../core/data/orders.service';
 import { DialogPageLink } from '../../core/ui/dialog-page-link';
-import { DESKTOP_API } from '../../core/api/desktop-api';
-import { BannerService } from '../../core/banner';
+import { ReceiptPrinting } from '../../core/receipt-printing';
 import { MoneyPipe } from '../../core/money.pipe';
 import { CustomerViewer } from '../../core/customer-viewer';
 import { OrderActions } from '../../core/order-actions';
@@ -156,21 +155,15 @@ export class SalesOrderForm {
   private readonly orders = inject(OrdersService);
   private readonly router = inject(Router);
   private readonly customerViewer = inject(CustomerViewer);
-  private readonly api = inject(DESKTOP_API);
-  private readonly banner = inject(BannerService);
+  private readonly receipts = inject(ReceiptPrinting);
   protected readonly printing = signal(false);
 
-  /** Sends the order's receipt to the receipt printer (the main process prints it); says in a banner how it went. */
+  /** Sends the order's receipt to the receipt printer (or, while debugging, saves it as an image); says in a banner how it went. */
   protected async print(): Promise<void> {
     if (this.printing()) return;
     this.printing.set(true);
     try {
-      const result = (await this.api?.printer.printOrder(this.order().id)) ?? { ok: false as const, error: 'Not connected to the database' };
-      if (result.ok) this.banner.success(`Receipt for ${this.order().orderNumber} sent to the printer`, { key: 'print-receipt' });
-      else this.banner.error(result.error, { key: 'print-receipt', duration: 'long' });
-    } catch (error) {
-      console.error('Failed to print the receipt', error);
-      this.banner.error('Could not print the receipt', { key: 'print-receipt' });
+      await this.receipts.printWithBanner(this.order().id, this.order().orderNumber);
     } finally {
       this.printing.set(false);
     }

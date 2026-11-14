@@ -14,7 +14,9 @@ import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { BannerService } from '../../core/banner';
+import { ReceiptPrinting } from '../../core/receipt-printing';
 import { scrollToRow } from '../../core/row-target';
 import { CatalogService } from '../../core/data/catalog.service';
 import { CustomerDisplayService } from '../../core/customer-display.service';
@@ -40,6 +42,7 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
 /** Checkout: order lines on the left, payment controls on the right, item browser in a dialog. */
 @Component({
   imports: [
+    HlmSwitchImports,
     NgIcon,
     FocusSelectDirective,
     OnScreenKeypadDirective,
@@ -298,6 +301,7 @@ export class CheckoutPage {
   }
 
   protected readonly settings = inject(AppSettings);
+  private readonly receipts = inject(ReceiptPrinting);
 
   /** The line whose quantity is being typed in place; null when none. */
   protected readonly inlineEditing = signal<string | null>(null);
@@ -379,11 +383,16 @@ export class CheckoutPage {
       const change = result.change > 0 ? `, change ${formatMoney(result.change)}` : '';
       const credit = result.onAccount > 0 ? `, ${formatMoney(result.onAccount)} on account` : '';
       void this.customers.load(); // the balance changed
-      this.banner.success(`Order ${result.orderNumber} completed${change}${credit}`, {
-        duration: 6000,
-        key: 'complete-order',
-        action: { label: 'View', run: () => void this.viewer.open(result.orderId) },
-      });
+      const saleText = `Order ${result.orderNumber} completed${change}${credit}`;
+      const saleBanner = { duration: 6000, key: 'complete-order', action: { label: 'View', run: () => void this.viewer.open(result.orderId) } } as const;
+      this.banner.success(saleText, saleBanner);
+      if (this.settings.printReceiptAfterSale()) {
+        // The sale is already recorded and shown; the print result is added to the same banner when it comes (it can take a few seconds).
+        void this.receipts.print(result.orderId).then((printed) => {
+          if (printed.ok) this.banner.success(`${saleText} · ${printed.savedTo ? 'receipt saved as an image' : 'receipt printed'}`, saleBanner);
+          else this.banner.warning(`${saleText} · receipt not printed: ${printed.error}`, { ...saleBanner, duration: 'long' });
+        });
+      }
       await this.refreshOrderNumber();
       void this.catalog.load(); // stock-dependent lists stay current
     } finally {

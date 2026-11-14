@@ -20,6 +20,7 @@ import { SalesOrderViewer, VIEW_SALES_ORDER_PARAM } from '../../core/sales-order
 import { DateRangeFilter } from '../../core/ui/date-range-filter';
 import { FilterInput } from '../../core/ui/filter-input';
 import { RowSelection } from '../../core/ui/row-selection';
+import { ReceiptPrinting } from '../../core/receipt-printing';
 import { AppPager, Pager } from '../../core/ui/pager';
 import type { OrderActionKind } from './order-action-form';
 import { METHOD_LABELS, STATUS_LABELS } from './sales-order-form';
@@ -75,6 +76,7 @@ export class OrdersPage {
   protected readonly service = inject(OrdersService);
   private readonly viewer = inject(SalesOrderViewer);
   private readonly actions = inject(OrderActions);
+  private readonly receipts = inject(ReceiptPrinting);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -247,6 +249,11 @@ export class OrdersPage {
       this.pager.showItem((o) => o.id === id);
     }
     scrollToRow(id);
+  }
+
+  /** Sends the order's receipt to the printer (or saves it as an image while debugging). */
+  protected printReceipt(order: SalesOrderSummary): void {
+    void this.receipts.printWithBanner(order.id, order.orderNumber);
   }
 
   protected view(order: SalesOrderSummary): void {

@@ -1,8 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, Injector, signal } from '@angular/core';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { DESKTOP_API } from '../core/api/desktop-api';
 import { SettingRow, SettingsSection } from './settings-section';
 import { BannerService } from '../core/banner';
+import { nextRender } from '../core/ui/next-render';
 
 /**
  * Settings > Window (needs `settings.manage`): whether closing the window hides it and keeps MicroPOS running in the
@@ -23,6 +24,7 @@ import { BannerService } from '../core/banner';
 export class WindowSettings {
   private readonly api = inject(DESKTOP_API);
   private readonly banner = inject(BannerService);
+  private readonly injector = inject(Injector);
 
   protected readonly closeToTray = signal(false);
   protected readonly loaded = signal(false);
@@ -44,6 +46,7 @@ export class WindowSettings {
       if (!(await this.api!.shell.setCloseToTray(value))) throw new Error('refused');
     } catch (error) {
       console.error('Failed to save the window setting', error);
+      await nextRender(this.injector); // let the switch show the new value first, so putting it back is seen
       this.closeToTray.set(before);
       this.banner.error('Could not save the setting', { key: 'window-setting' });
     }

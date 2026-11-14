@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { type DesktopApi, type SalesOrderSummary } from '@micropos/core';
+import { BannerService } from '../../core/banner';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { OrdersPage } from './orders';
@@ -39,12 +40,15 @@ const ORDERS = [
 
 describe('OrdersPage', () => {
   let reversed: [string, unknown][];
+  let printed: string[];
   let fixture: ComponentFixture<OrdersPage>;
   let el: HTMLElement;
 
   beforeEach(async () => {
     reversed = [];
+    printed = [];
     const api = {
+      printer: { printOrder: (id: string) => (printed.push(id), Promise.resolve({ ok: true as const })) },
       orders: {
         list: () => Promise.resolve(ORDERS), get: (id: string) =>
           Promise.resolve({ id, orderNumber: 'SO-3', status: 'voided', employeeName: 'Casey Cashier', subtotal: 0, discountTotal: 0, total: 0, createdAt: 0, completedAt: null, customer: null, onAccount: 0, refundOf: null, refundedBy: null, lines: [], payments: [] }),
@@ -198,19 +202,28 @@ describe('OrdersPage', () => {
         expect(el.textContent).toContain('1 selected'); // the done rows left the selection; the voided one that was in the range stays
       });
 
+      it('the context menu prints the receipt of the row it was opened on', async () => {
+        rowOf(2).parentElement!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+        await settle();
+        (Array.from(document.querySelectorAll<HTMLElement>('[hlmDropdownMenuItem]')).find((i) => i.textContent?.trim() === 'Print receipt'))!.click();
+        await settle();
+        expect(printed).toEqual(['b']);
+        expect(TestBed.inject(BannerService).current()?.text).toBe('Receipt for SO-2 sent to the printer');
+      });
+
       it('the context menu offers Void and Refund on a completed sale and neither on a voided one', async () => {
         const open = async (n: number): Promise<HTMLElement[]> => {
           rowOf(n).parentElement!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
           await settle();
           return Array.from(document.querySelectorAll<HTMLElement>('[hlmDropdownMenuItem]'));
         };
-        expect((await open(3)).map((i) => i.textContent?.trim())).toEqual(['View']);
+        expect((await open(3)).map((i) => i.textContent?.trim())).toEqual(['View', 'Print receipt']);
         document.body.click();
         document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = ''));
         await settle();
         const items = await open(2);
-        expect(items.map((i) => i.textContent?.trim())).toEqual(['View', 'Void', 'Refund']);
-        items[2].click();
+        expect(items.map((i) => i.textContent?.trim())).toEqual(['View', 'Print receipt', 'Void', 'Refund']);
+        items[3].click();
         await settle();
         expect(document.querySelector('#order-action')?.textContent).toContain('Refund SO-2?');
         await reason('Wrong size');

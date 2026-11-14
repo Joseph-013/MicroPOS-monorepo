@@ -45,6 +45,9 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     /** Whether the customer display window is open, and every state published to it. */
     displayOpen: false,
     published: [] as CustomerDisplayState[],
+    /** Receipts asked for, and what the fake main process answers. */
+    printed: [] as string[],
+    printResult: { ok: true } as { ok: true; savedTo?: string } | { ok: false; code: 'not-configured'; error: string },
   };
   const listeners: ((open: boolean) => void)[] = [];
   const api: DesktopApi = {
@@ -71,8 +74,9 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     },
     data: { onChanged: () => () => undefined },
       shell: { getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true), getLogsFolder: () => Promise.resolve(null), openLogsFolder: () => Promise.resolve(false) },
+      debug: { get: () => Promise.resolve({ saveImages: false, folder: '/downloads/MicroPOS receipts' }), setSaveImages: () => Promise.resolve(true), openReceiptsFolder: () => Promise.resolve(true) },
       log: { write: () => Promise.resolve() },
-      printer: { getLogo: () => Promise.resolve(null), saveLogo: () => Promise.reject(new Error('unused')), removeLogo: () => Promise.resolve(), settings: () => Promise.reject(new Error('unused')), save: () => Promise.reject(new Error('unused')), listUsb: () => Promise.resolve([]), testPrint: () => Promise.reject(new Error('unused')), printOrder: () => Promise.reject(new Error('unused')) },
+      printer: { getLogo: () => Promise.resolve(null), saveLogo: () => Promise.reject(new Error('unused')), removeLogo: () => Promise.resolve(), settings: () => Promise.reject(new Error('unused')), save: () => Promise.reject(new Error('unused')), listUsb: () => Promise.resolve([]), testPrint: () => Promise.reject(new Error('unused')), printOrder: (id: string) => (store.printed.push(id), Promise.resolve(store.printResult)) },
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: {
       listProducts: () => Promise.resolve(PRODUCTS),
@@ -447,6 +451,49 @@ describe('CheckoutPage', () => {
       expect(complete().disabled).toBe(false);
     });
 
+    describe('printing the receipt', () => {
+      const sell = async (): Promise<void> => {
+        scan(PRODUCTS[1].barcode!);
+        await fixture.whenStable();
+        await type('#tendered', '10');
+        store.result = { ok: true, orderId: 'o1', orderNumber: 'SO-1001', total: 429, change: 571, onAccount: 0 };
+        complete().click();
+        await fixture.whenStable();
+        await new Promise((r) => setTimeout(r, 20));
+        await fixture.whenStable();
+      };
+      const toggle = (): HTMLElement => [...el.querySelectorAll('label')].find((l) => l.textContent?.includes('Print receipt'))!.querySelector('hlm-switch button') as HTMLElement;
+
+      it('does not print unless the switch is on, which is remembered on this device', async () => {
+        await sell();
+        expect(store.printed).toEqual([]);
+        expect(toggle().getAttribute('aria-checked')).toBe('false');
+        toggle().click();
+        await fixture.whenStable();
+        expect(localStorage.getItem('micropos.printReceiptAfterSale')).toBe('true');
+      });
+
+      it('prints the receipt of the sale once it is recorded, and says so in the sale banner', async () => {
+        toggle().click();
+        await fixture.whenStable();
+        await sell();
+        expect(store.printed).toEqual(['o1']);
+        expect(TestBed.inject(BannerService).current()?.text).toBe('Order SO-1001 completed, change ₱5.71 · receipt printed');
+      });
+
+      it('says when the receipt was saved as an image, and warns (the sale stands) when it could not be printed', async () => {
+        toggle().click();
+        await fixture.whenStable();
+        store.printResult = { ok: true, savedTo: '/home/u/Downloads/MicroPOS receipts/receipt-SO-1001.png' };
+        await sell();
+        expect(TestBed.inject(BannerService).current()?.text).toContain('receipt saved as an image');
+        store.printResult = { ok: false, code: 'not-configured', error: 'No printer is set up' };
+        await sell();
+        expect(TestBed.inject(BannerService).current()).toMatchObject({ severity: 'warning', text: 'Order SO-1001 completed, change ₱5.71 · receipt not printed: No printer is set up' });
+        expect(store.orders).toHaveLength(2); // both sales were recorded
+      });
+    });
+
     it('sends the lines, discount and payment, then starts a fresh order with the next number', async () => {
       scan(PRODUCTS[1].barcode!);
       scan(PRODUCTS[1].barcode!);
@@ -634,7 +681,7 @@ describe('CheckoutPage', () => {
     const last = (): CustomerDisplayState => store.published.at(-1)!;
 
     it('has no switch for the window: that is in Settings', () => {
-      expect(el.querySelector('hlm-switch')).toBeNull();
+      expect(el.querySelector('hlm-switch[aria-label="Show customer display"]')).toBeNull();
       expect(el.textContent).not.toContain('Customer display');
     });
 

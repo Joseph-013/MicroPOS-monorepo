@@ -4,6 +4,7 @@ import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmAccordionImports } from '@spartan-ng/helm/accordion';
 import { FilterInput } from '../core/ui/filter-input';
 import { SettingRow, SettingsSearch, SettingsSection } from './settings-section';
+import { DebugSettings } from './debug-settings';
 import { LogsSettings } from './logs-settings';
 import { PrinterSettingsCard } from './printer-settings';
 import { WindowSettings } from './window-settings';
@@ -21,7 +22,7 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
 
 /** Per-device settings. */
 @Component({
-  imports: [FilterInput, HlmAccordionImports, SettingRow, SettingsSection, LogsSettings, PrinterSettingsCard, WindowSettings, CreditAlertSettingsCard, CreditInterestSettings, HlmButtonImports, HlmSelectImports, HlmSwitchImports],
+  imports: [DebugSettings, FilterInput, HlmAccordionImports, SettingRow, SettingsSection, LogsSettings, PrinterSettingsCard, WindowSettings, CreditAlertSettingsCard, CreditInterestSettings, HlmButtonImports, HlmSelectImports, HlmSwitchImports],
   template: `
     <div class="mx-auto w-full max-w-xl">
       <h1 class="mb-3 text-2xl">Settings</h1>
@@ -111,6 +112,7 @@ import { AppSettings, CUSTOMER_DISPLAY_SCALES } from '../core/settings/app-setti
           <app-printer-settings />
           <app-window-settings />
           <app-logs-settings />
+          <app-debug-settings />
         }
       </hlm-accordion>
 

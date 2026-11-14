@@ -85,7 +85,7 @@ describe('SettingsPage', () => {
     const fixture = TestBed.createComponent(SettingsPage);
     await fixture.whenStable();
     const titles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('hlm-accordion-trigger')].map((h) => h.textContent!.trim());
-    expect(titles).toEqual(['Account', 'Input', 'Customer Display', 'Credit Interest', 'Credit Alerts', 'Receipt Printer', 'Window', 'Logs']);
+    expect(titles).toEqual(['Account', 'Input', 'Customer Display', 'Credit Interest', 'Credit Alerts', 'Receipt Printer', 'Window', 'Logs', 'Debug']);
   });
 
   describe('Credit Interest', () => {
@@ -195,6 +195,7 @@ describe('SettingsPage', () => {
         ...fakeAuthApi({ status: sessionUser(permissions) }).api,
         display: { isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined },
         shell: { getCloseToTray: () => Promise.resolve(initial), setCloseToTray: (v: boolean) => (saved.push(v), Promise.resolve(true)), getLogsFolder: () => Promise.resolve('/logs'), openLogsFolder: () => Promise.resolve(true) },
+        debug: { get: () => Promise.resolve({ saveImages: false, folder: '/downloads/MicroPOS receipts' }) },
         printer: { settings: () => Promise.resolve({ printer: { connection: null, paperWidthMm: 58 }, shop: { name: '', address: '', footer: '' } }), getLogo: () => Promise.resolve(null), listUsb: () => Promise.resolve([]) },
       } as unknown as DesktopApi;
       TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
@@ -291,7 +292,7 @@ describe('SettingsPage', () => {
       expect(sections()).toEqual([]);
       await type('');
       expect(el.textContent).not.toContain('No settings found');
-      expect(sections()).toHaveLength(8);
+      expect(sections()).toHaveLength(9);
       expect(stateOf('Account')).toBe('open'); // back to how it was
       expect(stateOf('Input')).toBe('closed');
     });
