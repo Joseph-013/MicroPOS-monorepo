@@ -12,6 +12,7 @@
     "dev:web": "pnpm --filter @micropos/web dev",
     "dev:desktop": "pnpm --filter @micropos/core --filter @micropos/theme build && pnpm --filter @micropos/desktop dev",
     "dev": "pnpm dev:desktop",
+    "make:desktop": "pnpm --filter @micropos/core --filter @micropos/theme build && pnpm --filter @micropos/desktop make",
     "db:migrate": "pnpm --filter @micropos/desktop db:migrate",
     "db:seed": "pnpm --filter @micropos/desktop db:seed",
     "db:generate": "pnpm --filter @micropos/desktop db:generate"

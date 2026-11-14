@@ -13,6 +13,7 @@ Each app gets its own CLAUDE.md with app-specific notes once scaffolded.
 ## Commands
 - `pnpm install` (root only; never install inside an app with npm/yarn)
 - `pnpm -r build` / `pnpm test` / `pnpm typecheck`
+- `pnpm make:desktop`: build core and theme, then package the desktop installers (rpm and zip on Linux) into `apps/desktop/out/make/`
 - `pnpm --filter <package-name> <script>` to target one package
 - Database (desktop, Laravel-style): `pnpm db:migrate [--fresh] [--seed]`, `pnpm db:seed`, `pnpm db:generate`; see `apps/desktop/CLAUDE.md`.
 - Docker: `docker build -f apps/web/Dockerfile .` (context is the repo root) or `docker compose up`
