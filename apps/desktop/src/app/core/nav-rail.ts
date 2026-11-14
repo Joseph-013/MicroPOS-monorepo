@@ -93,7 +93,6 @@ export class NavRail {
       ],
     },
     { id: 'orders', path: '/orders', label: 'Sales Orders', icon: 'lucideReceipt', permission: 'orders.view' },
-    { id: 'reports', path: '/reports', label: 'Reports', icon: 'lucideChartColumn', permission: 'reports.view' },
     { id: 'customers', path: '/customers', label: 'Customers', icon: 'lucideUsers', permission: 'customers.view', badge: 'customers' },
     {
       id: 'purchasing',
@@ -104,6 +103,7 @@ export class NavRail {
         { id: 'purchasing-suppliers', path: '/suppliers', label: 'Suppliers', permission: 'purchasing.manage' },
       ],
     },
+    { id: 'reports', path: '/reports', label: 'Reports', icon: 'lucideChartColumn', permission: 'reports.view' },
     { id: 'users', path: '/users', label: 'Users', icon: 'lucideUserCog', permission: 'users.manage' },
     // Developer-only entries (the component gallery): none in production builds.
     ...devNav,
