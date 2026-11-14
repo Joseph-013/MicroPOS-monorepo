@@ -5,6 +5,7 @@ import { filter, map } from 'rxjs';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronRight,
+  lucideChartColumn,
   lucideComputer,
   lucideLayoutGrid,
   lucideLock,
@@ -57,6 +58,7 @@ export interface NavItem {
       lucideUsers,
       lucideTruck,
       lucideSettings,
+      lucideChartColumn,
       lucideLock,
   lucideUserCog,
   lucideUserRound,
@@ -91,6 +93,7 @@ export class NavRail {
       ],
     },
     { id: 'orders', path: '/orders', label: 'Sales Orders', icon: 'lucideReceipt', permission: 'orders.view' },
+    { id: 'reports', path: '/reports', label: 'Reports', icon: 'lucideChartColumn', permission: 'reports.view' },
     { id: 'customers', path: '/customers', label: 'Customers', icon: 'lucideUsers', permission: 'customers.view', badge: 'customers' },
     {
       id: 'purchasing',

@@ -74,6 +74,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     },
     data: { onChanged: () => () => undefined },
       shell: { getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true), getLogsFolder: () => Promise.resolve(null), openLogsFolder: () => Promise.resolve(false) },
+      reports: { sales: () => Promise.resolve(null) },
       debug: { get: () => Promise.resolve({ saveImages: false, folder: '/downloads/MicroPOS receipts' }), setSaveImages: () => Promise.resolve(true), openReceiptsFolder: () => Promise.resolve(true) },
       log: { write: () => Promise.resolve() },
       printer: { getLogo: () => Promise.resolve(null), saveLogo: () => Promise.reject(new Error('unused')), removeLogo: () => Promise.resolve(), settings: () => Promise.reject(new Error('unused')), save: () => Promise.reject(new Error('unused')), listUsb: () => Promise.resolve([]), testPrint: () => Promise.reject(new Error('unused')), printOrder: (id: string) => (store.printed.push(id), Promise.resolve(store.printResult)) },

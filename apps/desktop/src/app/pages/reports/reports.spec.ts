@@ -1,0 +1,77 @@
+import { TestBed } from '@angular/core/testing';
+import { dayOf, type DesktopApi, type SalesReport } from '@micropos/core';
+import { DESKTOP_API } from '../../core/api/desktop-api';
+import { ReportsPage } from './reports';
+
+const wait = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
+const report = (from: string, to: string): SalesReport => ({
+  from,
+  to,
+  sales: { count: 4, gross: 18_000, discounts: 500, net: 17_500 },
+  voids: { count: 1, total: 2000 },
+  refunds: { count: 1, total: -4000 },
+  netAfterRefunds: 13_500,
+  byMethod: [{ method: 'cash', amount: 6000 }, { method: 'card', amount: 3000 }],
+  credit: { given: 5000, interest: 0, paymentsReceived: [{ method: 'cash', amount: 2000 }] },
+  items: [{ name: 'Feast', unit: 'each', quantityMilli: 1000, total: 6000 }, { name: 'Cheese', unit: 'kg', quantityMilli: 1500, total: 1500 }],
+});
+
+function setup(fail = false) {
+  const asked: string[][] = [];
+  const api = { reports: { sales: (from: string, to: string) => (asked.push([from, to]), Promise.resolve(fail ? null : report(from, to))) } } as unknown as DesktopApi;
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: api }] });
+  return { asked };
+}
+async function render() {
+  const fixture = TestBed.createComponent(ReportsPage);
+  await fixture.whenStable();
+  await wait();
+  await fixture.whenStable();
+  return { fixture, el: fixture.nativeElement as HTMLElement };
+}
+const text = (el: HTMLElement): string => el.textContent!.replace(/\s+/g, ' ');
+async function change(fixture: { whenStable(): Promise<unknown> }, el: HTMLElement, id: string, value: string): Promise<void> {
+  const input = el.querySelector(id) as HTMLInputElement;
+  input.value = value;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  await fixture.whenStable();
+  await wait();
+  await fixture.whenStable();
+}
+
+describe('ReportsPage', () => {
+  it("shows today's summary to begin with", async () => {
+    const { asked } = setup();
+    const { el } = await render();
+    const today = dayOf(Date.now());
+    expect(asked).toEqual([[today, today]]);
+    const t = text(el);
+    expect(t).toContain('4 sales');
+    expect(t).toContain('1 refund');
+    expect(t).toContain('1 voided');
+    expect(el.querySelector('[data-net]')!.textContent!.trim()).toBe('₱135.00');
+    expect(el.textContent).toContain('Taken byCash₱60.00Card₱30.00');
+    expect(el.textContent).toContain('Put on account₱50.00');
+    const items = [...el.querySelectorAll('[aria-label="Items sold"] li')].map((li) => li.textContent!.replace(/\s+/g, ' ').trim());
+    expect(items).toEqual(['Feast1₱60.00', 'Cheese1.5 kg₱15.00']);
+  });
+
+  it('asks for the range when a date changes, never lets it end before it starts, and keeps the day when cleared', async () => {
+    const { asked } = setup();
+    const { fixture, el } = await render();
+    await change(fixture, el, '#rp-from', '2026-06-01');
+    expect(asked.at(-1)).toEqual(['2026-06-01', dayOf(Date.now())]);
+    await change(fixture, el, '#rp-to', '2026-05-20');
+    expect(asked.at(-1)).toEqual(['2026-05-20', '2026-05-20']);
+    const n = asked.length;
+    await change(fixture, el, '#rp-to', '');
+    expect(asked.length).toBe(n);
+  });
+
+  it('says when the report cannot be loaded', async () => {
+    setup(true);
+    const { el } = await render();
+    expect(text(el)).toContain('The report could not be loaded');
+  });
+});

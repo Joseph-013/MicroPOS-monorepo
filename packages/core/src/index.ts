@@ -212,3 +212,4 @@ export {
 } from './printing.js';
 export { layoutReceipt, type ReceiptRow } from './receipt-layout.js';
 export { ORDER_QR_PREFIX, orderQrPayload, parseOrderQr } from './order-qr.js';
+export { dayOf, dayRange, PAYMENT_METHOD_ORDER, type ItemSold, type MethodTotal, type SalesReport } from './reports.js';

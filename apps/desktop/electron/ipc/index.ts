@@ -9,6 +9,7 @@ import { returnToSupplier } from '../db/queries/supplier-returns';
 import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock, stockConcerns } from '../db/queries/inventory';
 import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, purchaseConcerns, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
 import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
+import { salesReport } from '../db/queries/reports';
 import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-interest';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
 import { completeOrder, getOrder, orderIdByNumber, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
@@ -96,6 +97,7 @@ export function registerIpcHandlers(db: AppDatabase): void {
     const order = getOrder(db, orderId);
     return order ? printer.printSale(order) : ({ ok: false, code: 'unknown', error: 'Order not found' } as const);
   });
+  guarded(db, CHANNELS.reports.sales, 'reports.view', (_event, from: unknown, to: unknown) => salesReport(db, from, to));
   guarded(db, CHANNELS.debug.get, 'settings.manage', () => ({ saveImages: getSaveReceiptImages(db), folder: receiptImagesFolder() }));
   guarded(db, CHANNELS.debug.setSaveImages, 'settings.manage', (_event, value: unknown) => setSaveReceiptImages(db, value));
   guarded(db, CHANNELS.debug.openReceiptsFolder, 'settings.manage', async () => {

@@ -39,6 +39,9 @@ const api: DesktopApi = {
     testPrint: () => ipcRenderer.invoke(CHANNELS.printer.testPrint),
     printOrder: (orderId) => ipcRenderer.invoke(CHANNELS.printer.printOrder, orderId),
   },
+  reports: {
+    sales: (from, to) => ipcRenderer.invoke(CHANNELS.reports.sales, from, to),
+  },
   debug: {
     get: () => ipcRenderer.invoke(CHANNELS.debug.get),
     setSaveImages: (value) => ipcRenderer.invoke(CHANNELS.debug.setSaveImages, value),
