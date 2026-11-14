@@ -5,6 +5,15 @@
   <title>MicroPOS</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <script>
+    // Applies the theme before the first paint, so a reload (or a dev rebuild) does not flash the light theme first.
+    // ThemeService keeps the mode that is in use under this key (see core/theme.service.ts).
+    try {
+      var mode = JSON.parse(localStorage.getItem('micropos.themeApplied'));
+      var dark = mode === 'dark' || (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', dark);
+    } catch (e) {}
+  </script>
 </head>
 <body>
   <app-root></app-root>

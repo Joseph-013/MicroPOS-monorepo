@@ -9,7 +9,8 @@ export const THEME_LABELS: Record<ThemeMode, string> = { light: 'Light', dark: '
 const isThemeMode = (v: unknown): v is ThemeMode => v === 'light' || v === 'dark' || v === 'system';
 
 /**
- * Light, dark or follow the system. A per-user preference: each person's choice is remembered on this device under
+ * Light, dark or follow the system. Started at launch by `App` (it used to start only when Settings was opened, so the
+ * theme was missing until then) and applied before the first paint by a small script in index.html. A per-user preference: each person's choice is remembered on this device under
  * their id and applied when they sign in. The lock screen (nobody signed in) and anyone who has not chosen yet use
  * the last choice made on the device.
  */
@@ -17,7 +18,10 @@ const isThemeMode = (v: unknown): v is ThemeMode => v === 'light' || v === 'dark
 export class ThemeService {
   private readonly storage = inject(StorageService);
   private readonly auth = inject(AuthService);
-  private readonly _mode = signal<ThemeMode>(this.storage.get<ThemeMode>('theme', 'system', isThemeMode));
+  private readonly _mode = signal<ThemeMode>(
+    // The mode that was in use when the app last ran (the signed-in person's), so a reload does not start from someone else's choice and shift once sign-in is known.
+    this.storage.get<ThemeMode>('themeApplied', this.storage.get<ThemeMode>('theme', 'system', isThemeMode), isThemeMode),
+  );
   readonly mode = this._mode.asReadonly();
   private readonly media = window.matchMedia?.('(prefers-color-scheme: dark)');
   private readonly systemDark = signal(this.media?.matches ?? false);
@@ -28,6 +32,8 @@ export class ThemeService {
       const mode = this._mode();
       const dark = mode === 'dark' || (mode === 'system' && this.systemDark());
       document.documentElement.classList.toggle('dark', dark);
+      // What the page applies before Angular starts (index.html): the mode in use, whoever's it is.
+      this.storage.set('themeApplied', mode);
     });
     // Whoever signs in gets their own choice, if they have made one.
     effect(() => {

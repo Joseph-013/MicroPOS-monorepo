@@ -39,4 +39,15 @@ describe('ThemeService', () => {
     setup().set('dark');
     expect(setup().mode()).toBe('dark');
   });
+
+  it('applies the theme as soon as it starts, remembers what is in use for the next launch, and starts from it', () => {
+    const theme = setup();
+    theme.set('dark');
+    TestBed.flushEffects?.();
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(JSON.parse(localStorage.getItem('micropos.themeApplied')!)).toBe('dark');
+    // Another person's choice was made last on this device, but dark was in use when the app closed: it starts dark.
+    localStorage.setItem('micropos.theme', JSON.stringify('light'));
+    expect(setup().mode()).toBe('dark');
+  });
 });
