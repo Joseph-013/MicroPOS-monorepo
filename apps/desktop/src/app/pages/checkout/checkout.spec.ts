@@ -6,6 +6,7 @@ import { BannerService } from '../../core/banner';
 import { CheckoutDraftService } from '../../core/data/checkout-draft.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { sessionUser } from '../../core/auth/testing';
+import { ProductViewer } from '../../core/product-viewer';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { ScannerService } from '../../core/scanner';
 import { CheckoutPage } from './checkout';
@@ -521,6 +522,17 @@ describe('CheckoutPage', () => {
       // The order is gone for good: the debounced draft save must not write it back.
       await flushSaves();
       expect(store.draft).toBeNull();
+    });
+
+    it('opens the product from its name on the line, for someone who may view items', async () => {
+      scan(PRODUCTS[1].barcode!);
+      await fixture.whenStable();
+      expect(el.querySelector('button[aria-label="View Whole Milk (1 gal)"]')).toBeNull(); // not signed in: plain text
+      TestBed.inject(AuthService).user.set(sessionUser(['checkout.sell', 'catalog.view']));
+      await fixture.whenStable();
+      const opened = vi.spyOn(TestBed.inject(ProductViewer), 'open').mockResolvedValue(true);
+      (el.querySelector('button[aria-label="View Whole Milk (1 gal)"]') as HTMLButtonElement).click();
+      expect(opened).toHaveBeenCalledWith('2');
     });
 
     describe('discounts and notes', () => {

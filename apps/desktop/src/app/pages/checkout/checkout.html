@@ -120,10 +120,10 @@
       </hlm-dialog>
     </header>
 
-    <div class="min-h-0 flex-1 overflow-y-auto px-4">
+    <div class="min-h-0 flex-1 overflow-auto px-4">
       @if (lineTotals().length) {
         <!-- A table: the item, quantity and total columns have their own widths, shared by the title row and every line, so the quantity controls line up. -->
-        <div role="table" aria-label="Order items" class="[--cols:minmax(0,1fr)_12.5rem_6.5rem]">
+        <div role="table" aria-label="Order items" class="min-w-[28rem] [--cols:minmax(0,1fr)_12.5rem_6.5rem]">
           <div role="rowgroup" class="bg-background sticky top-0 z-10">
             <div role="row" class="text-muted-foreground grid grid-cols-(--cols) items-center gap-4 border-b px-3 py-2 text-sm">
               <div role="columnheader">Item</div>
@@ -142,7 +142,12 @@
                 <!-- The line added or changed last stays highlighted (the class goes on the row inside the swipe wrapper). -->
                 <div role="row" class="not-[.row-target]:hover:bg-muted/40 grid grid-cols-(--cols) items-center gap-4 px-3 py-3 transition-colors" [class.row-target]="highlightId() === line.productId">
                   <div role="cell" class="min-w-0">
-                    <p class="truncate text-base">{{ line.name }}</p>
+                    @if (canViewProduct()) {
+                      <!-- The name opens the product in a dialog over checkout (view mode), without leaving the order. -->
+                      <button type="button" class="hover:text-primary block max-w-full truncate text-left text-base underline-offset-4 hover:underline" [attr.aria-label]="'View ' + line.name" (click)="viewProduct(line.productId)">{{ line.name }}</button>
+                    } @else {
+                      <p class="truncate text-base">{{ line.name }}</p>
+                    }
                     <p class="text-muted-foreground text-sm">
                       {{ line.unitPrice | money }}
                       @if (unitLabel(line.unit)) {

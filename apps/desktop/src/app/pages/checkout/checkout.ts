@@ -17,6 +17,7 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { firstValueFrom } from 'rxjs';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
+import { ProductViewer } from '../../core/product-viewer';
 import { AuthService } from '../../core/auth/auth.service';
 import { BannerService } from '../../core/banner';
 import { DiscountForm, type DiscountContext, type DiscountOutcome } from './discount-form';
@@ -76,6 +77,7 @@ export class CheckoutPage {
   private readonly viewer = inject(SalesOrderViewer);
   private readonly dialogs = inject(HlmDialogService);
   protected readonly auth = inject(AuthService);
+  private readonly productViewer = inject(ProductViewer);
   protected readonly customers = inject(CustomersService);
   /** The customer-facing window (opened and closed in Settings): kept up to date with the order. */
   private readonly display = inject(CustomerDisplayService);
@@ -102,6 +104,11 @@ export class CheckoutPage {
   protected readonly discountReason = signal('');
   protected readonly note = signal('');
   protected readonly maxNote = MAX_ORDER_NOTE;
+  /** The item name opens the product (it needs the permission to see items; a cashier without it sees plain text). */
+  protected readonly canViewProduct = computed(() => this.auth.can('catalog.view'));
+  protected viewProduct(productId: string): void {
+    void this.productViewer.open(productId);
+  }
   protected readonly canDiscount = computed(() => this.auth.can('discounts.give'));
   protected readonly formatDiscount = formatDiscount;
   protected readonly paymentMethod = signal<PaymentMethod>('cash');
