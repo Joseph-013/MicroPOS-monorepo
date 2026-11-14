@@ -19,7 +19,8 @@ export const PERMISSIONS = [
   { id: 'customers.view', group: 'Customers', label: 'View customers', description: 'Open the Customers page and their accounts.' },
   { id: 'customers.manage', group: 'Customers', label: 'Change customers', description: 'Add, edit, delete and restore customers.' },
   { id: 'customers.payments', group: 'Customers', label: 'Receive customer payments', description: 'Record payments against what a customer owes.' },
-  { id: 'catalog.view', group: 'Items', label: 'View items', description: 'Open Products, Categories and the stock overview.' },
+  { id: 'dashboard.view', group: 'Sales', label: 'View the dashboard', description: 'Sales, stock, credit and purchasing figures at a glance.' },
+  { id: 'catalog.view', group: 'Items', label: 'View items', description: 'Open Products and Categories.' },
   { id: 'catalog.manage', group: 'Items', label: 'Change products and categories', description: 'Add, edit, delete and restore products and categories.' },
   { id: 'inventory.manage', group: 'Items', label: 'Manage stock', description: 'Receive, adjust and repackage stock.' },
   { id: 'reports.view', group: 'Sales', label: 'View reports', description: 'The sales summary: sales, refunds, voids, what was taken by each payment method, and items sold.' },
@@ -55,8 +56,8 @@ export function matchingRole(permissions: readonly Permission[]): UserRole | nul
 
 /** The first page a user may open, or null when none of the pages is allowed (path by permission, in navigation order). */
 export const PAGE_PERMISSIONS: readonly { path: string; permission: Permission }[] = [
+  { path: '/dashboard', permission: 'dashboard.view' },
   { path: '/checkout', permission: 'checkout.sell' },
-  { path: '/items/overview', permission: 'catalog.view' },
   { path: '/orders', permission: 'orders.view' },
   { path: '/customers', permission: 'customers.view' },
   { path: '/reports', permission: 'reports.view' },

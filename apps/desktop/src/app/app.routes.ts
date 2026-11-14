@@ -13,18 +13,18 @@ export const routes: Routes = [
     title: 'Checkout',
     loadComponent: () => import('./pages/checkout/checkout').then((m) => m.CheckoutPage),
   },
+  {
+    path: 'dashboard',
+    ...requires('dashboard.view'),
+    title: 'Dashboard',
+    loadComponent: () => import('./pages/dashboard/dashboard').then((m) => m.DashboardPage),
+  },
   { path: 'items', pathMatch: 'full', redirectTo: 'items/products' },
   {
     path: 'items/products',
     ...requires('catalog.view'),
     title: 'Products',
     loadComponent: () => import('./pages/products/products').then((m) => m.ProductsPage),
-  },
-  {
-    path: 'items/overview',
-    ...requires('catalog.view'),
-    title: 'Inventory overview',
-    loadComponent: () => import('./pages/inventory-overview/inventory-overview').then((m) => m.InventoryOverviewPage),
   },
   {
     path: 'items/inventory',

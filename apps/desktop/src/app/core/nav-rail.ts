@@ -6,6 +6,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronRight,
   lucideChartColumn,
+  lucideLayoutDashboard,
   lucideComputer,
   lucideLayoutGrid,
   lucideLock,
@@ -59,6 +60,7 @@ export interface NavItem {
       lucideTruck,
       lucideSettings,
       lucideChartColumn,
+      lucideLayoutDashboard,
       lucideLock,
   lucideUserCog,
   lucideUserRound,
@@ -86,7 +88,6 @@ export class NavRail {
       label: 'Items',
       icon: 'lucidePackage',
       children: [
-        { id: 'items-overview', path: '/items/overview', label: 'Overview', permission: 'catalog.view' },
         { id: 'items-products', path: '/items/products', label: 'Products', permission: 'catalog.view' },
         { id: 'items-inventory', path: '/items/inventory', label: 'Inventory', permission: 'inventory.manage', badge: 'inventory' },
         { id: 'items-categories', path: '/items/categories', label: 'Categories', permission: 'catalog.view' },

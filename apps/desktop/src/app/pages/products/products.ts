@@ -365,7 +365,7 @@ export class ProductsPage {
         this.flashTimer = setTimeout(() => this.flashing.set(new Set()), 1500);
       }
     });
-    // The inventory overview links here with a stock filter (`?stock=out`) already set.
+    // The dashboard links here with a stock filter (`?stock=out`) already set.
     const category = this.route.snapshot.queryParamMap.get('category'); // the Categories page links here
     if (category) this.category.set(category);
     const wanted = this.route.snapshot.queryParamMap.get('stock');

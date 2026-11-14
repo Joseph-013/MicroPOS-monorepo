@@ -330,7 +330,7 @@ export class InventoryPage {
   }
 
   constructor() {
-    // The overview links here with a status (`?status=expired`) already filtered.
+    // The dashboard links here with a status (`?status=expired`) already filtered.
     const wanted = this.route.snapshot.queryParamMap.get('status');
     if (wanted && wanted in STATUSES) this.status.set(wanted as Status);
     void this.service.load();

@@ -2,7 +2,7 @@ import type { PurchaseSummary } from './purchasing.js';
 import type { Money } from './index.js';
 
 /** The parts of the data a badge can depend on. The main process announces which changed. */
-export const DATA_DOMAINS = ['customers', 'stock', 'purchases'] as const;
+export const DATA_DOMAINS = ['customers', 'stock', 'purchases', 'sales'] as const;
 export type DataDomain = (typeof DATA_DOMAINS)[number];
 
 /**

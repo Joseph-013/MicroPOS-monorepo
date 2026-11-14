@@ -39,6 +39,9 @@ const api: DesktopApi = {
     testPrint: () => ipcRenderer.invoke(CHANNELS.printer.testPrint),
     printOrder: (orderId) => ipcRenderer.invoke(CHANNELS.printer.printOrder, orderId),
   },
+  dashboard: {
+    get: () => ipcRenderer.invoke(CHANNELS.dashboard.get),
+  },
   tables: {
     columnOrders: () => ipcRenderer.invoke(CHANNELS.tables.columnOrders),
     saveColumnOrder: (tableId, keys) => ipcRenderer.invoke(CHANNELS.tables.saveColumnOrder, tableId, keys),
@@ -70,7 +73,6 @@ const api: DesktopApi = {
   },
   inventory: {
     listBatches: (options) => ipcRenderer.invoke(CHANNELS.inventory.listBatches, options),
-    overview: () => ipcRenderer.invoke(CHANNELS.inventory.overview),
     concerns: () => ipcRenderer.invoke(CHANNELS.inventory.concerns),
     receive: (input) => ipcRenderer.invoke(CHANNELS.inventory.receive, input),
     adjust: (input) => ipcRenderer.invoke(CHANNELS.inventory.adjust, input),

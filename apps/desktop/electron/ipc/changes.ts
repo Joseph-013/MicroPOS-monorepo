@@ -28,9 +28,9 @@ export const WRITES: Readonly<Record<string, readonly DataDomain[]>> = {
   [CHANNELS.customers.restore]: ['customers'],
   [CHANNELS.customers.receivePayment]: ['customers'],
   [CHANNELS.customers.saveAlertSettings]: ['customers'],
-  [CHANNELS.orders.void]: ['customers', 'stock'],
-  [CHANNELS.orders.refund]: ['customers', 'stock'],
-  [CHANNELS.checkout.completeOrder]: ['customers', 'stock'],
+  [CHANNELS.orders.void]: ['customers', 'stock', 'sales'],
+  [CHANNELS.orders.refund]: ['customers', 'stock', 'sales'],
+  [CHANNELS.checkout.completeOrder]: ['customers', 'stock', 'sales'],
 };
 
 /** Every other channel: reads, drafts, sign-in and settings that no badge depends on. */
@@ -48,7 +48,6 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.categories.remove,
   CHANNELS.categories.restore,
   CHANNELS.inventory.listBatches,
-  CHANNELS.inventory.overview,
   CHANNELS.inventory.concerns,
   CHANNELS.inventory.loadRepackageDraft,
   CHANNELS.inventory.saveRepackageDraft,
@@ -101,6 +100,7 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.printer.listUsb,
   CHANNELS.printer.testPrint,
   CHANNELS.printer.printOrder,
+  CHANNELS.dashboard.get,
   CHANNELS.tables.columnOrders,
   CHANNELS.tables.saveColumnOrder,
   CHANNELS.reports.sales,

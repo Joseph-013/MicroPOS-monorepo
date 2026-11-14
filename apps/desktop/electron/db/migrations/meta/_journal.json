@@ -78,6 +78,13 @@
       "when": 1794645656002,
       "tag": "0010_grant_reports_view",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794646835374,
+      "tag": "0011_grant_dashboard_view",
+      "breakpoints": true
     }
   ]
 }

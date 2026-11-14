@@ -1,0 +1,213 @@
+<div class="flex flex-col gap-4">
+  <header class="flex items-center justify-between gap-3">
+    <h1 class="text-2xl">Dashboard</h1>
+    <a hlmBtn variant="outline" routerLink="/reports" class="px-4">Reports</a>
+  </header>
+
+  @if (data(); as d) {
+    @let o = d.inventory;
+
+    <!-- Sales -->
+    <h2 class="text-muted-foreground text-sm font-medium">Sales</h2>
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
+      <section hlmCard class="gap-1 p-4">
+        <p class="text-muted-foreground text-sm">Today</p>
+        <p class="font-heading truncate text-3xl" data-today>{{ d.today.net | money }}</p>
+        <p class="text-muted-foreground text-sm">
+          {{ d.today.count }} {{ d.today.count === 1 ? 'sale' : 'sales' }}
+          @if (change(d.today.net, d.yesterday.net); as c) { · {{ c }} on yesterday }
+        </p>
+      </section>
+      <section hlmCard class="gap-1 p-4">
+        <p class="text-muted-foreground text-sm">Yesterday</p>
+        <p class="font-heading truncate text-3xl">{{ d.yesterday.net | money }}</p>
+        <p class="text-muted-foreground text-sm">{{ d.yesterday.count }} {{ d.yesterday.count === 1 ? 'sale' : 'sales' }}</p>
+      </section>
+      <section hlmCard class="gap-1 p-4">
+        <p class="text-muted-foreground text-sm">Last 7 days</p>
+        <p class="font-heading truncate text-3xl">{{ d.last7.net | money }}</p>
+        <p class="text-muted-foreground text-sm">{{ d.last7.count }} {{ d.last7.count === 1 ? 'sale' : 'sales' }}@if (d.last7.count) { · {{ d.last7.net / d.last7.count | money }} each }</p>
+      </section>
+      <section hlmCard class="gap-1 p-4">
+        <p class="text-muted-foreground text-sm">Last 30 days</p>
+        <p class="font-heading truncate text-3xl">{{ d.last30.net | money }}</p>
+        <p class="text-muted-foreground text-sm">{{ d.last30.count }} {{ d.last30.count === 1 ? 'sale' : 'sales' }}@if (d.last30.count) { · {{ d.last30.net / d.last30.count | money }} each }</p>
+      </section>
+    </div>
+
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(24rem,1fr))] gap-3">
+      <section hlmCard class="gap-0 [grid-column:1/-1]">
+        <div hlmCardHeader><h2 hlmCardTitle>Net sales, last 14 days</h2></div>
+        <div hlmCardContent>
+          <div class="flex h-40 items-end gap-1.5" role="list" aria-label="Net sales by day">
+            @for (day of d.daily; track day.day) {
+              <div class="flex h-full min-w-0 flex-1 flex-col justify-end" role="listitem" [attr.aria-label]="day.day + ': ' + (day.net | money)" [attr.title]="day.day + ': ' + (day.net | money) + ' (' + day.count + ' sales)'">
+                <div class="bg-primary w-full" [style.height.%]="barHeight(day.net)" data-bar></div>
+              </div>
+            }
+          </div>
+          <div class="text-muted-foreground mt-1 flex gap-1.5 text-center text-[11px]" aria-hidden="true">
+            @for (day of d.daily; track day.day) {
+              <span class="min-w-0 flex-1 truncate">{{ weekday(day.day) }}</span>
+            }
+          </div>
+        </div>
+      </section>
+
+      <section hlmCard class="gap-0">
+        <div hlmCardHeader><h2 hlmCardTitle>Taken by, last 7 days</h2></div>
+        <div hlmCardContent class="px-0">
+          @for (m of d.byMethod; track m.method) {
+            <div class="border-t px-4 py-2">
+              <div class="flex items-baseline justify-between gap-3 text-sm"><span>{{ methodName(m.method) }}</span><span>{{ m.amount | money }}</span></div>
+              <div class="bg-muted mt-1 h-1.5 w-full"><div class="bg-primary h-full" [style.width.%]="(m.amount / methodMax()) * 100"></div></div>
+            </div>
+          } @empty {
+            <p class="text-muted-foreground border-t px-4 py-4 text-sm">Nothing taken yet</p>
+          }
+        </div>
+      </section>
+
+      <section hlmCard class="gap-0">
+        <div hlmCardHeader><h2 hlmCardTitle>Best sellers, last 30 days</h2></div>
+        <div hlmCardContent class="px-0">
+          @for (item of d.topItems; track item.name + item.unit) {
+            <div class="grid grid-cols-[minmax(0,1fr)_auto_6rem] items-baseline gap-x-3 border-t px-4 py-2 text-sm">
+              <span class="truncate">{{ item.name }}</span>
+              <span class="text-muted-foreground text-right">{{ quantity(item) }}</span>
+              <span class="text-right">{{ item.total | money }}</span>
+            </div>
+          } @empty {
+            <p class="text-muted-foreground border-t px-4 py-4 text-sm">Nothing sold yet</p>
+          }
+        </div>
+      </section>
+    </div>
+
+    <!-- Money owed -->
+    <h2 class="text-muted-foreground text-sm font-medium">Credit and suppliers</h2>
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(24rem,1fr))] gap-3">
+      <section hlmCard class="gap-0">
+        <div hlmCardHeader class="flex items-baseline justify-between gap-3">
+          <h2 hlmCardTitle>Customers owe</h2>
+          <a routerLink="/customers" class="text-primary text-sm underline-offset-4 hover:underline">Customers</a>
+        </div>
+        <div hlmCardContent class="px-0">
+          <p class="px-4 pb-2"><span class="font-heading text-3xl" data-owed>{{ d.customersOwing.total | money }}</span> <span class="text-muted-foreground text-sm">from {{ d.customersOwing.count }} {{ d.customersOwing.count === 1 ? 'customer' : 'customers' }}</span></p>
+          @for (c of d.customersOwing.top; track c.id) {
+            <div class="flex items-center justify-between gap-3 border-t px-4 py-2 text-sm"><span class="truncate">{{ c.name }}</span><span class="text-destructive shrink-0">{{ c.balance | money }}</span></div>
+          }
+        </div>
+      </section>
+      <section hlmCard class="gap-0">
+        <div hlmCardHeader class="flex items-baseline justify-between gap-3">
+          <h2 hlmCardTitle>We owe suppliers</h2>
+          <a routerLink="/purchases" class="text-primary text-sm underline-offset-4 hover:underline">Purchases</a>
+        </div>
+        <div hlmCardContent class="px-4">
+          <p><span class="font-heading text-3xl">{{ d.suppliersOwed.total | money }}</span> <span class="text-muted-foreground text-sm">on {{ d.suppliersOwed.orders }} {{ d.suppliersOwed.orders === 1 ? 'order' : 'orders' }}</span></p>
+          @if (d.suppliersOwed.overdueOrders) {
+            <p class="text-destructive mt-1 text-sm">{{ d.suppliersOwed.overdue | money }} overdue on {{ d.suppliersOwed.overdueOrders }} {{ d.suppliersOwed.overdueOrders === 1 ? 'order' : 'orders' }}</p>
+          }
+        </div>
+      </section>
+    </div>
+
+    <!-- Stock -->
+    <h2 class="text-muted-foreground text-sm font-medium">Stock</h2>
+    <!-- Stock: the red and amber tiles open the matching list -->
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
+      <section hlmCard class="gap-1 p-4">
+        <p class="text-muted-foreground text-sm">Stock value</p>
+        <p class="font-heading text-3xl">{{ o.stockValueCost | money }}</p>
+        <p class="text-muted-foreground text-sm">{{ o.stockValueRetail | money }} at retail</p>
+      </section>
+
+      <a hlmCard routerLink="/items/inventory" [queryParams]="{ status: 'expired' }" class="hover:bg-muted/40 gap-1 p-4">
+        <p class="text-muted-foreground text-sm">Expired</p>
+        <p class="font-heading text-3xl" [class.text-destructive]="o.expired.batches > 0">{{ o.expired.batches }}</p>
+        <p class="text-muted-foreground text-sm">{{ o.expired.valueCost | money }} at cost</p>
+      </a>
+
+      <a hlmCard routerLink="/items/inventory" [queryParams]="{ status: 'soon' }" class="hover:bg-muted/40 gap-1 p-4">
+        <p class="text-muted-foreground text-sm">Expiring soon</p>
+        <p class="font-heading text-3xl" [class.text-warning]="o.expiringSoon.batches > 0">{{ o.expiringSoon.batches }}</p>
+        <p class="text-muted-foreground text-sm">{{ o.expiringSoon.valueCost | money }} at cost</p>
+      </a>
+
+      <a hlmCard routerLink="/items/products" [queryParams]="{ stock: 'out' }" class="hover:bg-muted/40 gap-1 p-4">
+        <p class="text-muted-foreground text-sm">Out of stock</p>
+        <p class="font-heading text-3xl" [class.text-destructive]="o.outOfStockCount > 0">{{ o.outOfStockCount }}</p>
+        <p class="text-muted-foreground text-sm">of {{ o.trackedProducts }} tracked products</p>
+      </a>
+
+      <section hlmCard class="gap-1 p-4">
+        <p class="text-muted-foreground text-sm">Written off, 30 days</p>
+        <p class="font-heading text-3xl">{{ o.wasteLast30Days.valueCost | money }}</p>
+        <p class="text-muted-foreground text-sm">{{ o.wasteLast30Days.entries }} {{ o.wasteLast30Days.entries === 1 ? 'entry' : 'entries' }}</p>
+      </section>
+    </div>
+
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(24rem,1fr))] gap-3">
+      <section hlmCard class="gap-0">
+        <div hlmCardHeader><h2 hlmCardTitle>Needs attention</h2></div>
+        <div hlmCardContent class="px-0">
+          @for (batch of o.attention; track batch.id) {
+            <a routerLink="/items/inventory" class="hover:bg-muted/40 flex items-center justify-between gap-3 border-t px-4 py-2">
+              <span class="min-w-0">
+                <span class="block truncate">{{ batch.productName }}</span>
+                <span class="text-muted-foreground block text-xs">{{ batch.batchNumber ?? 'No batch' }} · {{ formatQuantity(batch.onHandMilli) }}{{ unitSuffix(batch.unit) }} left</span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2">
+                <span class="text-muted-foreground text-sm">{{ batch.expiresAt | date: 'MMM d' }}</span>
+                <span hlmBadge [variant]="isExpired(batch) ? 'destructive' : 'warning'">{{ isExpired(batch) ? 'Expired' : 'Expiring soon' }}</span>
+              </span>
+            </a>
+          } @empty {
+            <p class="text-muted-foreground border-t px-4 py-4 text-sm">Nothing is expired or about to expire</p>
+          }
+        </div>
+      </section>
+
+      <section hlmCard class="gap-0">
+        <div hlmCardHeader><h2 hlmCardTitle>Out of stock</h2></div>
+        <div hlmCardContent class="px-0">
+          @for (product of o.outOfStockProducts; track product.id) {
+            <a routerLink="/items/products" [queryParams]="{ stock: 'out' }" class="hover:bg-muted/40 flex items-center justify-between gap-3 border-t px-4 py-2">
+              <span class="truncate">{{ product.name }}</span>
+              <span hlmBadge variant="destructive">Out</span>
+            </a>
+          } @empty {
+            <p class="text-muted-foreground border-t px-4 py-4 text-sm">Every tracked product has stock</p>
+          }
+          @if (o.outOfStockCount > o.outOfStockProducts.length) {
+            <p class="text-muted-foreground border-t px-4 py-2 text-sm">and {{ o.outOfStockCount - o.outOfStockProducts.length }} more</p>
+          }
+        </div>
+      </section>
+
+      <section hlmCard class="gap-0">
+        <div hlmCardHeader><h2 hlmCardTitle>Recent activity</h2></div>
+        <div hlmCardContent class="px-0">
+          @for (move of o.recentMovements; track move.id) {
+            <div class="flex items-center justify-between gap-3 border-t px-4 py-2">
+              <span class="min-w-0">
+                <span class="block truncate">{{ move.productName }}</span>
+                <span class="text-muted-foreground block text-xs">{{ movementLabel(move.type) }}{{ move.batchNumber ? ' · ' + move.batchNumber : '' }} · {{ move.at | date: 'MMM d, h:mm a' }}</span>
+              </span>
+              <span class="shrink-0 text-base" [class.text-success]="move.quantityMilli > 0" [class.text-destructive]="move.quantityMilli < 0">
+                {{ move.quantityMilli > 0 ? '+' : '' }}{{ formatQuantity(move.quantityMilli) }}{{ unitSuffix(move.unit) }}
+              </span>
+            </div>
+          } @empty {
+            <p class="text-muted-foreground border-t px-4 py-4 text-sm">No stock has moved yet</p>
+          }
+        </div>
+      </section>
+    </div>
+  } @else {
+    <p class="text-muted-foreground py-8 text-center text-sm">
+      {{ service.status() === 'error' ? 'The dashboard could not be loaded' : 'Loading' }}
+    </p>
+  }
+</div>

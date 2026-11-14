@@ -1,5 +1,5 @@
 import { inject, Service, signal } from '@angular/core';
-import type { ReturnToSupplierInput, ReturnToSupplierResult, AdjustStockInput, BatchRecord,  InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from '@micropos/core';
+import type { ReturnToSupplierInput, ReturnToSupplierResult, AdjustStockInput, BatchRecord,ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
 import { refreshOnChange } from './refresh-on-change';
 import type { LoadStatus } from './catalog.service';
@@ -15,8 +15,6 @@ export class InventoryService {
 
   readonly batches = signal<BatchRecord[]>([]);
   readonly status = signal<LoadStatus>('idle');
-  readonly overview = signal<InventoryOverview | null>(null);
-  readonly overviewStatus = signal<LoadStatus>('idle');
   /** Also list batches that are used up. */
   readonly includeEmpty = signal(false);
 
@@ -37,22 +35,6 @@ export class InventoryService {
     } catch (error) {
       console.error('Failed to load stock', error);
       this.status.set('error');
-    }
-  }
-
-  /** Loads the numbers for the overview page. */
-  async loadOverview(): Promise<void> {
-    if (!this.api) {
-      this.overviewStatus.set('error');
-      return;
-    }
-    this.overviewStatus.set('loading');
-    try {
-      this.overview.set(await this.api.inventory.overview());
-      this.overviewStatus.set('ready');
-    } catch (error) {
-      console.error('Failed to load the inventory overview', error);
-      this.overviewStatus.set('error');
     }
   }
 

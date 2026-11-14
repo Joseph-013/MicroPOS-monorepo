@@ -1,5 +1,5 @@
 import type { ChangePinInput, ChangePinResult, ResetPinResult, SaveUserResult, SessionUser, SignInChoice, SignInLogEntry, SignInResult, UserInput, UserRecord } from './auth.js';
-import type { AdjustStockInput, BatchRecord, InventoryOverview, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from './inventory.js';
+import type { AdjustStockInput, BatchRecord, ReceiveStockInput, RepackageDraft, RepackageInput, RepackageResult, StockResult } from './inventory.js';
 import type { CatalogCategory, CatalogProduct, CategoryInput, CategoryRecord, RestoreCategoriesResult, SaveCategoryResult, ProductDraft, ProductInput, ProductRecord, RestoreProductsResult, SaveProductResult } from './catalog.js';
 import type {
   CancelPurchaseResult,
@@ -21,6 +21,7 @@ import type {
 import type { CustomerDisplayMode, CustomerDisplayState } from './customer-display.js';
 import type { PrinterDebug, PrinterSettings, PrintResult, SaveLogoResult, SavePrinterSettingsResult, UsbPrinterInfo } from './printing.js';
 import type { TableColumnOrders } from './table-columns.js';
+import type { DashboardData } from './dashboard.js';
 import type { SalesReport } from './reports.js';
 import type { ExportFormat, ExportResult, ReportKind } from './report-document.js';
 import type { DataDomain, PurchaseConcern, StockConcern } from './concerns.js';
@@ -34,7 +35,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 43;
+export const DESKTOP_API_VERSION = 44;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -97,6 +98,10 @@ export interface DesktopApi {
     /** The page reports an error to the main process, which writes it to the log files. Nothing comes back. */
     write(entry: { level: 'error' | 'warn'; source: string; message: string; details?: string }): Promise<void>;
   };
+  dashboard: {
+    /** The figures for the Dashboard page. */
+    get(): Promise<DashboardData>;
+  };
   tables: {
     /** The column order an admin saved for each page table (tables never saved are not in it). */
     columnOrders(): Promise<TableColumnOrders>;
@@ -135,8 +140,6 @@ export interface DesktopApi {
   inventory: {
     /** Batches that still have stock (`includeEmpty` adds used-up ones), soonest expiry first. */
     listBatches(options?: { includeEmpty?: boolean }): Promise<BatchRecord[]>;
-    /** The summary behind the Inventory overview page. */
-    overview(): Promise<InventoryOverview>;
     /** What needs attention: expired and expiring batches, products out of stock or at their critical level (the Inventory badge). */
     concerns(): Promise<StockConcern[]>;
     /** Adds stock to a product (a new batch, or the single batch of a quantity-only product). */

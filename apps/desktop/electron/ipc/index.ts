@@ -6,7 +6,8 @@ import { listCategories, listProducts } from '../db/queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from '../db/queries/products';
 import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from '../db/queries/categories';
 import { returnToSupplier } from '../db/queries/supplier-returns';
-import { adjustStock, inventoryOverview, listBatches, receiveStock, repackageStock, stockConcerns } from '../db/queries/inventory';
+import { dashboard } from '../db/queries/dashboard';
+import { adjustStock, listBatches, receiveStock, repackageStock, stockConcerns } from '../db/queries/inventory';
 import { cancelPurchase, createPurchase, createSupplier, deleteSuppliers, getPurchase, listPurchases, listSuppliers, payPurchase, purchaseConcerns, receivePurchase, restoreSuppliers, updatePurchase, updateSupplier } from '../db/queries/purchases';
 import { countCreditAlerts, getCreditAlertSettings, saveCreditAlertSettings } from '../db/queries/credit-alerts';
 import { getColumnOrders, saveColumnOrder } from '../table-columns';
@@ -144,7 +145,7 @@ export function registerIpcHandlers(db: AppDatabase): void {
   guarded(db, CHANNELS.inventory.listBatches, ['inventory.manage', 'catalog.view'], (_event, options: unknown) =>
     listBatches(db, { includeEmpty: (options as { includeEmpty?: unknown } | undefined)?.includeEmpty === true }),
   );
-  guarded(db, CHANNELS.inventory.overview, 'catalog.view', () => inventoryOverview(db));
+  guarded(db, CHANNELS.dashboard.get, 'dashboard.view', () => dashboard(db));
   guarded(db, CHANNELS.inventory.concerns, 'inventory.manage', () => stockConcerns(db));
   guarded(db, CHANNELS.inventory.receive, 'inventory.manage', (_event, input: unknown) => receiveStock(db, input));
   guarded(db, CHANNELS.inventory.adjust, 'inventory.manage', (_event, input: unknown) => adjustStock(db, input));
