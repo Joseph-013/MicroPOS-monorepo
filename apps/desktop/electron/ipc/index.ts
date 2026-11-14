@@ -1,4 +1,4 @@
-import { ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
 import type { Permission } from '@micropos/core';
 import type { AppDatabase } from '../db';
 import { listCategories, listProducts } from '../db/queries/catalog';
@@ -18,6 +18,10 @@ import { setScannerEnabled } from '../scanner';
 import { changePin, isAllowed, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
 import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/users';
 import { getCloseToTray, setCloseToTray } from '../close-to-tray';
+import { log, logDirectory } from '../logging';
+import { createPrinterService } from '../printing';
+import { loadPrinterSettings, savePrinterSettings } from '../printing/settings';
+import { listUsbPrinters } from '../printing/transports/usb';
 import { API_VERSION, CHANNELS } from './channels';
 import { emitDataChanged, WRITES, wroteNothing } from './changes';
 
@@ -27,12 +31,25 @@ import { emitDataChanged, WRITES, wroteNothing } from './changes';
  */
 function guarded(db: AppDatabase, channel: string, needed: Permission | readonly Permission[], listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown): void {
   ipcMain.handle(channel, (event, ...args) => {
-    if (!isAllowed(db, typeof needed === 'string' ? [needed] : needed)) throw new Error('Not allowed');
-    const result = listener(event, ...args);
+    if (!isAllowed(db, typeof needed === 'string' ? [needed] : needed)) {
+      log.warn(`ipc:${channel}`, 'Not allowed');
+      throw new Error('Not allowed');
+    }
+    // A handler that throws is written to the log (its message and stack, never its arguments, which can hold secrets) and still reaches the page.
+    const failed = (error: unknown): never => {
+      log.error(`ipc:${channel}`, error instanceof Error ? error.message : String(error), error);
+      throw error;
+    };
+    let result: unknown;
+    try {
+      result = listener(event, ...args);
+    } catch (error) {
+      return failed(error);
+    }
     const changes = WRITES[channel];
     // A write that went through tells every window which parts of the data changed (see ipc/changes.ts).
     if (changes) void Promise.resolve(result).then((r) => (wroteNothing(r) ? undefined : emitDataChanged(changes)), () => undefined);
-    return result;
+    return result instanceof Promise ? result.catch(failed) : result;
   });
 }
 
@@ -42,6 +59,42 @@ function guarded(db: AppDatabase, channel: string, needed: Permission | readonly
  */
 export function registerIpcHandlers(db: AppDatabase): void {
   ipcMain.handle(CHANNELS.app.version, () => API_VERSION);
+  const printer = createPrinterService(db);
+  // The page reports its errors here. Open to every window (an error can happen before sign-in), so it is bounded: a few entries a minute, short fields.
+  let reported: number[] = [];
+  ipcMain.handle(CHANNELS.log.write, (_event, entry: unknown) => {
+    const e = (entry ?? {}) as Record<string, unknown>;
+    const now = Date.now();
+    reported = reported.filter((t) => now - t < 60_000);
+    if (reported.length >= 50) return;
+    reported.push(now);
+    const text = (v: unknown, max: number): string => (typeof v === 'string' ? v.slice(0, max) : '');
+    const source = `page:${text(e['source'], 60) || 'unknown'}`;
+    const message = text(e['message'], 500) || 'Error';
+    const details = text(e['details'], 4000) || undefined;
+    if (e['level'] === 'warn') log.warn(source, message, details);
+    else log.error(source, message, details);
+  });
+  guarded(db, CHANNELS.printer.settings, 'settings.manage', () => loadPrinterSettings(db));
+  guarded(db, CHANNELS.printer.save, 'settings.manage', (_event, input: unknown) => savePrinterSettings(db, input));
+  guarded(db, CHANNELS.printer.listUsb, 'settings.manage', async () => {
+    try {
+      return await listUsbPrinters();
+    } catch (error) {
+      log.warn('printer', 'Could not list USB printers', error);
+      return [];
+    }
+  });
+  guarded(db, CHANNELS.printer.testPrint, 'settings.manage', () => printer.printTest());
+  guarded(db, CHANNELS.printer.printOrder, ['orders.view', 'checkout.sell'], async (_event, orderId: unknown) => {
+    const order = getOrder(db, orderId);
+    return order ? printer.printSale(order) : ({ ok: false, code: 'unknown', error: 'Order not found' } as const);
+  });
+  guarded(db, CHANNELS.shell.getLogsFolder, 'settings.manage', () => logDirectory());
+  guarded(db, CHANNELS.shell.openLogsFolder, 'settings.manage', async () => {
+    const dir = logDirectory();
+    return dir ? (await shell.openPath(dir)) === '' : false;
+  });
   guarded(db, CHANNELS.catalog.listProducts, [], () => listProducts(db));
   guarded(db, CHANNELS.catalog.listCategories, [], () => listCategories(db));
   // Product payloads come from the renderer: createProduct/updateProduct validate them before writing.

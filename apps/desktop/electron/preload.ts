@@ -29,7 +29,19 @@ const api: DesktopApi = {
     remove: (ids) => ipcRenderer.invoke(CHANNELS.categories.remove, ids),
     restore: (ids) => ipcRenderer.invoke(CHANNELS.categories.restore, ids),
   },
+  printer: {
+    settings: () => ipcRenderer.invoke(CHANNELS.printer.settings),
+    save: (settings) => ipcRenderer.invoke(CHANNELS.printer.save, settings),
+    listUsb: () => ipcRenderer.invoke(CHANNELS.printer.listUsb),
+    testPrint: () => ipcRenderer.invoke(CHANNELS.printer.testPrint),
+    printOrder: (orderId) => ipcRenderer.invoke(CHANNELS.printer.printOrder, orderId),
+  },
+  log: {
+    write: (entry) => ipcRenderer.invoke(CHANNELS.log.write, entry),
+  },
   shell: {
+    getLogsFolder: () => ipcRenderer.invoke(CHANNELS.shell.getLogsFolder),
+    openLogsFolder: () => ipcRenderer.invoke(CHANNELS.shell.openLogsFolder),
     getCloseToTray: () => ipcRenderer.invoke(CHANNELS.shell.getCloseToTray),
     setCloseToTray: (value) => ipcRenderer.invoke(CHANNELS.shell.setCloseToTray, value),
   },

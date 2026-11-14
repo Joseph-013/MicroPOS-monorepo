@@ -11,6 +11,7 @@ import { CHANNELS } from './ipc/channels';
 import { emitDataChanged, onDataChanged } from './ipc/changes';
 import { registerIpcHandlers } from './ipc';
 import { closeCustomerDisplay, registerCustomerDisplay } from './display';
+import { initLogging, log } from './logging';
 import { purgeLegacyData } from './legacy-data';
 import { attachScanner } from './scanner';
 import { handleSquirrelEvent } from './squirrel';
@@ -81,6 +82,7 @@ function createWindow(): void {
     webPreferences,
   });
   mainWindow = win;
+  win.on('unresponsive', () => log.warn('main', 'The window stopped responding'));
   // The window is always called MicroPOS: the page titles ("Checkout", "Sales Orders") are for the browser, not the title bar.
   win.on('page-title-updated', (event) => event.preventDefault());
   // With "keep running in the tray" on, closing the window only hides it (background work carries on); Quit in the tray really closes.
@@ -154,6 +156,14 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
   // The installed app has no menu bar (File, Edit, View, Window); development keeps it for the DevTools entries.
   if (app.isPackaged) Menu.setApplicationMenu(null);
   const purged = claimUserData();
+  // Logs go in a `logs` folder: the system's log folder when installed, `local-data/logs` in development. Started after
+  // claimUserData, which may clear an earlier install's files from the user data folder.
+  initLogging(app.isPackaged ? app.getPath('logs') : path.join(app.getAppPath(), 'local-data', 'logs'), !app.isPackaged);
+  log.info('app', `MicroPOS ${app.getVersion()} started (${process.platform}, Electron ${process.versions.electron})`);
+  process.on('uncaughtException', (error) => log.error('main', 'Uncaught exception', error));
+  process.on('unhandledRejection', (reason) => log.error('main', 'Unhandled promise rejection', reason));
+  app.on('render-process-gone', (_event, _contents, details) => log.error('main', `The window's process ended (${details.reason}, code ${details.exitCode})`));
+  app.on('child-process-gone', (_event, details) => log.error('main', `A ${details.type} process ended (${details.reason}, code ${details.exitCode})`));
   // One MicroPOS at a time (two would share one database): starting it again, for instance while it runs hidden in the tray, brings the till back.
   const gotLock = app.requestSingleInstanceLock();
   app.on('second-instance', () => showMainWindow());
@@ -178,7 +188,7 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
       try {
         if (database && accrueInterest(database.db) > 0) emitDataChanged(['customers']); // interest was charged
       } catch (error) {
-        console.error('Could not charge credit interest', error);
+        log.error('interest', 'Could not charge credit interest', error);
       }
     };
     accrue();
@@ -200,6 +210,7 @@ if (handleSquirrelEvent(process.argv, process.execPath)) {
 }
 
 app.on('before-quit', () => {
+  log.info('app', 'Quitting');
   quitting = true; // when an updater is added: also set this on autoUpdater's 'before-quit-for-update', which closes windows first
 });
 
