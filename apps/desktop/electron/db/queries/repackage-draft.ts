@@ -2,8 +2,9 @@ import { eq } from 'drizzle-orm';
 import type { RepackageDraft } from '@micropos/core';
 import type { AppDatabase } from '../index';
 import { settings } from '../schema';
+import { claimedKey } from './owned-drafts';
 
-/** A half-filled Repackage form lives in the settings table (one draft) so it survives closing and restarts. */
+/** A half-filled Repackage form lives in the settings table (one draft per person, `repackage.draft@<employee id>`) so it survives closing and restarts. */
 const KEY = 'repackage.draft';
 const MAX_TARGETS = 10;
 
@@ -27,18 +28,18 @@ export function sanitizeRepackageDraft(value: unknown): RepackageDraft {
 }
 
 export function loadRepackageDraft(db: AppDatabase): RepackageDraft | null {
-  const [row] = db.select().from(settings).where(eq(settings.key, KEY)).all();
+  const [row] = db.select().from(settings).where(eq(settings.key, claimedKey(db, KEY))).all();
   return row ? sanitizeRepackageDraft(row.value) : null;
 }
 
 export function saveRepackageDraft(db: AppDatabase, draft: unknown): void {
   const value = sanitizeRepackageDraft(draft);
   db.insert(settings)
-    .values({ key: KEY, value })
+    .values({ key: claimedKey(db, KEY), value })
     .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: Date.now() } })
     .run();
 }
 
 export function clearRepackageDraft(db: AppDatabase): void {
-  db.delete(settings).where(eq(settings.key, KEY)).run();
+  db.delete(settings).where(eq(settings.key, claimedKey(db, KEY))).run();
 }

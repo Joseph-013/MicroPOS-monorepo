@@ -1,21 +1,25 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { type CheckoutDraft, type DraftLine, isDiscountSpec, MAX_DISCOUNT_REASON, MAX_ORDER_NOTE } from '@micropos/core';
 import { sessionState } from '../../auth/context';
 import type { AppDatabase } from '../index';
-import { PRODUCT_UNITS, type ProductUnit, settings } from '../schema';
+import { employees, PRODUCT_UNITS, type ProductUnit, settings } from '../schema';
+import { claimedKey, draftOwner, ownedKey, splitOwnedKey } from './owned-drafts';
 
-/**
- * The checkout draft lives in the settings table under one key (one in-progress order per register).
- * Once employees sign in this should become an `open` order per employee instead.
- */
+/** The checkout order in progress lives in the settings table, as JSON, under a key made from this one. */
 export const DRAFT_KEY = 'checkout.draft';
 
 /**
- * Where the checkout order in progress is kept: one for the till's own window and one for each paired phone, so a phone and
- * the till (or two phones) never share, overwrite or complete each other's order.
+ * The checkout orders of one device: the till's own window (`checkout.draft`) or a paired phone
+ * (`checkout.draft.<device id>`), so a phone and the till (or two phones) never share, overwrite or complete each other's
+ * order. Each person has their own under it (`@<employee id>`, see `owned-drafts.ts`).
  */
-export function draftKey(deviceId: string | null = sessionState().deviceId): string {
+export function deviceDraftKey(deviceId: string | null = sessionState().deviceId): string {
   return deviceId ? `${DRAFT_KEY}.${deviceId}` : DRAFT_KEY;
+}
+
+/** Where the signed-in person's order in progress on this device is kept. */
+export function draftKey(deviceId: string | null = sessionState().deviceId, owner: string | null = draftOwner()): string {
+  return ownedKey(deviceDraftKey(deviceId), owner);
 }
 const MAX_LINES = 500;
 
@@ -46,13 +50,37 @@ export function sanitizeDraft(value: unknown): CheckoutDraft {
 }
 
 export function loadDraft(db: AppDatabase): CheckoutDraft | null {
-  const [row] = db.select().from(settings).where(eq(settings.key, draftKey())).all();
+  const [row] = db.select().from(settings).where(eq(settings.key, claimedKey(db, deviceDraftKey()))).all();
   const draft = sanitizeDraft(row?.value);
   return draft.lines.length ? draft : null;
 }
 
 export function clearDraft(db: AppDatabase): void {
-  db.delete(settings).where(eq(settings.key, draftKey())).run();
+  db.delete(settings).where(eq(settings.key, claimedKey(db, deviceDraftKey()))).run();
+}
+
+/**
+ * The names of the other people who have an order in progress on this device (the till, or this phone), by name, so
+ * Checkout can say so: their orders wait for them to sign in again.
+ */
+export function othersInProgress(db: AppDatabase): string[] {
+  const device = deviceDraftKey();
+  const me = draftOwner();
+  const owners = db
+    .select({ key: settings.key, value: settings.value })
+    .from(settings)
+    .all()
+    .map((row) => ({ ...splitOwnedKey(row.key), value: row.value }))
+    .filter((d) => d.plainKey === device && d.owner !== null && d.owner !== me && sanitizeDraft(d.value).lines.length > 0)
+    .map((d) => d.owner!);
+  if (!owners.length) return [];
+  return db
+    .select({ name: employees.name })
+    .from(employees)
+    .where(inArray(employees.id, owners))
+    .orderBy(employees.name)
+    .all()
+    .map((e) => e.name);
 }
 
 /** Saves the draft (an empty one removes it). */
@@ -65,7 +93,7 @@ export function saveDraft(db: AppDatabase, input: unknown): void {
   }
   if (!draft.lines.length) return clearDraft(db);
   db.insert(settings)
-    .values({ key: draftKey(), value: draft })
+    .values({ key: claimedKey(db, deviceDraftKey()), value: draft })
     .onConflictDoUpdate({ target: settings.key, set: { value: draft, updatedAt: Date.now() } })
     .run();
 }

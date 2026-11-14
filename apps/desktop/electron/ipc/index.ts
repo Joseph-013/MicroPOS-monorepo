@@ -17,7 +17,7 @@ import { exportReport } from '../reports/export';
 import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-interest';
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
 import { completeOrder, getOrder, orderIdByNumber, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
-import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
+import { clearDraft, loadDraft, othersInProgress, saveDraft } from '../db/queries/draft';
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../db/queries/repackage-draft';
 import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/queries/product-draft';
 import { setScannerEnabled } from '../scanner';
@@ -212,6 +212,7 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
   guarded(db, CHANNELS.checkout.saveDraft, 'checkout.sell', (_event, draft: unknown) => saveDraft(db, draft));
   guarded(db, CHANNELS.checkout.clearDraft, 'checkout.sell', () => clearDraft(db));
   guarded(db, CHANNELS.checkout.nextOrderNumber, 'checkout.sell', () => nextOrderNumber(db));
+  guarded(db, CHANNELS.checkout.othersInProgress, 'checkout.sell', () => othersInProgress(db));
   // The order comes from the renderer: completeOrder validates it and takes prices and names from the catalog.
   guarded(db, CHANNELS.checkout.completeOrder, 'checkout.sell', (_event, input: unknown) => {
     // Giving a discount is a permission of its own: a cashier's order that carries one is refused whole.

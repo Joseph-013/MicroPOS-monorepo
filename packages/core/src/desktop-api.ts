@@ -38,7 +38,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 51;
+export const DESKTOP_API_VERSION = 52;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -290,6 +290,8 @@ export interface DesktopApi {
     clearDraft(): Promise<void>;
     /** The number the next order will get (shown while it is being rung up). */
     nextOrderNumber(): Promise<string>;
+    /** The names of the other people with an order in progress on this device (the till, or this phone); theirs wait for them. */
+    othersInProgress(): Promise<string[]>;
     /**
      * Completes the order in one transaction: re-checks prices and stock, records the order, its lines, the payment
      * and the stock taken (first-expiring-first-out), and removes the saved draft. Nothing is written if any line fails.

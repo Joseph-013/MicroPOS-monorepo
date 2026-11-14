@@ -4,6 +4,7 @@ import type { AppDatabase } from '../index';
 import { categories, PRODUCT_TRACKING, type ProductTracking, PRODUCT_UNITS, type ProductUnit, productCategories, products } from '../schema';
 import { categoriesByProduct } from './catalog';
 import { stockSummary } from './inventory';
+import { clearProductDraftsForEveryone } from './product-draft';
 
 const MAX_CENTS = 100_000_000_00;
 const MAX_CATEGORIES = 100;
@@ -201,6 +202,7 @@ export function deleteProducts(db: AppDatabase, ids: unknown): void {
     .set({ deletedAt: Date.now() })
     .where(and(inArray(products.id, list), isNull(products.deletedAt)))
     .run();
+  for (const id of list) clearProductDraftsForEveryone(db, id); // a deleted product cannot be edited: nobody's draft of it is any use
 }
 
 /** Sets the active flag of live products (inactive ones stay on file but are not offered at checkout). */

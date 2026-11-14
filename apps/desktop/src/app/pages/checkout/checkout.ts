@@ -35,6 +35,7 @@ import { OnScreenKeypadDirective } from '../../core/keypad';
 import { FocusSelectDirective } from '../../core/ui/focus-select.directive';
 import { HoldRepeatDirective } from '../../core/ui/hold-repeat.directive';
 import { claimScanner } from '../../core/scanner';
+import { isLanDevice } from '../../core/api/remote-api';
 
 const formatMoney = (cents: number): string => new MoneyPipe().transform(cents);
 
@@ -44,6 +45,9 @@ const PAYMENT_METHODS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', bank_
 type PaymentMethod = keyof typeof PAYMENT_METHODS;
 
 /** Checkout: order lines on the left, payment controls on the right, item browser in a dialog. */
+/** Sign-ins (the user object `AuthService` sets on each) already told about others' orders in progress. */
+const announcedOthersFor = new WeakSet<object>();
+
 @Component({
   imports: [
     HlmSwitchImports,
@@ -229,6 +233,7 @@ export class CheckoutPage {
       }
       this.draftRestored.set(true);
     });
+    void this.announceOthersInProgress();
     effect(() => {
       const lines = this.lines();
       const orderDiscount = this.orderDiscountSpec();
@@ -510,5 +515,20 @@ export class CheckoutPage {
           return price ? { ...l, name: price.name, unitPrice: price.unitPrice, unit: price.unit } : l;
         }),
     );
+  }
+
+  /**
+   * Orders in progress belong to the person who started them; someone else's waits for them on this till. Says so once
+   * per sign-in (not on every return to Checkout): "Sam has an order in progress on this till".
+   */
+  private async announceOthersInProgress(): Promise<void> {
+    const user = this.auth.user();
+    if (!user || announcedOthersFor.has(user)) return;
+    announcedOthersFor.add(user);
+    const names = await this.draft.othersInProgress();
+    if (!names.length) return;
+    const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+    const place = isLanDevice() ? 'this device' : 'this till';
+    this.banner.info(`${who} ${names.length === 1 ? 'has an order' : 'have orders'} in progress on ${place}`, { duration: 'long', key: 'others-in-progress' });
   }
 }

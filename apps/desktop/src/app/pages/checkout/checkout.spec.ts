@@ -50,6 +50,8 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     published: [] as CustomerDisplayState[],
     /** Receipts asked for, and what the fake main process answers. */
     printed: [] as string[],
+    /** Other people with an order in progress on this till. */
+    others: [] as string[],
     printResult: { ok: true } as { ok: true; savedTo?: string } | { ok: false; code: 'not-configured'; error: string },
   };
   const listeners: ((open: boolean) => void)[] = [];
@@ -142,6 +144,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
         return Promise.resolve();
       },
       nextOrderNumber: () => Promise.resolve(`SO-${1001 + store.orders.length}`),
+      othersInProgress: () => Promise.resolve(store.others),
       completeOrder: (input) => {
         store.orders.push(input);
         const result = store.result ?? { ok: true as const, orderId: 'o', orderNumber: `SO-${1000 + store.orders.length}`, total: 0, change: 0, onAccount: 0 };
@@ -595,6 +598,24 @@ describe('CheckoutPage', () => {
         TestBed.inject(AuthService).user.set(sessionUser(permissions));
         await fixture.whenStable();
       };
+
+      it('says once per sign-in whose orders are waiting on this till', async () => {
+        const announce = (): Promise<void> => (fixture.componentInstance as unknown as { announceOthersInProgress(): Promise<void> }).announceOthersInProgress();
+        const banners = TestBed.inject(BannerService);
+        store.others = ['Sam'];
+        await signIn('checkout.sell');
+        banners.clear();
+        await announce();
+        expect(banners.current()?.text).toBe('Sam has an order in progress on this till');
+        banners.clear();
+        await announce();
+        expect(banners.current()).toBeNull(); // the same sign-in is not told again
+
+        store.others = ['Ana', 'Lee', 'Sam'];
+        await signIn('checkout.sell'); // a new sign-in
+        await announce();
+        expect(banners.current()?.text).toBe('Ana, Lee and Sam have orders in progress on this till');
+      });
 
       it('offers a discount only to someone who may give one', async () => {
         scan(PRODUCTS[1].barcode!);

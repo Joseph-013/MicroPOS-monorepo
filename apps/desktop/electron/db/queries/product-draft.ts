@@ -2,10 +2,12 @@ import { eq } from 'drizzle-orm';
 import type { ProductDraft } from '@micropos/core';
 import type { AppDatabase } from '../index';
 import { PRODUCT_TRACKING, PRODUCT_UNITS, type ProductTracking, type ProductUnit, settings } from '../schema';
+import { claimedKey, deleteDraftForEveryone } from './owned-drafts';
 
 /**
  * A half-filled product form is kept in the settings table so it survives closing the dialog, navigating away or
- * restarting the app: one draft per form, under `product.draft.new` (adding) or `product.draft.<product id>` (editing).
+ * restarting the app: one draft per form and person, under `product.draft.new` (adding) or `product.draft.<product id>`
+ * (editing), plus `@<employee id>` (see `owned-drafts.ts`).
  */
 const PREFIX = 'product.draft.';
 const MAX_CATEGORIES = 100;
@@ -37,15 +39,17 @@ export function sanitizeProductDraft(value: unknown): ProductDraft {
 }
 
 export function loadProductDraft(db: AppDatabase, form: unknown): ProductDraft | null {
-  const key = keyFor(form);
-  if (!key) return null;
+  const plain = keyFor(form);
+  if (!plain) return null;
+  const key = claimedKey(db, plain);
   const [row] = db.select().from(settings).where(eq(settings.key, key)).all();
   return row ? sanitizeProductDraft(row.value) : null;
 }
 
 export function saveProductDraft(db: AppDatabase, form: unknown, draft: unknown): void {
-  const key = keyFor(form);
-  if (!key) return;
+  const plain = keyFor(form);
+  if (!plain) return;
+  const key = claimedKey(db, plain);
   const value = sanitizeProductDraft(draft);
   db.insert(settings)
     .values({ key, value })
@@ -54,6 +58,11 @@ export function saveProductDraft(db: AppDatabase, form: unknown, draft: unknown)
 }
 
 export function clearProductDraft(db: AppDatabase, form: unknown): void {
-  const key = keyFor(form);
-  if (key) db.delete(settings).where(eq(settings.key, key)).run();
+  const plain = keyFor(form);
+  if (plain) db.delete(settings).where(eq(settings.key, claimedKey(db, plain))).run();
+}
+
+/** A deleted product cannot be edited, so nobody's draft of its form is any use any more. */
+export function clearProductDraftsForEveryone(db: AppDatabase, productId: string): void {
+  deleteDraftForEveryone(db, PREFIX + productId);
 }

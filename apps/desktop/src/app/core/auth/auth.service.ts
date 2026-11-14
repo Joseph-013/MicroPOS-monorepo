@@ -3,6 +3,7 @@ import { computed, inject, Service, signal } from '@angular/core';
 import { ActivatedRouteSnapshot, Router } from '@angular/router';
 import { ALL_PERMISSIONS, PAGE_PERMISSIONS, type ChangePinResult, type Permission, type SessionUser, type SignInChoice, type SignInResult } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
+import { CheckoutDraftService } from '../data/checkout-draft.service';
 
 /** Used where there is no main process to sign in to (the page opened in a plain browser): nothing is locked. */
 const PREVIEW_USER: SessionUser = { id: 'preview', name: 'Preview', role: 'admin', permissions: [...ALL_PERMISSIONS], pinChangeRequired: false };
@@ -16,6 +17,7 @@ export class AuthService {
   private readonly api = inject(DESKTOP_API);
   private readonly dialogs = inject(Dialog);
   private readonly router = inject(Router);
+  private readonly checkoutDraft = inject(CheckoutDraftService);
 
   readonly user = signal<SessionUser | null>(null);
   /** False until the main process has said whether someone is already signed in (a reloaded window keeps its session). */
@@ -76,6 +78,9 @@ export class AuthService {
 
   /** Locks the till: dialogs left open are closed (a half-filled form keeps its saved draft). */
   async signOut(): Promise<void> {
+    // The order in progress is saved as this person's before the session ends (its debounced save would otherwise be
+    // sent after the sign-out, and refused). Dialogs save their drafts as they close, before the sign-out is sent too.
+    this.checkoutDraft.flush();
     this.dialogs.closeAll();
     try {
       await this.api?.auth.signOut();
