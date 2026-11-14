@@ -1,9 +1,28 @@
+@if (drawer.mobile() && drawer.open()) {
+  <!-- On a phone the drawer sits over the page: a tap outside it closes it. -->
+  <div class="fixed inset-0 z-30 bg-black/40" aria-hidden="true" (click)="drawer.close()"></div>
+}
 <nav
   #rail
+  id="main-nav"
   aria-label="Main"
-  class="bg-background border-border fixed top-(--banner-offset,0px) bottom-0 left-0 z-20 flex flex-col overflow-hidden border-r p-2 transition-[width,box-shadow] duration-200 ease-out"
-  [class.shadow-lg]="expanded() && !pinned()"
-  [style.width]="expanded() ? '16rem' : '3.5rem'"
+  class="bg-background border-border fixed top-(--banner-offset,0px) bottom-0 flex flex-col overflow-hidden p-2 duration-200 ease-out"
+  [class.left-0]="!drawer.mobile()"
+  [class.border-r]="!drawer.mobile()"
+  [class.z-20]="!drawer.mobile()"
+  [class.transition-[width,box-shadow]]="!drawer.mobile()"
+  [class.right-0]="drawer.mobile()"
+  [class.border-l]="drawer.mobile()"
+  [class.z-40]="drawer.mobile()"
+  [class.w-72]="drawer.mobile()"
+  [class.max-w-[85vw]]="drawer.mobile()"
+  [class.transition-transform]="drawer.mobile()"
+  [class.translate-x-full]="drawer.mobile() && !drawer.open()"
+  [class.shadow-xl]="drawer.mobile() && drawer.open()"
+  [attr.inert]="drawer.mobile() && !drawer.open() ? '' : null"
+  [attr.aria-hidden]="drawer.mobile() && !drawer.open() ? 'true' : null"
+  [class.shadow-lg]="!drawer.mobile() && expanded() && !pinned()"
+  [style.width]="drawer.mobile() ? null : expanded() ? '16rem' : '3.5rem'"
   (mouseenter)="setHovered(true)"
   (mouseleave)="setHovered(false)"
   (focusin)="setHovered(true)"
@@ -19,18 +38,20 @@
       <ng-icon name="lucideComputer" size="22" strokeWidth="2.75" />
     </span>
     <app-logo class="shrink-0 transition-opacity duration-150" [class.opacity-0]="!expanded()" />
-    <button
-      type="button"
-      class="text-muted-foreground hover:bg-accent hover:text-foreground flex size-10 shrink-0 items-center justify-center transition-opacity duration-150"
-      [class.opacity-0]="!expanded()"
-      [class.pointer-events-none]="!expanded()"
-      [tabindex]="expanded() ? 0 : -1"
-      [attr.aria-pressed]="pinned()"
-      [attr.aria-label]="pinned() ? 'Unpin navigation' : 'Pin navigation open'"
-      (click)="togglePin()"
-    >
-      <ng-icon [name]="pinned() ? 'lucidePinOff' : 'lucidePin'" size="16" strokeWidth="1.5" />
-    </button>
+    @if (!drawer.mobile()) {
+      <button
+        type="button"
+        class="text-muted-foreground hover:bg-accent hover:text-foreground flex size-10 shrink-0 items-center justify-center transition-opacity duration-150"
+        [class.opacity-0]="!expanded()"
+        [class.pointer-events-none]="!expanded()"
+        [tabindex]="expanded() ? 0 : -1"
+        [attr.aria-pressed]="pinned()"
+        [attr.aria-label]="pinned() ? 'Unpin navigation' : 'Pin navigation open'"
+        (click)="togglePin()"
+      >
+        <ng-icon [name]="pinned() ? 'lucidePinOff' : 'lucidePin'" size="16" strokeWidth="1.5" />
+      </button>
+    }
   </div>
 
   <ul class="flex flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden">

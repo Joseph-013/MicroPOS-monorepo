@@ -11,6 +11,7 @@ import { CustomerViewer } from './core/customer-viewer';
 import { LastRoute } from './core/last-route';
 import { KioskFocusService } from './core/kiosk/kiosk-focus.service';
 import { NavRail } from './core/nav-rail';
+import { Topbar } from './core/topbar';
 import { NewProductViewer } from './core/new-product-viewer';
 import { ProductViewer } from './core/product-viewer';
 import { PurchaseViewer } from './core/purchase-viewer';
@@ -21,7 +22,7 @@ import { AppSettings } from './core/settings/app-settings.service';
 import { ThemeService } from './core/theme.service';
 
 @Component({
-  imports: [BannerHost, NavRail, RouterOutlet, SignInScreen],
+  imports: [BannerHost, NavRail, RouterOutlet, SignInScreen, Topbar],
   selector: 'app-root',
   templateUrl: './app.html',
 })

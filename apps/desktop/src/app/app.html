@@ -2,14 +2,17 @@
   <!-- The customer-facing window: the display page alone. -->
   <router-outlet />
 } @else {
-  <div class="flex min-h-svh pt-(--banner-offset,0px)" [style.--banner-offset]="bannerOffset() ? '2.25rem' : '0px'">
+  <div class="flex min-h-svh pt-(--banner-offset,0px) [--topbar-height:3rem]" [style.--banner-offset]="bannerOffset() ? '2.25rem' : '0px'">
     <app-nav-rail />
-    <main class="min-w-0 flex-1 p-3">
-      <!-- Nothing of the pages is shown while the till is locked. -->
-      @if (!locked()) {
-        <router-outlet />
-      }
-    </main>
+    <div class="flex min-w-0 flex-1 flex-col">
+      <app-topbar />
+      <main class="min-w-0 flex-1 p-3">
+        <!-- Nothing of the pages is shown while the till is locked. -->
+        @if (!locked()) {
+          <router-outlet />
+        }
+      </main>
+    </div>
   </div>
   @if (locked()) {
     <app-sign-in-screen />

@@ -27,6 +27,7 @@ import type { Permission } from '@micropos/core';
 import { devNav } from '../../environments/dev-tools';
 import { AuthService } from './auth/auth.service';
 import { NavBadges } from './nav-badges';
+import { NavDrawer } from './nav-drawer';
 import { Logo } from './logo';
 import { StorageService } from './storage/storage.service';
 
@@ -72,16 +73,19 @@ export interface NavItem {
     }),
   ],
   templateUrl: './nav-rail.html',
-  host: { class: 'block shrink-0 transition-[width] duration-200 ease-out' , '[style.width]': 'pinned() ? "16rem" : "3.5rem"' },
+  // The rail's own space in the page (it is fixed to the left); none on a phone, where the navigation is a drawer over the page.
+  host: { class: 'block shrink-0 transition-[width] duration-200 ease-out', '[style.width]': 'drawer.mobile() ? "0" : pinned() ? "16rem" : "3.5rem"', '(document:keydown.escape)': 'drawer.close()' },
 })
 export class NavRail {
   protected readonly auth = inject(AuthService);
+  protected readonly drawer = inject(NavDrawer);
   private readonly badges = inject(NavBadges);
   private readonly storage = inject(StorageService);
 
   protected readonly pinned = signal(this.storage.get('navPinned', false, (v): v is boolean => typeof v === 'boolean'));
   private readonly hovered = signal(false);
-  protected readonly expanded = computed(() => this.pinned() || this.hovered());
+  /** Always open in the drawer (labels shown); the rail on wide screens opens on hover or when pinned. */
+  protected readonly expanded = computed(() => this.drawer.mobile() || this.pinned() || this.hovered());
 
   protected readonly nav: NavItem[] = [
     { id: 'dashboard', path: '/dashboard', label: 'Dashboard', icon: 'lucideLayoutDashboard', permission: 'dashboard.view' },
@@ -157,6 +161,7 @@ export class NavRail {
       )
       .subscribe(() => {
         this.openActiveGroups();
+        this.drawer.close(); // choosing a page folds the drawer away
         // After a touch the rail folds away once you pick a page (there is no pointer to leave it). With a mouse it
         // stays open while the pointer is over it and folds when the pointer leaves, as usual.
         if (this.lastPointerType !== 'mouse') this.hovered.set(false);
