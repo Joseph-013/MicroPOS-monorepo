@@ -68,4 +68,14 @@ describe('NavRail access', () => {
     });
     expect(text).not.toMatch(/\d/);
   });
+
+  it('shows the cash drawer to people who may use it and reports to people who may view them', async () => {
+    const cashier = await render(['checkout.sell', 'cash.manage']);
+    expect(cashier).toContain('Cash drawer');
+    expect(cashier).not.toContain('Reports');
+    TestBed.resetTestingModule();
+    const manager = await render(['reports.view']);
+    expect(manager).toContain('Reports');
+    expect(manager).not.toContain('Cash drawer');
+  });
 });

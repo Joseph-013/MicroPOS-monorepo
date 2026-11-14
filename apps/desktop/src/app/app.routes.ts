@@ -45,6 +45,18 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/orders/orders').then((m) => m.OrdersPage),
   },
   {
+    path: 'cash',
+    ...requires('cash.manage'),
+    title: 'Cash drawer',
+    loadComponent: () => import('./pages/cash/cash-drawer').then((m) => m.CashDrawerPage),
+  },
+  {
+    path: 'reports',
+    ...requires('reports.view'),
+    title: 'Reports',
+    loadComponent: () => import('./pages/reports/reports').then((m) => m.ReportsPage),
+  },
+  {
     path: 'customers',
     ...requires('customers.view'),
     title: 'Customers',

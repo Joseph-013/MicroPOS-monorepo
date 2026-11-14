@@ -74,9 +74,11 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     },
     data: { onChanged: () => () => undefined },
       shell: { getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true), getLogsFolder: () => Promise.resolve(null), openLogsFolder: () => Promise.resolve(false) },
+      cash: { state: () => Promise.resolve({ session: null, movements: [], lastClosed: null }), open: () => Promise.reject(new Error('unused')), addMovement: () => Promise.reject(new Error('unused')), close: () => Promise.reject(new Error('unused')) },
+      reports: { daily: () => Promise.resolve(null) },
       debug: { get: () => Promise.resolve({ saveImages: false, folder: '/downloads/MicroPOS receipts' }), setSaveImages: () => Promise.resolve(true), openReceiptsFolder: () => Promise.resolve(true) },
       log: { write: () => Promise.resolve() },
-      printer: { getLogo: () => Promise.resolve(null), saveLogo: () => Promise.reject(new Error('unused')), removeLogo: () => Promise.resolve(), settings: () => Promise.reject(new Error('unused')), save: () => Promise.reject(new Error('unused')), listUsb: () => Promise.resolve([]), testPrint: () => Promise.reject(new Error('unused')), printOrder: (id: string) => (store.printed.push(id), Promise.resolve(store.printResult)) },
+      printer: { getLogo: () => Promise.resolve(null), saveLogo: () => Promise.reject(new Error('unused')), removeLogo: () => Promise.resolve(), settings: () => Promise.reject(new Error('unused')), save: () => Promise.reject(new Error('unused')), listUsb: () => Promise.resolve([]), testPrint: () => Promise.reject(new Error('unused')), printOrder: (id: string) => (store.printed.push(id), Promise.resolve(store.printResult)), printDailyReport: () => Promise.reject(new Error('unused')) },
     scanner: { onScan: () => () => undefined, setEnabled: () => Promise.resolve() },
     catalog: {
       listProducts: () => Promise.resolve(PRODUCTS),
