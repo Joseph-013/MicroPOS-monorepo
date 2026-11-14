@@ -34,6 +34,38 @@ function setup() {
   return { ...bridge, scanner: TestBed.inject(ScannerService) };
 }
 
+describe('ScannerService hooks', () => {
+  it('see a scan before the claims and keep it from them when they take it', () => {
+    const { scanner, fire } = setup();
+    const claimed: string[] = [];
+    scanner.claim(({ code }) => void claimed.push(code));
+    const hooked: string[] = [];
+    const remove = scanner.addHook((code) => (hooked.push(code), code.startsWith('QR-')));
+    fire('QR-1');
+    fire('123');
+    expect(hooked).toEqual(['QR-1', '123']);
+    expect(claimed).toEqual(['123']); // the hook took the first and declined the second
+    remove();
+    fire('QR-2');
+    expect(claimed).toEqual(['123', 'QR-2']);
+  });
+
+  it('do not take a scan from a focused scan input, which is for that field', () => {
+    const { scanner, fire } = setup();
+    const seen: string[] = [];
+    scanner.addHook((code) => (seen.push(code), true));
+    const input = document.createElement('input');
+    document.body.append(input);
+    const got: string[] = [];
+    scanner.registerInput(input, ({ code }) => void got.push(code));
+    input.focus();
+    fire('MICROPOS-ORDER-SO-1');
+    expect(got).toEqual(['MICROPOS-ORDER-SO-1']);
+    expect(seen).toEqual([]);
+    input.remove();
+  });
+});
+
 describe('ScannerService', () => {
   it('delivers a scan sent by the main process to the active claim', () => {
     const { scanner, fire } = setup();

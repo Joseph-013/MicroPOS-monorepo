@@ -13,6 +13,7 @@ import { NavRail } from './core/nav-rail';
 import { NewProductViewer } from './core/new-product-viewer';
 import { ProductViewer } from './core/product-viewer';
 import { PurchaseViewer } from './core/purchase-viewer';
+import { OrderQrScan } from './core/order-qr-scan';
 import { SalesOrderViewer } from './core/sales-order-viewer';
 import { ScannerService } from './core/scanner';
 import { AppSettings } from './core/settings/app-settings.service';
@@ -31,6 +32,8 @@ export class App {
   private readonly apiGuard = inject(DesktopApiGuard);
   /** Opens `?view-sales-order=<id>` in a dialog over any page. */
   private readonly salesOrderViewer = inject(SalesOrderViewer);
+  /** Started at launch: scanning the QR on a receipt opens its sale. */
+  private readonly orderQrScan = inject(OrderQrScan);
   /** Opens `?view-product=<id>` in a read-only product dialog over any page. */
   private readonly productViewer = inject(ProductViewer);
   /** Opens `?new-product=<barcode>` in the add-product form over any page. */

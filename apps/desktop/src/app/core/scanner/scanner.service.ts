@@ -15,6 +15,9 @@ export interface ScannerClaim {
 
 type ScanInputHandler = (scan: Scan) => void;
 
+/** A hook sees every scan before the claims do; returning true means it was for the hook and nobody else gets it. */
+export type ScanHook = (code: string) => boolean;
+
 /**
  * Barcode scans (USB keyboard-wedge scanner), delivered by the Electron main process.
  *
@@ -26,6 +29,8 @@ type ScanInputHandler = (scan: Scan) => void;
  * - Components take turns by *claiming* the scanner. The most recent claim gets scans first; releasing it hands
  *   control back to the previous claim, so a dialog can take over and give it back when it closes.
  * - A handler may return `false` to pass a scan down to the next claim. With no claims, scans are dropped.
+ * - A hook (`addHook`) sees every scan first and may take it: for codes that mean the same wherever the till is,
+ *   such as the QR code on a receipt (`OrderQrScan`).
  * - A focused field marked with `appScanInput` receives the scan itself (its value is set to the code) instead
  *   of the claims.
  *
@@ -38,6 +43,7 @@ export class ScannerService {
   private claims: { id: number; handler: ScanHandler }[] = [];
   private nextId = 0;
   private readonly inputs = new Map<Element, ScanInputHandler>();
+  private hooks: ScanHook[] = [];
 
   /** Turn scanning on or off globally (off lets scanner keys through as ordinary typing). */
   readonly enabled = signal(true);
@@ -56,6 +62,12 @@ export class ScannerService {
     return { release: () => (this.claims = this.claims.filter((c) => c.id !== id)) };
   }
 
+  /** Adds a hook that sees every scan before the claims (not before a focused scan input). Returns a function that removes it. */
+  addHook(hook: ScanHook): () => void {
+    this.hooks.push(hook);
+    return () => (this.hooks = this.hooks.filter((h) => h !== hook));
+  }
+
   /** Mark a text field as a scan target (see `ScanInputDirective`). Returns an unregister function. */
   registerInput(element: Element, handler: ScanInputHandler): () => void {
     this.inputs.set(element, handler);
@@ -71,6 +83,10 @@ export class ScannerService {
     if (input) {
       input(scan);
       devLog(`[scanner] "${code}" (${code.length} chars) delivered to the focused scan input field`);
+      return;
+    }
+    if (this.hooks.some((hook) => hook(code))) {
+      devLog(`[scanner] "${code}" (${code.length} chars) taken by a hook`);
       return;
     }
     for (let i = this.claims.length - 1; i >= 0; i--) {
