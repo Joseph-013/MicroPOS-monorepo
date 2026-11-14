@@ -1,3 +1,4 @@
+import { log } from '../logging';
 import { CUSTOMER_DISPLAY_MODES, type CustomerDisplayMode, type CustomerDisplayState, IDLE_DISPLAY_STATE } from '@micropos/core';
 import { app, type BrowserWindow, ipcMain, screen } from 'electron';
 import fs from 'node:fs';
@@ -46,7 +47,7 @@ function savePlacement(target: BrowserWindow): void {
   try {
     fs.writeFileSync(placementFile(), JSON.stringify(placement));
   } catch (error) {
-    console.error('Could not remember the customer display position', error);
+    log.error('display', 'Could not remember the customer display position', error);
   }
 }
 
