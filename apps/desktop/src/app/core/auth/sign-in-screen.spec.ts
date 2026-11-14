@@ -3,7 +3,7 @@ import { provideRouter } from '@angular/router';
 import { DESKTOP_API } from '../api/desktop-api';
 import { AuthService } from './auth.service';
 import { fakeAuthApi, sessionUser } from './testing';
-import { SIGN_IN_FILTER_FROM, SignInScreen } from './sign-in-screen';
+import { SIGN_IN_FILTER_FROM, SIGN_IN_IDLE_MS, SignInScreen } from './sign-in-screen';
 
 describe('SignInScreen', () => {
   let fixture: ComponentFixture<SignInScreen>;
@@ -93,6 +93,47 @@ describe('SignInScreen', () => {
     await press('Restore from backup');
     expect(fake.calls.importFresh).toBe(1);
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('This is not a MicroPOS database');
+  });
+
+  describe('left alone', () => {
+    afterEach(() => vi.useRealTimers());
+    // With a fake clock whenStable never settles (the screen's clock always has a timer waiting): render by hand.
+    const wait = async (ms: number): Promise<void> => {
+      await vi.advanceTimersByTimeAsync(ms);
+      fixture.detectChanges();
+    };
+    const tap = async (...labels: string[]): Promise<void> => {
+      for (const label of labels) {
+        button(label).click();
+        await wait(0);
+      }
+    };
+    const onPinStep = (): boolean => !!el.textContent?.includes('Enter your PIN');
+
+    it('clears a half-typed PIN and goes back to the people', async () => {
+      await open();
+      vi.useFakeTimers();
+      await tap('Sam', '1', '2');
+      await wait(SIGN_IN_IDLE_MS - 1000);
+      expect(onPinStep()).toBe(true);
+      await wait(1000);
+      expect(onPinStep()).toBe(false);
+      expect(button('Sam')).toBeDefined(); // the tiles again
+      await tap('Sam');
+      expect(el.querySelectorAll('[data-pin-dots] span')).toHaveLength(0); // the digits did not survive
+    });
+
+    it('waits again after every key pressed', async () => {
+      await open();
+      vi.useFakeTimers();
+      await tap('Sam');
+      await wait(SIGN_IN_IDLE_MS - 5000);
+      await tap('1');
+      await wait(SIGN_IN_IDLE_MS - 5000);
+      expect(onPinStep()).toBe(true);
+      await wait(5000);
+      expect(onPinStep()).toBe(false);
+    });
   });
 
   it('asks for a new PIN of their own after signing in with a starting one', async () => {

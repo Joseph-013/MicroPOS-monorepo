@@ -39,6 +39,8 @@ export class PinPad {
   readonly submitted = output<string>();
   /** The first digit typed after an error. */
   readonly typing = output<void>();
+  /** Any key pressed (a digit, back or Enter, tapped or typed): someone is still entering their PIN. */
+  readonly activity = output<void>();
 
   protected readonly keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
   private readonly entered = signal('');
@@ -46,16 +48,19 @@ export class PinPad {
   protected readonly complete = computed(() => this.entered().length >= PIN_MIN_LENGTH);
 
   protected digit(key: string): void {
+    this.activity.emit();
     if (this.entered().length >= PIN_MAX_LENGTH) return;
     if (this.entered() === '') this.typing.emit();
     this.entered.update((value) => value + key);
   }
 
   protected back(): void {
+    this.activity.emit();
     this.entered.update((value) => value.slice(0, -1));
   }
 
   protected submit(): void {
+    this.activity.emit();
     if (!this.complete() || this.busy()) return;
     const pin = this.entered();
     this.entered.set('');

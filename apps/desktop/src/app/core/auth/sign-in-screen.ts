@@ -11,6 +11,12 @@ import { PinPad } from './pin-pad';
 /** From this many people on, a name filter is shown above the tiles. */
 export const SIGN_IN_FILTER_FROM = 13;
 
+/**
+ * A PIN step left alone this long (no key pressed) clears the digits and goes back to the people, so a half-typed PIN
+ * is not left on the till for the next person; a name typed in the filter is cleared too.
+ */
+export const SIGN_IN_IDLE_MS = 30_000;
+
 /** Lower case without accents, so "jose" finds "José". */
 const fold = (text: string): string => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
@@ -55,7 +61,7 @@ const fold = (text: string): string => text.normalize('NFD').replace(/\p{M}/gu, 
           <h1 class="max-w-full truncate text-xl">{{ person.name }}</h1>
           <p class="text-muted-foreground text-sm">{{ roleLabel(person) }}</p>
         </div>
-        <app-pin-pad [error]="error()" [busy]="busy()" (typing)="error.set('')" (submitted)="submit(person, $event)" />
+        <app-pin-pad [error]="error()" [busy]="busy()" (typing)="error.set('')" (activity)="stillHere()" (submitted)="submit(person, $event)" />
         <button hlmBtn variant="outline" type="button" class="px-5" (click)="back()">Someone else</button>
       </section>
     } @else {
@@ -67,7 +73,7 @@ const fold = (text: string): string => text.normalize('NFD').replace(/\p{M}/gu, 
           <p class="text-muted-foreground text-sm">Nobody can sign in. Check the connection to the database.</p>
         } @else {
           @if (auth.choices().length >= filterFrom) {
-            <input hlmInput type="search" class="w-72 max-w-full" placeholder="Search name" aria-label="Search name" [value]="query()" (input)="query.set($any($event.target).value)" />
+            <input hlmInput type="search" class="w-72 max-w-full" placeholder="Search name" aria-label="Search name" [value]="query()" (input)="query.set($any($event.target).value); stillHere()" />
           }
           <!-- Fixed-width tiles centred in rows, so one person or seven sit in the middle; a long list scrolls inside. -->
           <ul class="flex max-h-[50svh] w-full flex-wrap justify-center gap-3 overflow-y-auto p-1">
@@ -122,10 +128,28 @@ export class SignInScreen {
     return words.length ? people.filter((p) => words.every((w) => fold(p.name).includes(w))) : people;
   });
 
+  private idleTimer: ReturnType<typeof setTimeout> | undefined;
+
   constructor() {
     const timer = setInterval(() => this.now.set(Date.now()), 1000);
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    inject(DestroyRef).onDestroy(() => {
+      clearInterval(timer);
+      clearTimeout(this.idleTimer);
+    });
     void this.load();
+  }
+
+  /** Someone is still at the screen (a person picked, a key pressed, a name typed): restarts the idle clock. */
+  protected stillHere(): void {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => this.idle(), SIGN_IN_IDLE_MS);
+  }
+
+  /** Nobody touched the screen for a while: back to the people, with the digits and the filter cleared. */
+  private idle(): void {
+    if (this.busy()) return this.stillHere(); // a sign-in is being checked: wait for its answer
+    this.back();
+    this.query.set('');
   }
 
   /** "Store Owner" -> "SO", "Ana" -> "A": the first letters of the first two words. */
@@ -140,9 +164,11 @@ export class SignInScreen {
   protected pick(person: SignInChoice): void {
     this.picked.set(person);
     this.query.set('');
+    this.stillHere();
   }
 
   protected back(): void {
+    clearTimeout(this.idleTimer);
     this.picked.set(null);
     this.error.set('');
   }
@@ -152,6 +178,7 @@ export class SignInScreen {
     const result = await this.auth.signIn(person.id, pin);
     this.busy.set(false);
     if (result.ok) {
+      clearTimeout(this.idleTimer);
       this.picked.set(null);
       this.error.set('');
     } else {
