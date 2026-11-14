@@ -1,67 +1,9 @@
-REMOVING THE OLD MICROPOS FROM WINDOWS
-======================================
+REMOVING THE OLD MICROPOS (1.0.0) FROM WINDOWS
+==============================================
 
-The first MicroPOS (version 1.0.0) was a Squirrel install (id "micropos",
-program "micropos.exe" in %LOCALAPPDATA%\micropos). The new MicroPOS (2.21 and
-later) uses its own Inno Setup installer, but keeps its data in the same
-%APPDATA%\micropos folder.
+Double-click remove-old-micropos.cmd (next to this file), as the Windows user
+who used the old MicroPOS. It runs remove-old-micropos.ps1, which explains
+each step as it goes; see the top of that file for its options (-WhatIf to
+see what it would do without changing anything).
 
-THE QUICK WAY
-  Double-click remove-old-micropos.cmd (next to this file), as the Windows user
-  who used the old MicroPOS. It does every step below: closes the old app,
-  copies the old database and logo to a "MicroPOS 1.0.0 backup ..." folder on
-  the Desktop, runs the old uninstaller, deletes the leftover folders, old
-  shortcuts and the old Installed apps entry, then pauses so you can read it.
-  It never touches the new MicroPOS: it leaves the data folder alone when it
-  looks like the new app's (run with -Force to delete it anyway).
-  Options (from PowerShell: .\remove-old-micropos.ps1 <options>):
-    -WhatIf      show what it would do, change nothing
-    -NoBackup    do not copy the old database first
-    -BackupTo X  put the backup in folder X instead of the Desktop
-    -Yes         do not ask before starting
-
-THE MANUAL WAY
-  Not tested against a real 1.0.0 install.
-
-BEFORE YOU START
-  To keep the old sales data, copy this file somewhere safe first:
-    %APPDATA%\micropos\micropos.db
-  The new MicroPOS cannot import the old database format.
-
-  If MicroPOS is running, close it (or in PowerShell):
-    Get-Process micropos -ErrorAction SilentlyContinue | Stop-Process
-
-
-1. UNINSTALL THE APP
-  Settings > Apps > Installed apps > "micropos" > Uninstall
-  or run:
-    %LOCALAPPDATA%\micropos\Update.exe --uninstall
-
-  This removes the app files and shortcuts but leaves the data.
-
-
-2. DELETE WHAT IS LEFT OVER
-  In File Explorer, delete these two folders (paste each path into the address bar):
-    %LOCALAPPDATA%\micropos     app files, if the uninstall left the folder behind
-    %APPDATA%\micropos          database, logs, shop logo, browser storage
-
-  Or in PowerShell:
-    Remove-Item -Recurse -Force "$env:LOCALAPPDATA\micropos"
-    Remove-Item -Recurse -Force "$env:APPDATA\micropos"
-
-
-3. SHORTCUTS AND REGISTRY
-  - Delete any "micropos" shortcut left on the Desktop or in
-    %APPDATA%\Microsoft\Windows\Start Menu\Programs
-  - The uninstaller normally removes its own registry entry. If "micropos" is
-    still listed in Installed apps afterwards, delete this key in regedit:
-      HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\micropos
-
-
-BEFORE INSTALLING THE NEW MICROPOS
-  Do step 1 first. The new app cannot open the old database (same file name,
-  different layout), so it will not start properly while
-  %APPDATA%\micropos\micropos.db is the old one. Either delete that folder by
-  hand (step 2), or choose "Delete existing data and start fresh" on the
-  setup wizard's Existing data page. Copy micropos.db somewhere safe first if
-  you want to keep the old records.
+Do this before installing the new MicroPOS.
