@@ -19,6 +19,10 @@ export interface DraftLine {
 /** The checkout order in progress, saved automatically so it survives navigation and restarts. */
 export interface CheckoutDraft {
   lines: DraftLine[];
+  /** The discount on the whole order as entered, why a discount was given, and the sale note (each only when set). */
+  orderDiscount?: DiscountSpec;
+  discountReason?: string;
+  note?: string;
 }
 
 /** How an order is paid. */

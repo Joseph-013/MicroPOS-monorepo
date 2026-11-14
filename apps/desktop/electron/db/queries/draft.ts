@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { type CheckoutDraft, type DraftLine, isDiscountSpec } from '@micropos/core';
+import { type CheckoutDraft, type DraftLine, isDiscountSpec, MAX_DISCOUNT_REASON, MAX_ORDER_NOTE } from '@micropos/core';
 import type { AppDatabase } from '../index';
 import { PRODUCT_UNITS, type ProductUnit, settings } from '../schema';
 
@@ -16,7 +16,8 @@ const isCents = (v: unknown): v is number => typeof v === 'number' && Number.isI
 
 /** Keeps only well-formed lines; anything else (corrupt or hand-edited data, a renderer bug) is dropped. */
 export function sanitizeDraft(value: unknown): CheckoutDraft {
-  const raw = (value as { lines?: unknown } | null)?.lines;
+  const source = value as { lines?: unknown; orderDiscount?: unknown; discountReason?: unknown; note?: unknown } | null;
+  const raw = source?.lines;
   if (!Array.isArray(raw)) return { lines: [] };
   const lines: DraftLine[] = [];
   for (const item of raw.slice(0, MAX_LINES)) {
@@ -29,7 +30,10 @@ export function sanitizeDraft(value: unknown): CheckoutDraft {
       lines.push({ productId: l.productId, name: l.name.slice(0, 200), quantityMilli, unitPrice: l.unitPrice, unit, ...(isDiscountSpec(l.discount) ? { discount: { mode: l.discount.mode, value: l.discount.value } } : {}) });
     }
   }
-  return { lines };
+  const orderDiscount = isDiscountSpec(source?.orderDiscount) ? { mode: source.orderDiscount.mode, value: source.orderDiscount.value } : null;
+  const discountReason = typeof source?.discountReason === 'string' ? source.discountReason.slice(0, MAX_DISCOUNT_REASON) : '';
+  const note = typeof source?.note === 'string' ? source.note.slice(0, MAX_ORDER_NOTE) : '';
+  return { lines, ...(orderDiscount ? { orderDiscount } : {}), ...(discountReason.trim() ? { discountReason } : {}), ...(note.trim() ? { note } : {}) };
 }
 
 export function loadDraft(db: AppDatabase): CheckoutDraft | null {

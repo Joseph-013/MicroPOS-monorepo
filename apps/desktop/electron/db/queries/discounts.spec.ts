@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildSaleReceipt, discountCents, EMPTY_RECEIPT_SHOP, layoutReceipt, parseDiscount } from '@micropos/core';
 import { type AppDatabase, createDatabase, SOURCE_MIGRATIONS_FOLDER } from '../index';
+import { loadDraft, saveDraft } from './draft';
 import { givesDiscount } from '../../ipc/discount-gate';
 import { completeOrder, getOrder, refundOrder } from './orders';
 import { createProduct } from './products';
@@ -52,6 +53,25 @@ describe('discount arithmetic', () => {
     expect(givesDiscount({ discount: 100, lines: [] })).toBe(true);
     expect(givesDiscount({ discount: 0, lines: [{ productId: 'x' }, { discount: 5 }] })).toBe(true);
     expect(givesDiscount(null)).toBe(false);
+  });
+});
+
+describe('the checkout draft with discounts', () => {
+  const line = { productId: 'p1', name: 'Water', quantityMilli: 1000, unitPrice: 5000, unit: 'each' };
+  it('keeps item and order discounts, the reason and the note, and drops what is malformed', () => {
+    saveDraft(db, {
+      lines: [{ ...line, discount: { mode: 'percent', value: 500 } }, { ...line, productId: 'p2', discount: { mode: 'percent', value: 99_999 } }],
+      orderDiscount: { mode: 'amount', value: 250 },
+      discountReason: 'Loyal',
+      note: 'Gift',
+    });
+    const draft = loadDraft(db)!;
+    expect(draft.orderDiscount).toEqual({ mode: 'amount', value: 250 });
+    expect([draft.discountReason, draft.note]).toEqual(['Loyal', 'Gift']);
+    expect(draft.lines[0]!.discount).toEqual({ mode: 'percent', value: 500 });
+    expect(draft.lines[1]!.discount).toBeUndefined(); // more than 100%
+    saveDraft(db, { lines: [line], orderDiscount: { mode: 'x', value: 1 }, discountReason: '  ', note: 5 });
+    expect(loadDraft(db)).toEqual({ lines: [line] });
   });
 });
 

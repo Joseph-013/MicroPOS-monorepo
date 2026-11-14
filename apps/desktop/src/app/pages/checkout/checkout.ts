@@ -223,12 +223,20 @@ export class CheckoutPage {
 
     void this.draft.restore().then((saved) => {
       // A scan can arrive before the read finishes; keep what is already on screen in that case.
-      if (this.lines().length === 0) this.lines.set(saved);
+      if (this.lines().length === 0) {
+        this.lines.set(saved.lines);
+        this.orderDiscountSpec.set(saved.orderDiscount ?? null);
+        this.discountReason.set(saved.discountReason ?? '');
+        this.note.set(saved.note ?? '');
+      }
       this.draftRestored.set(true);
     });
     effect(() => {
       const lines = this.lines();
-      if (this.draftRestored()) this.draft.save(lines);
+      const orderDiscount = this.orderDiscountSpec();
+      const discountReason = this.discountReason();
+      const note = this.note();
+      if (this.draftRestored()) this.draft.save({ lines, ...(orderDiscount ? { orderDiscount } : {}), ...(discountReason ? { discountReason } : {}), ...(note ? { note } : {}) });
     });
     effect(() => this.display.publish(this.displayState()));
     // Live: when a product is edited, deleted or made inactive, the lines follow it (without waiting for Complete Order to refuse).

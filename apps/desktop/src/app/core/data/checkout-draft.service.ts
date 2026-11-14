@@ -1,5 +1,5 @@
 import { inject, Service } from '@angular/core';
-import { type CompleteOrderInput, type CompleteOrderResult, type DraftLine, PRODUCT_UNITS, type ProductUnit } from '@micropos/core';
+import { type CheckoutDraft, type CompleteOrderInput, type CompleteOrderResult, type DraftLine, isDiscountSpec, PRODUCT_UNITS, type ProductUnit } from '@micropos/core';
 import { DESKTOP_API } from '../api/desktop-api';
 
 const SAVE_DELAY_MS = 300;
@@ -22,7 +22,7 @@ export function normalizeDraftLine(raw: unknown): DraftLine | null {
     Number.isInteger(l.unitPrice) &&
     l.unitPrice >= 0;
   const unit = PRODUCT_UNITS.includes(l?.unit as ProductUnit) ? (l!.unit as ProductUnit) : 'each';
-  return valid ? { productId: l.productId!, name: l.name!, quantityMilli: quantityMilli!, unitPrice: l.unitPrice!, unit } : null;
+  return valid ? { productId: l.productId!, name: l.name!, quantityMilli: quantityMilli!, unitPrice: l.unitPrice!, unit, ...(isDiscountSpec(l.discount) ? { discount: { mode: l.discount.mode, value: l.discount.value } } : {}) } : null;
 }
 
 /**
@@ -33,22 +33,28 @@ export function normalizeDraftLine(raw: unknown): DraftLine | null {
 @Service()
 export class CheckoutDraftService {
   private readonly api = inject(DESKTOP_API);
-  private pending: DraftLine[] | null = null;
+  private pending: CheckoutDraft | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
-  /** The saved lines, or none if there is no draft or it cannot be read. */
-  async restore(): Promise<DraftLine[]> {
+  /** The saved order (lines, discount, reason and note), or an empty one if there is no draft or it cannot be read. */
+  async restore(): Promise<CheckoutDraft> {
     try {
-      const saved = (await this.api?.checkout.loadDraft())?.lines ?? [];
-      return saved.map(normalizeDraftLine).filter((l): l is DraftLine => l !== null);
+      const saved = await this.api?.checkout.loadDraft();
+      const lines = (saved?.lines ?? []).map(normalizeDraftLine).filter((l): l is DraftLine => l !== null);
+      return {
+        lines,
+        ...(isDiscountSpec(saved?.orderDiscount) ? { orderDiscount: saved.orderDiscount } : {}),
+        ...(typeof saved?.discountReason === 'string' && saved.discountReason ? { discountReason: saved.discountReason } : {}),
+        ...(typeof saved?.note === 'string' && saved.note ? { note: saved.note } : {}),
+      };
     } catch (error) {
       console.error('Failed to load the saved order', error);
-      return [];
+      return { lines: [] };
     }
   }
 
-  save(lines: DraftLine[]): void {
-    this.pending = lines;
+  save(draft: CheckoutDraft): void {
+    this.pending = draft;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => this.flush(), SAVE_DELAY_MS);
   }
@@ -56,9 +62,9 @@ export class CheckoutDraftService {
   flush(): void {
     clearTimeout(this.timer);
     if (!this.pending) return;
-    const lines = this.pending;
+    const draft = this.pending;
     this.pending = null;
-    this.api?.checkout.saveDraft({ lines }).catch((error: unknown) => console.error('Failed to save the order', error));
+    this.api?.checkout.saveDraft(draft).catch((error: unknown) => console.error('Failed to save the order', error));
   }
 
   /** Discards the saved draft right away (and any save still waiting). */

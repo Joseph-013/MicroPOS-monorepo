@@ -536,6 +536,26 @@ describe('CheckoutPage', () => {
       expect(opened).toHaveBeenCalledWith('2');
     });
 
+    describe('the saved draft keeps the discounts and the note', () => {
+      it('restores item and order discounts, the reason and the note, and saves them again as they change', async () => {
+        await open({
+          lines: [{ productId: '2', name: 'Whole Milk (1 gal)', quantityMilli: 2000, unitPrice: 429, unit: 'each' as const, discount: { mode: 'percent', value: 1000 } }],
+          orderDiscount: { mode: 'amount', value: 100 },
+          discountReason: 'Loyal customer',
+          note: 'Pick up at 5',
+        });
+        await new Promise((r) => setTimeout(r, 20));
+        await fixture.whenStable();
+        expect(el.querySelector('[data-line-discount]')!.textContent).toContain('₱0.86 off (10%)');
+        expect(el.querySelector('[data-discount]')!.textContent!.trim()).toBe('₱1.86');
+        expect((el.querySelector('input[aria-label="Order note"]') as HTMLInputElement).value).toBe('Pick up at 5');
+        await type('input[aria-label="Order note"]', 'Pick up at 6');
+        await flushSaves();
+        expect(store.draft).toMatchObject({ orderDiscount: { mode: 'amount', value: 100 }, discountReason: 'Loyal customer', note: 'Pick up at 6' });
+        expect(store.draft!.lines[0]!.discount).toEqual({ mode: 'percent', value: 1000 });
+      });
+    });
+
     describe('following the catalog live', () => {
       it('takes a changed price and name over and says so', async () => {
         scan(PRODUCTS[1].barcode!); // 4.29
