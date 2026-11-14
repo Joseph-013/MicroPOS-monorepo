@@ -101,7 +101,7 @@
           <a routerLink="/customers" class="text-primary text-sm underline-offset-4 hover:underline">Customers</a>
         </div>
         <div hlmCardContent class="px-0">
-          <p class="px-4 pb-2"><span class="font-heading text-3xl" data-owed>{{ d.customersOwing.total | money }}</span> <span class="text-muted-foreground text-sm">from {{ d.customersOwing.count }} {{ d.customersOwing.count === 1 ? 'customer' : 'customers' }}</span></p>
+          <p class="px-4 pb-2"><span class="font-heading text-3xl" data-owed>{{ d.customersOwing.total | money }}</span> <span class="text-muted-foreground ml-2 text-sm">from {{ d.customersOwing.count }} {{ d.customersOwing.count === 1 ? 'customer' : 'customers' }}</span></p>
           @for (c of d.customersOwing.top; track c.id) {
             <div class="flex items-center justify-between gap-3 border-t px-4 py-2 text-sm"><span class="truncate">{{ c.name }}</span><span class="text-destructive shrink-0">{{ c.balance | money }}</span></div>
           }
@@ -113,7 +113,7 @@
           <a routerLink="/purchases" class="text-primary text-sm underline-offset-4 hover:underline">Purchases</a>
         </div>
         <div hlmCardContent class="px-4">
-          <p><span class="font-heading text-3xl">{{ d.suppliersOwed.total | money }}</span> <span class="text-muted-foreground text-sm">on {{ d.suppliersOwed.orders }} {{ d.suppliersOwed.orders === 1 ? 'order' : 'orders' }}</span></p>
+          <p><span class="font-heading text-3xl">{{ d.suppliersOwed.total | money }}</span> <span class="text-muted-foreground ml-2 text-sm">on {{ d.suppliersOwed.orders }} {{ d.suppliersOwed.orders === 1 ? 'order' : 'orders' }}</span></p>
           @if (d.suppliersOwed.overdueOrders) {
             <p class="text-destructive mt-1 text-sm">{{ d.suppliersOwed.overdue | money }} overdue on {{ d.suppliersOwed.overdueOrders }} {{ d.suppliersOwed.overdueOrders === 1 ? 'order' : 'orders' }}</p>
           }
