@@ -121,7 +121,7 @@ describe('UsersPage', () => {
     await settle();
     expect(fake.calls.created).toHaveLength(1);
     expect(fake.calls.created[0]).toMatchObject({ name: 'Sam', employeeNumber: '2001', pin: '4321', active: true });
-    expect(fake.calls.created[0].permissions).toEqual(['checkout.sell', 'orders.view', 'customers.view', 'customers.payments', 'cash.manage']);
+    expect(fake.calls.created[0].permissions).toEqual(['checkout.sell', 'orders.view', 'customers.view', 'customers.payments']);
     expect(document.querySelector('#user-form')).toBeNull();
   });
 
