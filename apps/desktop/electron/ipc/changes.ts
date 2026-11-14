@@ -106,6 +106,7 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.backup.create,
   CHANNELS.backup.remove,
   CHANNELS.backup.exportTo,
+  CHANNELS.backup.exportCsv,
   CHANNELS.backup.importFrom,
   CHANNELS.backup.restore,
   CHANNELS.backup.openFolder,

@@ -84,6 +84,39 @@ export async function exportDatabase(db: AppDatabase, file: string): Promise<voi
   }
 }
 
+/** Tables left out of a CSV export: the schema's bookkeeping, paired-device tokens and settings (drafts, printer and window state). */
+const CSV_SKIP_TABLES = new Set(['__drizzle_migrations', 'lan_devices', 'settings']);
+/** Columns left out: secrets. */
+const CSV_SKIP_COLUMNS = new Set(['pin_hash', 'token_hash']);
+
+/** One CSV cell: quoted when it has a comma, quote or line break; a text that a spreadsheet would run as a formula gets a leading apostrophe. */
+export function csvCell(value: unknown): string {
+  if (value === null || value === undefined || Buffer.isBuffer(value)) return '';
+  let text = String(value);
+  if (typeof value === 'string' && /^[=+@\t\r]/.test(text)) text = `'${text}`;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/**
+ * Writes every table of the open database as `<table>.csv` (a header row, then the rows; dates and times are the stored
+ * milliseconds, money is cents) in a new folder `micropos-csv-<time>` inside `parent`, and returns that folder. The file
+ * starts with a byte-order mark so Excel reads the text as UTF-8.
+ */
+export function exportCsv(db: AppDatabase, parent: string, now = Date.now()): string {
+  const out = path.join(parent, `micropos-csv-${stamp(now)}`);
+  fs.mkdirSync(out, { recursive: true });
+  const tables = db.$client.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as { name: string }[];
+  for (const { name } of tables) {
+    if (CSV_SKIP_TABLES.has(name)) continue;
+    const columns = (db.$client.pragma(`table_info("${name}")`) as { name: string }[]).map((c) => c.name).filter((c) => !CSV_SKIP_COLUMNS.has(c));
+    const lines = [columns.map(csvCell).join(',')];
+    const select = db.$client.prepare(`SELECT ${columns.map((c) => `"${c}"`).join(', ')} FROM "${name}"`);
+    for (const row of select.iterate() as Iterable<Record<string, unknown>>) lines.push(columns.map((c) => csvCell(row[c])).join(','));
+    fs.writeFileSync(path.join(out, `${name}.csv`), `﻿${lines.join('\r\n')}\r\n`, 'utf8');
+  }
+  return out;
+}
+
 export function deleteBackup(folder: string, name: unknown): boolean {
   if (!isBackupName(name) || !describe(folder, name)) return false;
   fs.rmSync(path.join(folder, name));

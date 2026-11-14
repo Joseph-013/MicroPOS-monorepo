@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { employees } from '../db/schema';
 import { createDatabase, SOURCE_MIGRATIONS_FOLDER, type AppDatabase } from '../db';
-import { applyPendingImport, autoBackup, backupFileName, checkDatabaseFile, createBackup, deleteBackup, exportDatabase, isBackupName, listBackups, pendingImportFile, stageImport } from './backup';
+import { applyPendingImport, autoBackup, backupFileName, checkDatabaseFile, createBackup, csvCell, deleteBackup, exportCsv, exportDatabase, isBackupName, listBackups, pendingImportFile, stageImport } from './backup';
 
 let dir: string;
 let dbFile: string;
@@ -77,6 +77,32 @@ describe('backups', () => {
     expect(auto).toHaveLength(14);
     await createBackup(db, folder(), 'manual', start + 40 * day);
     expect(listBackups(folder()).filter((b) => b.kind === 'manual')).toHaveLength(1); // manual ones are never pruned
+  });
+});
+
+describe('CSV export', () => {
+  it('quotes cells, and defuses text a spreadsheet would run as a formula', () => {
+    expect(csvCell(null)).toBe('');
+    expect(csvCell(1250)).toBe('1250');
+    expect(csvCell('a,b')).toBe('"a,b"');
+    expect(csvCell('say "hi"')).toBe('"say ""hi"""');
+    expect(csvCell('two\nlines')).toBe('"two\nlines"');
+    expect(csvCell('=SUM(A1)')).toBe("'=SUM(A1)");
+    expect(csvCell(-5)).toBe('-5');
+  });
+
+  it('writes a file per table with a header, leaving out secrets, settings and device tokens', () => {
+    add('Ana, the "boss"');
+    const out = exportCsv(db, path.join(dir, 'csv'), new Date(2026, 10, 14, 9, 5, 7).getTime());
+    expect(path.basename(out)).toBe('micropos-csv-20261114-090507');
+    const files = fs.readdirSync(out);
+    expect(files).toContain('employees.csv');
+    expect(files).toContain('orders.csv');
+    for (const skipped of ['settings.csv', 'lan_devices.csv', '__drizzle_migrations.csv']) expect(files).not.toContain(skipped);
+    const text = fs.readFileSync(path.join(out, 'employees.csv'), 'utf8');
+    expect(text.startsWith('﻿id,')).toBe(true);
+    expect(text.split('\r\n')[0]).not.toContain('pin_hash');
+    expect(text).toContain('"Ana, the ""boss"""');
   });
 });
 

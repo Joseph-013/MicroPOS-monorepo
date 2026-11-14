@@ -73,7 +73,7 @@ describe('which calls a device may make', () => {
   it('maps a group and method to a channel, and refuses what belongs to the till', () => {
     expect(channelFor('orders', 'list')).toBe(CHANNELS.orders.list);
     expect(channelFor(null, 'version')).toBe(CHANNELS.app.version);
-    for (const [group, method] of [['shell', 'getLogsFolder'], ['debug', 'get'], ['display', 'show'], ['lan', 'setEnabled'], ['backup', 'exportTo'], ['backup', 'restore'], ['reports', 'export'], ['printer', 'settings'], ['printer', 'saveLogo'], ['orders', 'nope'], ['nope', 'x'], ['orders', '__proto__'], ['orders', 'constructor'], [null, 'other'], [5, 'x']] as const) {
+    for (const [group, method] of [['shell', 'getLogsFolder'], ['debug', 'get'], ['display', 'show'], ['lan', 'setEnabled'], ['backup', 'exportTo'], ['backup', 'exportCsv'], ['backup', 'restore'], ['reports', 'export'], ['printer', 'settings'], ['printer', 'saveLogo'], ['orders', 'nope'], ['nope', 'x'], ['orders', '__proto__'], ['orders', 'constructor'], [null, 'other'], [5, 'x']] as const) {
       expect(channelFor(group, method), `${group}.${method}`).toBeNull();
     }
     expect(channelFor('printer', 'printOrder')).toBe(CHANNELS.printer.printOrder); // a phone may print a receipt on the till's printer

@@ -4,7 +4,7 @@ import { app, type BrowserWindow, dialog, shell } from 'electron';
 import { type BackupList, type BackupResult, type ExportDatabaseResult, type ImportDatabaseResult } from '@micropos/core';
 import type { AppDatabase } from '../db';
 import { log } from '../logging';
-import { cancelImport, createBackup, deleteBackup, exportDatabase, isBackupName, listBackups, stageImport } from './backup';
+import { cancelImport, createBackup, deleteBackup, exportCsv, exportDatabase, isBackupName, listBackups, stageImport } from './backup';
 
 export interface BackupServiceOptions {
   db: AppDatabase;
@@ -53,6 +53,21 @@ export class BackupService {
       return { ok: true, savedTo: result.filePath };
     } catch (error) {
       log.error('backup', 'Could not export the database', error);
+      return { ok: false, error: message(error) };
+    }
+  }
+
+  async exportCsv(parent: BrowserWindow | null): Promise<ExportDatabaseResult> {
+    try {
+      const dialogOptions = { title: 'Choose where to save the CSV files', defaultPath: app.getPath('documents'), properties: ['openDirectory' as const, 'createDirectory' as const] };
+      const result = parent ? await dialog.showOpenDialog(parent, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
+      const parentFolder = result.filePaths[0];
+      if (result.canceled || !parentFolder) return { ok: false, canceled: true, error: 'Canceled' };
+      const savedTo = exportCsv(this.options.db, parentFolder);
+      log.info('backup', `Exported CSV files to ${savedTo}`);
+      return { ok: true, savedTo };
+    } catch (error) {
+      log.error('backup', 'Could not export CSV files', error);
       return { ok: false, error: message(error) };
     }
   }

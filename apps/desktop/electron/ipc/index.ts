@@ -239,6 +239,7 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
     guarded(db, CHANNELS.backup.create, 'settings.manage', () => backup.create());
     guarded(db, CHANNELS.backup.remove, 'settings.manage', (_event, name: unknown) => backup.remove(name));
     guarded(db, CHANNELS.backup.exportTo, 'settings.manage', (event) => backup.exportTo(BrowserWindow.fromWebContents(event.sender)));
+    guarded(db, CHANNELS.backup.exportCsv, 'settings.manage', (event) => backup.exportCsv(BrowserWindow.fromWebContents(event.sender)));
     guarded(db, CHANNELS.backup.importFrom, 'settings.manage', (event) => backup.importFrom(BrowserWindow.fromWebContents(event.sender)));
     guarded(db, CHANNELS.backup.restore, 'settings.manage', (_event, name: unknown) => backup.restore(name));
     guarded(db, CHANNELS.backup.openFolder, 'settings.manage', () => backup.openFolder());

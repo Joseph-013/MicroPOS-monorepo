@@ -38,7 +38,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 49;
+export const DESKTOP_API_VERSION = 50;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -110,6 +110,8 @@ export interface DesktopApi {
     remove(name: string): Promise<boolean>;
     /** Saves a copy of the database where the person chooses (a save dialog). */
     exportTo(): Promise<ExportDatabaseResult>;
+    /** Saves the data as CSV files, one per table, in a new folder inside the one the person chooses (a folder dialog); `savedTo` is that new folder. PIN hashes, paired-device tokens and settings are left out. */
+    exportCsv(): Promise<ExportDatabaseResult>;
     /** Asks for a database file (an export or a backup), checks it, backs up the current data and restarts the app with the file in place. */
     importFrom(): Promise<ImportDatabaseResult>;
     /** The same, from a backup in the backups folder. */
