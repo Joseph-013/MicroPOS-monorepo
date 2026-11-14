@@ -140,7 +140,7 @@
             >
               <app-swipe-actions [swipeLeft]="lineSwipeLeft" (action)="runLineAction($event, line)">
                 <!-- The line added or changed last stays highlighted (the class goes on the row inside the swipe wrapper). -->
-                <div role="row" class="grid grid-cols-(--cols) items-center gap-4 px-3 py-3" [class.row-target]="highlightId() === line.productId">
+                <div role="row" class="not-[.row-target]:hover:bg-muted/40 grid grid-cols-(--cols) items-center gap-4 px-3 py-3 transition-colors" [class.row-target]="highlightId() === line.productId">
                   <div role="cell" class="min-w-0">
                     <p class="truncate text-base">{{ line.name }}</p>
                     <p class="text-muted-foreground text-sm">
