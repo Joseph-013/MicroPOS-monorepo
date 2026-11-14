@@ -7,7 +7,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2, lucideUndo2 } from '@ng-icons/lucide';
+import { lucideArrowDown, lucideEllipsisVertical, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2, lucideUndo2 } from '@ng-icons/lucide';
 import { expiryState, productCodeOf, formatQuantity, isPlu, isWeighed, type ProductRecord } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -101,7 +101,7 @@ const SORT_VALUES: Record<SortKey, (p: ProductRecord) => string | number | null>
     HlmSelectImports,
     HlmSwitchImports,
   ],
-  providers: [provideIcons({ lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2, lucideUndo2 })],
+  providers: [provideIcons({ lucideArrowDown, lucideEllipsisVertical, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2, lucideUndo2 })],
   templateUrl: './products.html',
 })
 export class ProductsPage {

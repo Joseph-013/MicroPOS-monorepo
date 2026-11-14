@@ -1,29 +1,22 @@
 import { Component, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideMenu, lucideX } from '@ng-icons/lucide';
-import { filter, map } from 'rxjs';
 import { Logo } from './logo';
 import { NavDrawer } from './nav-drawer';
 
 /**
- * The bar across the top of the page on a phone-sized screen only: the logo, the name of the page being shown and the
- * burger button at the far right that opens the navigation drawer. Wide screens have no top bar (the navigation is the
- * rail on the left and every page has its own title).
+ * The bar across the top of the page on a phone-sized screen only: the logo on the left and the burger button at the far
+ * right that opens the navigation drawer. Wide screens have no top bar (the navigation is the rail on the left). It has no
+ * page title: every page already shows its own.
  */
 @Component({
   selector: 'app-topbar',
   imports: [NgIcon, Logo],
   providers: [provideIcons({ lucideMenu, lucideX })],
-  // Phone-sized screens only: on wide screens the pages keep their own titles and the rail stays on the left.
   host: { class: 'bg-background border-border sticky top-(--banner-offset,0px) z-10 hidden h-(--topbar-height) shrink-0 border-b max-md:block' },
   template: `
-    <header class="flex h-full items-center gap-3 px-3">
-      @if (drawer.mobile()) {
-        <app-logo class="shrink-0" />
-      }
-      <span class="min-w-0 flex-1 truncate text-lg" data-page-title>{{ title() }}</span>
+    <header class="flex h-full items-center justify-between gap-3 px-3">
+      <app-logo class="shrink-0" />
       @if (drawer.mobile()) {
         <button
           type="button"
@@ -41,24 +34,4 @@ import { NavDrawer } from './nav-drawer';
 })
 export class Topbar {
   protected readonly drawer = inject(NavDrawer);
-  private readonly router = inject(Router);
-
-  /** The title of the page being shown: the route's `title`, from the deepest route down. */
-  protected readonly title = toSignal(
-    this.router.events.pipe(
-      filter((e) => e instanceof NavigationEnd),
-      map(() => this.currentTitle()),
-    ),
-    { initialValue: this.currentTitle() },
-  );
-
-  private currentTitle(): string {
-    let route = this.router.routerState.snapshot.root;
-    let title = '';
-    for (;;) {
-      if (typeof route.routeConfig?.title === 'string') title = route.routeConfig.title;
-      if (!route.firstChild) return title;
-      route = route.firstChild;
-    }
-  }
 }

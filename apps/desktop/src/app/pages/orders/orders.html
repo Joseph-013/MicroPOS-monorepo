@@ -1,7 +1,7 @@
 <section hlmCard class="h-[calc(100svh-var(--banner-offset,0px)-var(--topbar-height,0px)-1.5rem)] min-h-0 gap-0">
-  <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3">
+  <header class="flex min-h-(--control-height) items-center justify-between gap-3 border-b px-4 pb-3 max-md:flex-wrap">
     <h1 class="text-2xl">Sales Orders</h1>
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 max-md:flex-wrap">
       @if (selected().length) {
         <span class="text-muted-foreground text-sm">{{ selected().length }} selected</span>
         @if (reversible().length) {

@@ -8,7 +8,7 @@ import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { filter, take } from 'rxjs';
 import { RECEIVE_ORDER_PARAM } from '../../core/receive-order-param';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2 } from '@ng-icons/lucide';
+import { lucideArrowDown, lucideEllipsisVertical, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2 } from '@ng-icons/lucide';
 import { type BatchRecord, expiryState, type ExpiryState, formatQuantity, type SupplierReturnRecord } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -94,7 +94,7 @@ const COLUMN_DEFS = [
     HlmSelectImports,
     HlmSwitchImports,
   ],
-  providers: [provideIcons({ lucideArrowDown, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2 })],
+  providers: [provideIcons({ lucideArrowDown, lucideEllipsisVertical, lucideArrowUp, lucideChevronsUpDown, lucideFilterX, lucideTrash2 })],
   templateUrl: './inventory.html',
 })
 export class InventoryPage {

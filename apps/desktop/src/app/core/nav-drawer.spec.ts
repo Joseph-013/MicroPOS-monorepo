@@ -47,7 +47,6 @@ describe('top bar and navigation drawer', () => {
     const bar = el.querySelector('app-topbar') as HTMLElement;
     expect(bar.classList.contains('hidden')).toBe(true); // shown only below the md breakpoint (max-md:block)
     expect(bar.classList.contains('max-md:block')).toBe(true);
-    expect(el.querySelector('[data-page-title]')!.textContent!.trim()).toBe('Checkout');
     expect(burger()).toBeNull();
     expect(nav().classList.contains('left-0')).toBe(true);
     expect(nav().classList.contains('right-0')).toBe(false);
@@ -55,14 +54,7 @@ describe('top bar and navigation drawer', () => {
     expect(nav().style.width).toBe('3.5rem'); // collapsed, as before
   });
 
-  it('the top bar follows the page', async () => {
-    const { el, settle } = await render(false);
-    await TestBed.inject(Router).navigateByUrl('/orders');
-    await settle();
-    expect(el.querySelector('[data-page-title]')!.textContent!.trim()).toBe('Sales Orders');
-  });
-
-  it('on a phone: the navigation is on the right and hidden, with a burger at the far right of the top bar', async () => {
+  it('on a phone: the navigation is on the right and hidden, with a burger at the far right of the top bar and no page title', async () => {
     const { el, nav, burger } = await render(true);
     expect(nav().classList.contains('right-0')).toBe(true);
     expect(nav().classList.contains('translate-x-full')).toBe(true);
@@ -70,6 +62,7 @@ describe('top bar and navigation drawer', () => {
     expect(burger()).not.toBeNull();
     const bar = el.querySelector('header')!;
     expect(bar.lastElementChild).toBe(burger()); // rightmost
+    expect(el.querySelector('[data-page-title]')).toBeNull(); // the pages have their own titles
     expect(burger()!.getAttribute('aria-expanded')).toBe('false');
   });
 
