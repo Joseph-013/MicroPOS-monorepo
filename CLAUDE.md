@@ -5,7 +5,7 @@ pnpm monorepo (Node 24, pnpm via corepack). Business logic is shared across all 
 ## Layout
 - `packages/core` (`@micropos/core`): pure TypeScript business logic (pricing, tax, cart, validation, types). Used by every app.
 - `apps/desktop` (`@micropos/desktop`): Electron Forge 8 + Angular 22 renderer. Local SQLite via better-sqlite3 (not yet added). See its CLAUDE.md.
-- `apps/mobile`: React Native (planned).
+- `apps/mobile` (`@micropos/mobile`): Expo + React Native (scaffolded; placeholder screen). See its CLAUDE.md.
 - `apps/web`: placeholder for the NestJS backend (planned; likely to be renamed `apps/api`). The only app that is containerized.
 
 Each app gets its own CLAUDE.md with app-specific notes once scaffolded.
