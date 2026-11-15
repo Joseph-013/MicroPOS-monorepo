@@ -3,9 +3,14 @@
 Expo (managed workflow) + React Native, TypeScript. Uses `@micropos/core` for all business logic.
 
 ## Commands
-- `pnpm dev:mobile` from the root builds core and starts Expo; or `pnpm --filter @micropos/mobile start` (Expo dev server; `android` / `ios` / `web` variants too)
+- `pnpm dev:mobile` from the root builds core and theme and starts Metro; `pnpm --filter @micropos/mobile android` builds and installs the development build (native module, Android SDK needed). `ios`/`web` are not supported by the native module.
 - `pnpm --filter @micropos/mobile typecheck`
 - Build core first (`pnpm --filter @micropos/core build`); Metro consumes its `dist/`.
+
+## Connecting to the till (LAN)
+- The phone talks to the desktop's LAN server (see "Devices" in `apps/desktop/CLAUDE.md`): `src/lan/client.ts` (`TillClient`: `/lan/rpc`, the shared WebSocket `Changes`, `createRemoteApi` giving the same `DesktopApi` as the desktop window), `pair.ts` (code to token), `parse.ts` (the QR address `https://<ip>:<port>/?pair=<code>&fp=<pin>`), `store.ts` (the pairing, token included, in the Android keystore via expo-secure-store), `TillProvider.tsx` (state, `useTill()`). Pure parts have vitest specs (`pnpm --filter @micropos/mobile test`).
+- **The till's certificate is self-signed**, so a native pin is needed: `modules/micropos-tls` (Expo local module, Kotlin) sets a custom OkHttp trust manager through React Native's `setCustomClientBuilder` for fetch and WebSocket. `setPin(hex)` trusts a server whose public key hashes to the pin (any address); anything else must pass Android's normal checks. The pin comes from the QR and is set again at every start (`TillProvider`) before the first request. **Needs a development build (`pnpm --filter @micropos/mobile android` = `expo run:android`, needs the Android SDK) and does not work in Expo Go** (`pinningAvailable` is false there and the pairing screen says so). **The Kotlin is unverified: it could not be compiled where it was written.** First run on a device: pair, then check that Settings shows Connected.
+- Not built: signing in with a PIN, finding the till again when its IP changes (pair again), tablets/phones discovery.
 
 ## Notes
 - `metro.config.js` watches the workspace root so the hoisted `node_modules` and `@micropos/core` resolve.

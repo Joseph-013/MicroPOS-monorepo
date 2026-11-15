@@ -22,6 +22,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MicroPOS uses the camera to scan the pairing code shown on the till.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
   }
 }
