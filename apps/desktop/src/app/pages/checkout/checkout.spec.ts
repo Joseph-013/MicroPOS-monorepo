@@ -285,7 +285,7 @@ describe('CheckoutPage', () => {
     await fixture.whenStable();
   });
 
-  it('on a phone the payment controls open in a dialog from the Pay button', async () => {
+  it('on a phone the payment controls open in a dialog from the Proceed button', async () => {
     TestBed.resetTestingModule();
     const fake = fakeApi(null);
     TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: fake.api }, { provide: NavDrawer, useValue: { mobile: signal(true) } }] });
@@ -297,7 +297,7 @@ describe('CheckoutPage', () => {
 
     scan(PRODUCTS[0].barcode!);
     await fixture.whenStable();
-    buttonByText(el, 'Pay').click();
+    buttonByText(el, 'Proceed').click();
     await fixture.whenStable();
     expect(document.querySelector('[data-slot="dialog-content"]')?.textContent).toContain('Complete Order');
     expect(el.textContent).not.toContain('Complete Order');

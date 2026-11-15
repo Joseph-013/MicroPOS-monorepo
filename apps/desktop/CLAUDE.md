@@ -322,7 +322,7 @@ The Products table (`pages/products/`) is the reference; build every data table 
 
 ## Checkout order draft
 
-**On a phone** (`NavDrawer.mobile`, below `md`) the Payment panel is not beside the order: it is the `#payment` template in `checkout.html`, rendered in the side card on wide screens and opened in a dialog by the **Pay** button of the bar under the items (total and Pay), closed when the sale completes or the window grows past the breakpoint. Add payment controls to that template, not to the card.
+**On a phone** (`NavDrawer.mobile`, below `md`) the Payment panel is not beside the order: it is the `#payment` template in `checkout.html`, rendered in the side card on wide screens and opened in a dialog by the **Proceed** button of the bar under the items (total and Proceed), closed when the sale completes or the window grows past the breakpoint. Add payment controls to that template, not to the card.
 
 The order's items are a small table (`role="table"` grid, sticky title row Item / Quantity / Total; one column template `--cols` shared by the title and every line, with a fixed-width quantity column so the − / quantity / + controls line up down the list). Rows are `[data-row-id]` (specs select them that way, not `li`). The item name opens the product dialog (`ProductViewer`) for anyone with `catalog.view`. **Live catalog:** `CatalogService` reloads on `stock` data changes (every product write announces it) and checkout follows it (`followCatalog`): a changed price/name/unit is taken over with a banner, an item no longer for sale comes off the order; Complete Order still re-checks everything in the main process.
 
