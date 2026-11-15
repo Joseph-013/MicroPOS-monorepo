@@ -42,7 +42,7 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
 export const WINDOW_MODES = ['windowed', 'maximized', 'fullscreen'] as const;
 export type WindowMode = (typeof WINDOW_MODES)[number];
 
-export const DESKTOP_API_VERSION = 51;
+export const DESKTOP_API_VERSION = 52;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -298,6 +298,8 @@ export interface DesktopApi {
      * and the stock taken (first-expiring-first-out), and removes the saved draft. Nothing is written if any line fails.
      */
     completeOrder(input: CompleteOrderInput): Promise<CompleteOrderResult>;
+    /** What can be sold now of each product (stock that has not expired): null for a product whose stock is not tracked or that does not exist. */
+    availableStock(productIds: string[]): Promise<{ productId: string; availableMilli: number | null }[]>;
   };
   auth: {
     /** Who is signed in, or null when the till is locked. */

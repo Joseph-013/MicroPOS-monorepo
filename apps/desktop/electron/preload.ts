@@ -186,6 +186,7 @@ const api: DesktopApi = {
     clearDraft: () => ipcRenderer.invoke(CHANNELS.checkout.clearDraft),
     nextOrderNumber: () => ipcRenderer.invoke(CHANNELS.checkout.nextOrderNumber),
     completeOrder: (input) => ipcRenderer.invoke(CHANNELS.checkout.completeOrder, input),
+    availableStock: (productIds) => ipcRenderer.invoke(CHANNELS.checkout.availableStock, productIds),
   },
 };
 

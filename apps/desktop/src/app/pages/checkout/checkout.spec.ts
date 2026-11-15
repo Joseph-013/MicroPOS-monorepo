@@ -44,6 +44,8 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     saves: 0,
     clears: 0,
     orders: [] as CompleteOrderInput[],
+    /** What can be sold now, per product id (thousandths); a product not listed does not track stock. */
+    stock: {} as Record<string, number>,
     /** What the fake main process answers when an order is completed. */
     result: null as CompleteOrderResult | null,
     /** Customers the register can put a sale on account for. */
@@ -144,6 +146,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
         store.draft = null;
         return Promise.resolve();
       },
+      availableStock: (ids) => Promise.resolve(ids.map((productId) => ({ productId, availableMilli: store.stock[productId] ?? null }))),
       nextOrderNumber: () => Promise.resolve(`SO-${1001 + store.orders.length}`),
       completeOrder: (input) => {
         store.orders.push(input);
@@ -308,8 +311,10 @@ describe('CheckoutPage', () => {
   it('copies the items of a recorded sale: joins what is on the order, uses today\'s price, skips what is gone', async () => {
     scan(PRODUCTS[0].barcode!); // already on the order: one of it
     await fixture.whenStable();
+    store.stock[PRODUCTS[0].id] = 1000; // only one of it can be sold
     TestBed.inject(CheckoutCopy).pending.set({
       orderNumber: 'SO-1001',
+      mode: 'add' as const,
       lines: [
         { productId: PRODUCTS[0].id, name: PRODUCTS[0].name, quantityMilli: 2000, unitPrice: PRODUCTS[0].price + 50 },
         { productId: 'gone', name: 'Old Item', quantityMilli: 1000, unitPrice: 100 },
@@ -322,7 +327,19 @@ describe('CheckoutPage', () => {
     expect(text).toContain('1 item copied from SO-1001');
     expect(text).toContain('not for sale any more: Old Item');
     expect(text).toContain('price changed');
+    expect(TestBed.inject(BannerService).current()?.text).toContain('only 1 of Bananas (bunch) left');
     expect(TestBed.inject(CheckoutCopy).pending()).toBeNull();
+  });
+
+  it('overwriting: the order in progress is cleared before the sale\'s items are copied', async () => {
+    scan(PRODUCTS[1].barcode!);
+    await fixture.whenStable();
+    expect(el.textContent).toContain(PRODUCTS[1].name);
+    TestBed.inject(CheckoutCopy).pending.set({ orderNumber: 'SO-1002', mode: 'replace', lines: [{ productId: PRODUCTS[0].id, name: PRODUCTS[0].name, quantityMilli: 1000, unitPrice: PRODUCTS[0].price }] });
+    await new Promise((r) => setTimeout(r, 20));
+    await fixture.whenStable();
+    expect(el.textContent).toContain(PRODUCTS[0].name);
+    expect(el.textContent).not.toContain(PRODUCTS[1].name);
   });
 
   it('claims the scanner: a scanned barcode adds that item, an unknown one is reported', async () => {

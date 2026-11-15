@@ -179,8 +179,7 @@ export class SalesOrderForm {
 
   /** Puts this sale's items on the Checkout order and goes there. */
   protected async copyToCheckout(): Promise<void> {
-    await this.checkoutCopy.copy(this.order());
-    this.dialogRef?.close(undefined);
+    if (await this.checkoutCopy.copy(this.order())) this.dialogRef?.close(undefined);
   }
   protected readonly printing = signal(false);
 

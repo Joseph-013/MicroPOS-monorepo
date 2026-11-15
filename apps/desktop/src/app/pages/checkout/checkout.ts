@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, DestroyRef, effect, inject, signal, TemplateRef, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import type { BrnDialogRef } from '@spartan-ng/brain/dialog';
+import { DESKTOP_API } from '../../core/api/desktop-api';
 import { CheckoutCopy } from '../../core/checkout-copy';
 import { PaymentDialog, type PaymentDialogContext } from './payment-dialog';
 import { NavDrawer } from '../../core/nav-drawer';
@@ -220,6 +221,7 @@ export class CheckoutPage {
   private readonly draftRestored = signal(false);
 
   private readonly checkoutCopy = inject(CheckoutCopy);
+  private readonly api = inject(DESKTOP_API);
 
   constructor() {
     // Items copied from a recorded sale join the order once the catalog and the saved order are both in.
@@ -539,6 +541,7 @@ export class CheckoutPage {
     const missing: string[] = [];
     const repriced: string[] = [];
     let added = 0;
+    if (copied.mode === 'replace') this.resetOrder();
     const lines = [...this.lines()];
     for (const item of copied.lines) {
       const product = byId.get(item.productId);
@@ -559,9 +562,33 @@ export class CheckoutPage {
       ...(missing.length ? [`not for sale any more: ${missing.join(', ')}`] : []),
       ...(repriced.length ? [`price changed: ${repriced.join(', ')}`] : []),
     ];
-    const text = notes.join('. ');
-    if (missing.length || repriced.length || !added) this.banner.warning(text, { duration: 'long', key: 'copy-order' });
-    else this.banner.success(text, { key: 'copy-order' });
+    const show = (extra: string[]): void => {
+      const text = [...notes, ...extra].join('. ');
+      if (missing.length || repriced.length || extra.length || !added) this.banner.warning(text, { duration: 'long', key: 'copy-order' });
+      else this.banner.success(text, { key: 'copy-order' });
+    };
+    show([]);
+    void this.warnShortStock(lines.filter((l) => copied.lines.some((c) => c.productId === l.productId)), show);
+  }
+
+  /**
+   * Looks at what can be sold now of the copied products (stock that has not expired) and names those that are out or short
+   * for the quantity now on the order. A warning only: the lines stay so the cashier decides, and Complete Order still refuses
+   * a line that is really short.
+   */
+  private async warnShortStock(lines: DraftLine[], show: (extra: string[]) => void): Promise<void> {
+    try {
+      const stock = (await this.api?.checkout.availableStock(lines.map((l) => l.productId))) ?? [];
+      const problems: string[] = [];
+      for (const line of lines) {
+        const available = stock.find((s) => s.productId === line.productId)?.availableMilli;
+        if (available === null || available === undefined || available >= line.quantityMilli) continue;
+        problems.push(available <= 0 ? `${line.name} is out of stock` : `only ${formatQuantity(available)}${this.unitLabel(line.unit) ? ' ' + this.unitLabel(line.unit) : ''} of ${line.name} left`);
+      }
+      if (problems.length) show([problems.join(', ')]);
+    } catch (error) {
+      console.error('Could not check the stock of the copied items', error);
+    }
   }
 
   /** Brings the lines in line with what the main process found: new prices in, unavailable items out. */

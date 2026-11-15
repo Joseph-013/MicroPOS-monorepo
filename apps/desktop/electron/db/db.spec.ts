@@ -30,6 +30,7 @@ import { listCategories, listProducts } from './queries/catalog';
 import { createProduct, deleteProducts, listProductRecords, restoreProducts, setProductsActive, updateProduct } from './queries/products';
 import { createCategory, deleteCategories, listCategoryRecords, restoreCategories, updateCategory } from './queries/categories';
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from './queries/repackage-draft';
+import { availableStock } from './queries/available-stock';
 import { adjustStock, allocateSale, inventoryOverview, listBatches, receiveStock, repackageStock, restockSale } from './queries/inventory';
 import { clearProductDraft, loadProductDraft, sanitizeProductDraft, saveProductDraft } from './queries/product-draft';
 import {
@@ -750,6 +751,21 @@ describe('inventory: batches, expiry and the stock ledger', () => {
 
     const more = allocateSale(db, { productId: milk.id, orderLineId: saleLine('line-2'), quantityMilli: 9_000, at: now });
     expect(more.shortfallMilli).toBe(5_000); // only 4 left that may be sold
+  });
+
+  it('says what can be sold now of each product: not expired stock, null when stock is not tracked', () => {
+    const milk = product('expiry');
+    const plain = product('none');
+    const now = Date.now();
+    ok(receive(milk.id, { batchNumber: 'OLD', expiresAt: now - DAY, quantityMilli: 5_000, unitCost: 10 }));
+    ok(receive(milk.id, { batchNumber: 'NEW', expiresAt: now + 5 * DAY, quantityMilli: 2_000, unitCost: 10 }));
+    const answer = availableStock(db, [milk.id, plain.id, 'nobody', 7], now);
+    expect(answer).toEqual([
+      { productId: milk.id, availableMilli: 2_000 },
+      { productId: plain.id, availableMilli: null },
+      { productId: 'nobody', availableMilli: null },
+    ]);
+    expect(availableStock(db, 'nonsense')).toEqual([]);
   });
 
   it('restocking a sale returns the stock to the same batches, once', () => {

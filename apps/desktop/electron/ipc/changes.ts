@@ -92,6 +92,7 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.checkout.saveDraft,
   CHANNELS.checkout.clearDraft,
   CHANNELS.checkout.nextOrderNumber,
+  CHANNELS.checkout.availableStock,
   CHANNELS.printer.settings,
   CHANNELS.printer.save,
   CHANNELS.printer.getLogo,
