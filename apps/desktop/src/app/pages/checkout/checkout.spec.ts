@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { type CatalogProduct, type CustomerDisplayState, IDLE_DISPLAY_STATE, type CustomerRecord, type CheckoutDraft, type CompleteOrderInput, type CompleteOrderResult, DESKTOP_API_VERSION, type DesktopApi } from '@micropos/core';
 import { DESKTOP_API } from '../../core/api/desktop-api';
@@ -9,6 +10,7 @@ import { CatalogService } from '../../core/data/catalog.service';
 import { ProductViewer } from '../../core/product-viewer';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { ScannerService } from '../../core/scanner';
+import { NavDrawer } from '../../core/nav-drawer';
 import { CheckoutPage } from './checkout';
 
 // jsdom has no ResizeObserver (some overlay code watches element sizes).
@@ -281,6 +283,25 @@ describe('CheckoutPage', () => {
     expect(document.body.textContent).toContain('No items found');
     buttonByText(document.body, 'Done').click();
     await fixture.whenStable();
+  });
+
+  it('on a phone the payment controls open in a dialog from the Pay button', async () => {
+    TestBed.resetTestingModule();
+    const fake = fakeApi(null);
+    TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: fake.api }, { provide: NavDrawer, useValue: { mobile: signal(true) } }] });
+    TestBed.inject(ScannerService);
+    fixture = TestBed.createComponent(CheckoutPage);
+    await fixture.whenStable();
+    el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).not.toContain('Complete Order');
+
+    scan(PRODUCTS[0].barcode!);
+    await fixture.whenStable();
+    buttonByText(el, 'Pay').click();
+    await fixture.whenStable();
+    expect(document.querySelector('[data-slot="dialog-content"]')?.textContent).toContain('Complete Order');
+    expect(el.textContent).not.toContain('Complete Order');
+    buttonByText(document.body, 'Clear').click();
   });
 
   it('claims the scanner: a scanned barcode adds that item, an unknown one is reported', async () => {

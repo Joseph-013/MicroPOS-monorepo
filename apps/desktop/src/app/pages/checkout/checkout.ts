@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, DestroyRef, effect, inject, signal, TemplateRef, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import type { BrnDialogRef } from '@spartan-ng/brain/dialog';
+import { PaymentDialog, type PaymentDialogContext } from './payment-dialog';
 import { NavDrawer } from '../../core/nav-drawer';
 import { lucideFilterX, lucideX, lucideMinus, lucideListPlus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { discountCents, type DiscountSpec, formatDiscount, MAX_ORDER_NOTE, type CatalogProduct, type CustomerDisplayLine, type CustomerDisplayReceipt, type CustomerDisplayState, type DraftLine, IDLE_DISPLAY_STATE, gramsToQuantityMilli, parseScaleBarcode, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
@@ -411,8 +412,9 @@ export class CheckoutPage {
   }
 
   protected openPayment(): void {
-    this.paymentDialog = this.dialogs.open(this.paymentTemplate(), {
+    this.paymentDialog = this.dialogs.open<unknown, PaymentDialogContext>(PaymentDialog, {
       id: 'checkout-payment',
+      context: { template: this.paymentTemplate() },
       contentClass: 'w-[min(26rem,95vw)] max-w-none sm:max-w-none max-h-[95svh] grid-rows-[minmax(0,1fr)] gap-0 p-0',
     });
   }
