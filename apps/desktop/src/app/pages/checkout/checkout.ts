@@ -415,7 +415,7 @@ export class CheckoutPage {
     this.paymentDialog = this.dialogs.open<unknown, PaymentDialogContext>(PaymentDialog, {
       id: 'checkout-payment',
       context: { template: this.paymentTemplate() },
-      contentClass: 'w-[min(26rem,95vw)] max-w-none sm:max-w-none max-h-[95svh] grid-rows-[minmax(0,1fr)] gap-0 p-0',
+      contentClass: 'w-[min(26rem,95vw)] max-w-none sm:max-w-none max-h-[95svh] grid-rows-[minmax(0,1fr)] gap-0 p-0 overflow-hidden',
     });
   }
 

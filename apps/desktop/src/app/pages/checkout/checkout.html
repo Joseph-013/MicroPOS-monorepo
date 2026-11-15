@@ -276,12 +276,12 @@
 
 <!-- The payment controls, shown in the side card or in the phone dialog. -->
 <ng-template #payment>
-<div class="flex max-h-[95svh] min-h-0 flex-1 flex-col md:max-h-none">
+<div class="flex max-h-[calc(95svh-2rem)] min-h-0 flex-1 flex-col md:max-h-none">
     <div hlmCardHeader class="border-b pb-3 max-md:pr-12">
       <h2 hlmCardTitle>Payment</h2>
     </div>
 
-    <div hlmCardContent class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pt-3">
+    <div hlmCardContent class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pt-3">
       <dl class="flex flex-col gap-1 text-sm">
         <div class="flex justify-between">
           <dt>Subtotal</dt>
