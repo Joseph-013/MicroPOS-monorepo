@@ -194,7 +194,7 @@ describe('SettingsPage', () => {
       const api = {
         ...fakeAuthApi({ status: sessionUser(permissions) }).api,
         display: { isOpen: () => Promise.resolve(false), onVisibility: () => () => undefined },
-        shell: { getCloseToTray: () => Promise.resolve(initial), setCloseToTray: (v: boolean) => (saved.push(v), Promise.resolve(true)), getLogsFolder: () => Promise.resolve('/logs'), openLogsFolder: () => Promise.resolve(true) },
+        shell: { getWindowMode: () => Promise.resolve('windowed' as const), setWindowMode: () => Promise.resolve(true), getCloseToTray: () => Promise.resolve(initial), setCloseToTray: (v: boolean) => (saved.push(v), Promise.resolve(true)), getLogsFolder: () => Promise.resolve('/logs'), openLogsFolder: () => Promise.resolve(true) },
         debug: { get: () => Promise.resolve({ saveImages: false, folder: '/downloads/MicroPOS receipts' }) },
         printer: { settings: () => Promise.resolve({ printer: { connection: null, paperWidthMm: 58 }, shop: { name: '', address: '', footer: '' } }), getLogo: () => Promise.resolve(null), listUsb: () => Promise.resolve([]) },
       } as unknown as DesktopApi;

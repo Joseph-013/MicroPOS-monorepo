@@ -5,6 +5,7 @@ import { ensureOwner, signOut } from './auth/auth';
 import { accrueInterest } from './db/queries/credit-interest';
 import { createDatabase } from './db';
 import { getCloseToTray, onCloseToTrayChanged } from './close-to-tray';
+import { getWindowMode } from './window-mode';
 import { startConcernsClock } from './concerns-clock';
 import { TrayIcon } from './tray';
 import { CHANNELS } from './ipc/channels';
@@ -85,6 +86,10 @@ function createWindow(): void {
     webPreferences,
   });
   mainWindow = win;
+  // How the till opens is an admin's choice (Settings > Window); the size above is what "windowed" and leaving full screen return to.
+  const mode = database ? getWindowMode(database.db) : 'windowed';
+  if (mode === 'maximized') win.maximize();
+  else if (mode === 'fullscreen') win.setFullScreen(true);
   win.on('unresponsive', () => log.warn('main', 'The window stopped responding'));
   // The window is always called MicroPOS: the page titles ("Checkout", "Sales Orders") are for the browser, not the title bar.
   win.on('page-title-updated', (event) => event.preventDefault());

@@ -25,6 +25,7 @@ import { setSessionTimeout } from '../auth/session-timeout';
 import { changePin, isAllowed, recordActivity, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
 import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/users';
 import { getCloseToTray, setCloseToTray } from '../close-to-tray';
+import { getWindowMode, setWindowMode } from '../window-mode';
 import { log, logDirectory } from '../logging';
 import { createPrinterService, receiptImagesFolder } from '../printing';
 import { getSaveReceiptImages, setSaveReceiptImages } from '../printing/debug-settings';
@@ -228,6 +229,8 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
   guarded(db, CHANNELS.auth.changePin, [], (_event, input: unknown) => changePin(db, input));
   guarded(db, CHANNELS.shell.getCloseToTray, 'settings.manage', () => getCloseToTray(db));
   guarded(db, CHANNELS.shell.setCloseToTray, 'settings.manage', (_event, value: unknown) => setCloseToTray(db, value));
+  guarded(db, CHANNELS.shell.getWindowMode, 'settings.manage', () => getWindowMode(db));
+  guarded(db, CHANNELS.shell.setWindowMode, 'settings.manage', (_event, value: unknown) => setWindowMode(db, value));
   guarded(db, CHANNELS.users.list, ['users.manage'], () => listUsers(db));
   guarded(db, CHANNELS.users.create, ['users.manage'], (_event, input: unknown) => createUser(db, input));
   guarded(db, CHANNELS.users.update, ['users.manage'], (_event, id: unknown, input: unknown) => updateUser(db, id, input));

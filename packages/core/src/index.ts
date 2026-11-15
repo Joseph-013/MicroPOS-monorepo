@@ -135,7 +135,7 @@ export type {
 export { PURCHASE_STATUSES } from './purchasing.js';
 export type { CustomerDisplayLine, CustomerDisplayMode, CustomerDisplayReceipt, CustomerDisplayState } from './customer-display.js';
 export { CUSTOMER_DISPLAY_MODES, IDLE_DISPLAY_STATE } from './customer-display.js';
-export { DESKTOP_API_VERSION, type DesktopApi } from './desktop-api.js';
+export { DESKTOP_API_VERSION, type DesktopApi, WINDOW_MODES, type WindowMode } from './desktop-api.js';
 export { canReverseOrder, ORDER_PAYMENT_METHODS } from './draft.js';
 export type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, DraftLine, OrderLineProblem, OrderPaymentMethod, OrderActionInput, OrderActionResult, SalesOrderDetail, SalesOrderSummary } from './draft.js';
 export { formatQuantity, lineTotal, MAX_QUANTITY_DECIMALS, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from './quantity.js';

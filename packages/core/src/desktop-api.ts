@@ -38,7 +38,11 @@ import type { CheckoutDraft, CompleteOrderInput, CompleteOrderResult, OrderActio
  * test keeps in step) whenever a call or payload changes in a way an older main process cannot handle. The page
  * checks it at startup so a dev app that kept running old main-process code says so instead of misbehaving.
  */
-export const DESKTOP_API_VERSION = 50;
+/** How the till's window opens at start. */
+export const WINDOW_MODES = ['windowed', 'maximized', 'fullscreen'] as const;
+export type WindowMode = (typeof WINDOW_MODES)[number];
+
+export const DESKTOP_API_VERSION = 51;
 
 /**
  * What the Electron preload exposes to the renderer as `window.micropos`.
@@ -162,6 +166,9 @@ export interface DesktopApi {
     /** Whether closing the window hides it (the app keeps running, with an icon in the tray) instead of quitting. */
     getCloseToTray(): Promise<boolean>;
     setCloseToTray(value: boolean): Promise<boolean>;
+    /** How the till's window opens when the app starts (applied at the next start). */
+    getWindowMode(): Promise<WindowMode>;
+    setWindowMode(value: WindowMode): Promise<boolean>;
   };
   data: {
     /**

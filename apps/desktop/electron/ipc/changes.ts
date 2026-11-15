@@ -128,6 +128,8 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.shell.openLogsFolder,
   CHANNELS.shell.getCloseToTray,
   CHANNELS.shell.setCloseToTray,
+  CHANNELS.shell.getWindowMode,
+  CHANNELS.shell.setWindowMode,
   CHANNELS.data.changed,
 ];
 
