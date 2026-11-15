@@ -146,10 +146,18 @@
 <!-- Right-click (or long-press) menu of an order row. -->
 <ng-template #rowMenu let-id>
   @if (orderById(id); as order) {
+    @let n = targetsFor(order).length;
     <div hlmDropdownMenu>
+      @if (n > 1 && canReverse(order)) {
+        <div hlmDropdownMenuLabel class="truncate">{{ order.orderNumber }}</div>
+      }
       <button hlmDropdownMenuItem type="button" (click)="view(order)">View</button>
       <button hlmDropdownMenuItem type="button" (click)="printReceipt(order)">Print receipt</button>
       @if (canReverse(order)) {
+        @if (n > 1) {
+          <div hlmDropdownMenuSeparator></div>
+          <div hlmDropdownMenuLabel>{{ n }} selected</div>
+        }
         <button hlmDropdownMenuItem variant="destructive" type="button" (click)="reverse('void', targetsFor(order))">Void</button>
         <button hlmDropdownMenuItem type="button" (click)="reverse('refund', targetsFor(order))">Refund</button>
       }

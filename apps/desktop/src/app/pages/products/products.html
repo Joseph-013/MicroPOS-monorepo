@@ -207,24 +207,37 @@
      is looked up fresh here (otherwise a status changed from this menu would still be offered the old way). -->
 <ng-template #rowMenu let-id>
   @if (productById(id); as product) {
-  <div hlmDropdownMenu>
-    @if (product.deletedAt) {
-      <button hlmDropdownMenuItem type="button" (click)="ask('restore', targetsFor(product))">Restore</button>
-    } @else {
-      <button hlmDropdownMenuItem type="button" (click)="edit(product)">Edit</button>
-      @if (product.tracking !== 'none') {
-        <button hlmDropdownMenuItem type="button" (click)="receiveStock(product)">Receive stock</button>
-        <button hlmDropdownMenuItem type="button" (click)="repackage(product)">Repackage</button>
+    <!-- Several rows ticked: what is about this row alone comes first, then (after a line) what applies to all that are ticked. -->
+    @let n = targetsFor(product).length;
+    <div hlmDropdownMenu>
+      @if (!product.deletedAt) {
+        @if (n > 1) {
+          <div hlmDropdownMenuLabel class="truncate">{{ product.name }}</div>
+        }
+        <button hlmDropdownMenuItem type="button" (click)="edit(product)">Edit</button>
+        @if (product.tracking !== 'none') {
+          <button hlmDropdownMenuItem type="button" (click)="receiveStock(product)">Receive stock</button>
+          <button hlmDropdownMenuItem type="button" (click)="repackage(product)">Repackage</button>
+        }
+        @if (n > 1) {
+          <div hlmDropdownMenuSeparator></div>
+        }
       }
-      @if (hasStatus(product, false)) {
-        <button hlmDropdownMenuItem type="button" (click)="setActive(targetsFor(product), true)">Set <span hlmBadge variant="success" class="text-success!">Active</span></button>
+      @if (n > 1) {
+        <div hlmDropdownMenuLabel>{{ n }} selected</div>
       }
-      @if (hasStatus(product, true)) {
-        <button hlmDropdownMenuItem type="button" (click)="setActive(targetsFor(product), false)">Set <span hlmBadge variant="destructive" class="text-destructive!">Inactive</span></button>
+      @if (product.deletedAt) {
+        <button hlmDropdownMenuItem type="button" (click)="ask('restore', targetsFor(product))">Restore</button>
+      } @else {
+        @if (hasStatus(product, false)) {
+          <button hlmDropdownMenuItem type="button" (click)="setActive(targetsFor(product), true)">Set <span hlmBadge variant="success" class="text-success!">Active</span></button>
+        }
+        @if (hasStatus(product, true)) {
+          <button hlmDropdownMenuItem type="button" (click)="setActive(targetsFor(product), false)">Set <span hlmBadge variant="destructive" class="text-destructive!">Inactive</span></button>
+        }
+        <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(product))">Delete</button>
       }
-      <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(product))">Delete</button>
-    }
-  </div>
+    </div>
   }
 </ng-template>
 

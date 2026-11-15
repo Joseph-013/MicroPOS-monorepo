@@ -139,15 +139,24 @@
 <!-- Right-click (or long-press) menu of a customer row. -->
 <ng-template #rowMenu let-id>
   @if (customerById(id); as customer) {
+    @let n = targetsFor(customer).length;
+    @let bulk = !!customer.deletedAt || customer.balance === 0;
     <div hlmDropdownMenu>
+      @if (n > 1 && bulk) {
+        <div hlmDropdownMenuLabel class="truncate">{{ customer.name }}</div>
+      }
       <button hlmDropdownMenuItem type="button" (click)="view(customer)">View account</button>
+      @if (!customer.deletedAt) {
+        <button hlmDropdownMenuItem type="button" (click)="edit(customer)">Edit</button>
+      }
+      @if (n > 1 && bulk) {
+        <div hlmDropdownMenuSeparator></div>
+        <div hlmDropdownMenuLabel>{{ n }} selected</div>
+      }
       @if (customer.deletedAt) {
         <button hlmDropdownMenuItem type="button" (click)="ask('restore', targetsFor(customer))">Restore</button>
-      } @else {
-        <button hlmDropdownMenuItem type="button" (click)="edit(customer)">Edit</button>
-        @if (customer.balance === 0) {
-          <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(customer))">Delete</button>
-        }
+      } @else if (customer.balance === 0) {
+        <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(customer))">Delete</button>
       }
     </div>
   }

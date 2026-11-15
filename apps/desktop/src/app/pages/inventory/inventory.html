@@ -151,12 +151,23 @@
 <!-- Right-click (or long-press) menu of a batch row. The row is looked up by id (the trigger keeps its first data). -->
 <ng-template #rowMenu let-id>
   @if (batchById(id); as batch) {
+    @let n = targetsFor(batch).length;
+    @let bulk = batch.onHandMilli > 0;
     <div hlmDropdownMenu>
+      @if (n > 1 && bulk) {
+        <div hlmDropdownMenuLabel class="truncate">{{ batch.productName }}</div>
+      }
       <button hlmDropdownMenuItem type="button" (click)="adjust(batch)">Adjust</button>
       @if (batch.onHandMilli > 0) {
         <button hlmDropdownMenuItem type="button" (click)="repackage(batch)">Repackage</button>
         @if (auth.can('purchasing.manage')) {
           <button hlmDropdownMenuItem type="button" (click)="returnToSupplier(batch)">Return to supplier</button>
+        }
+      }
+      @if (bulk) {
+        @if (n > 1) {
+          <div hlmDropdownMenuSeparator></div>
+          <div hlmDropdownMenuLabel>{{ n }} selected</div>
         }
         <button hlmDropdownMenuItem variant="destructive" type="button" (click)="askWriteOff(targetsFor(batch))">Write off</button>
       }

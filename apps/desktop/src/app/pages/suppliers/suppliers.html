@@ -130,15 +130,24 @@
 <!-- Right-click (or long-press) menu of a supplier row. -->
 <ng-template #rowMenu let-id>
   @if (supplierById(id); as supplier) {
+    @let n = targetsFor(supplier).length;
+    @let bulk = !!supplier.deletedAt || (supplier.owed === 0 && supplier.openOrders === 0);
     <div hlmDropdownMenu>
+      @if (n > 1 && bulk) {
+        <div hlmDropdownMenuLabel class="truncate">{{ supplier.name }}</div>
+      }
       <button hlmDropdownMenuItem type="button" (click)="viewPurchases(supplier)">View purchases</button>
+      @if (!supplier.deletedAt) {
+        <button hlmDropdownMenuItem type="button" (click)="edit(supplier)">Edit</button>
+      }
+      @if (n > 1 && bulk) {
+        <div hlmDropdownMenuSeparator></div>
+        <div hlmDropdownMenuLabel>{{ n }} selected</div>
+      }
       @if (supplier.deletedAt) {
         <button hlmDropdownMenuItem type="button" (click)="ask('restore', targetsFor(supplier))">Restore</button>
-      } @else {
-        <button hlmDropdownMenuItem type="button" (click)="edit(supplier)">Edit</button>
-        @if (supplier.owed === 0 && supplier.openOrders === 0) {
-          <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(supplier))">Delete</button>
-        }
+      } @else if (bulk) {
+        <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(supplier))">Delete</button>
       }
     </div>
   }

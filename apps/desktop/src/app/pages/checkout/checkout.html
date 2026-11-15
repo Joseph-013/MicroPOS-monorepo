@@ -132,14 +132,9 @@
     </header>
 
     @if (selectedLines().length) {
-      <!-- Bulk actions for the ticked lines. -->
-      <div class="flex flex-wrap items-center gap-2 border-b px-4 py-2 max-md:px-3" role="toolbar" aria-label="Selected items">
+      <!-- What is ticked; the bulk actions are in the menu of a ticked line (right-click or long-press). -->
+      <div class="flex items-center gap-2 border-b px-4 py-1 max-md:px-3" role="status">
         <span class="mr-auto text-sm">{{ selectedLines().length }} selected</span>
-        <button hlmBtn variant="outline" size="sm" type="button" class="px-3" (click)="quantitySelected()">Quantity</button>
-        @if (canDiscount()) {
-          <button hlmBtn variant="outline" size="sm" type="button" class="px-3" (click)="discountSelected()">Discount</button>
-        }
-        <button hlmBtn variant="destructive" size="sm" type="button" class="px-3" (click)="removeSelected()">Remove</button>
         <button hlmBtn variant="outline" size="sm" type="button" class="px-3" (click)="selection.clear()">Clear</button>
       </div>
     }
@@ -328,25 +323,27 @@
 
 <!-- Right-click (or long-press) menu of an order line. -->
 <ng-template #lineMenu let-line>
+  @let bulk = selection.has(line.productId) && selectedLines().length > 1;
   <div hlmDropdownMenu>
+    @if (bulk) {
+      <div hlmDropdownMenuLabel class="truncate">{{ line.name }}</div>
+    }
     @if (canDiscount()) {
-      <button hlmDropdownMenuItem type="button" (click)="editLineDiscount(line.productId)">
-        {{ line.discount ? 'Change discount' : 'Discount' }}
-      </button>
+      <button hlmDropdownMenuItem type="button" (click)="editLineDiscount(line.productId)">{{ line.discount ? 'Change discount' : 'Discount' }}</button>
       @if (line.discount) {
-        <button hlmDropdownMenuItem type="button" (click)="setLineDiscount(line.productId, null)">
-          Remove discount
-        </button>
+        <button hlmDropdownMenuItem type="button" (click)="setLineDiscount(line.productId, null)">Remove discount</button>
       }
     }
-    <button
-      hlmDropdownMenuItem
-      variant="destructive"
-      type="button"
-      (click)="removeLine(line.productId)"
-    >
-      Remove item
-    </button>
+    <button hlmDropdownMenuItem variant="destructive" type="button" (click)="removeLine(line.productId)">Remove item</button>
+    @if (bulk) {
+      <div hlmDropdownMenuSeparator></div>
+      <div hlmDropdownMenuLabel>{{ selectedLines().length }} selected</div>
+      <button hlmDropdownMenuItem type="button" (click)="quantitySelected()">Set quantity</button>
+      @if (canDiscount()) {
+        <button hlmDropdownMenuItem type="button" (click)="discountSelected()">Discount</button>
+      }
+      <button hlmDropdownMenuItem variant="destructive" type="button" (click)="removeSelected()">Remove items</button>
+    }
   </div>
 </ng-template>
 

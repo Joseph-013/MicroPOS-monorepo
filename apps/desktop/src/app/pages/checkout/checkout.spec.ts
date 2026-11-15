@@ -345,21 +345,34 @@ describe('CheckoutPage', () => {
     expect(el.textContent).not.toContain(PRODUCTS[1].name);
   });
 
-  it('selects lines: the toolbar sets one quantity on them, removes them, and clearing leaves the rest', async () => {
+  it('selects lines: the bulk actions are in the menu of a ticked line, apart from the actions on that line', async () => {
     scan(PRODUCTS[0].barcode!);
     scan(PRODUCTS[1].barcode!);
     await fixture.whenStable();
-    expect(el.querySelector('[role="toolbar"]')).toBeNull();
+    expect(el.querySelector('[role="status"]')).toBeNull();
 
     (el.querySelector(`[aria-label="Select ${PRODUCTS[0].name}"]`) as HTMLElement).click();
     await fixture.whenStable();
-    expect(el.querySelector('[role="toolbar"]')?.textContent).toContain('1 selected');
+    expect(el.querySelector('[role="status"]')?.textContent).toContain('1 selected');
+
+    const openMenu = async (): Promise<string[]> => {
+      el.querySelector(`[data-row-id="${PRODUCTS[0].id}"]`)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+      await fixture.whenStable();
+      return [...document.querySelectorAll('[hlmDropdownMenuItem], [hlmDropdownMenuLabel], [hlmDropdownMenuSeparator]')].map((i) => (i.hasAttribute('hlmDropdownMenuSeparator') ? '---' : i.textContent!.trim()));
+    };
+    // One line ticked: just that line's actions, no headings.
+    expect(await openMenu()).toEqual(['Remove item']);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
 
     (el.querySelector('[aria-label="Select all items"]') as HTMLElement).click();
     await fixture.whenStable();
-    expect(el.querySelector('[role="toolbar"]')?.textContent).toContain('2 selected');
+    expect(el.querySelector('[role="status"]')?.textContent).toContain('2 selected');
+    expect(el.querySelector('[role="toolbar"]')).toBeNull();
+    expect(await openMenu()).toEqual([PRODUCTS[0].name, 'Remove item', '---', '2 selected', 'Set quantity', 'Remove items']);
 
-    buttonByText(el, 'Quantity').click();
+    const press = (label: string): HTMLElement => [...document.querySelectorAll('[hlmDropdownMenuItem]')].find((i) => i.textContent?.trim() === label) as HTMLElement;
+    press('Set quantity').click();
     await new Promise((r) => setTimeout(r, 20));
     const field = document.querySelector('#bulk-quantity') as HTMLInputElement;
     field.value = '3';
@@ -369,12 +382,11 @@ describe('CheckoutPage', () => {
     await new Promise((r) => setTimeout(r, 20));
     await fixture.whenStable();
     expect(el.textContent).toContain('₱5.37'); // 3 x 1.79
-    expect(el.querySelectorAll('[data-row-id]').length).toBe(2);
 
-    buttonByText(el, 'Remove').click();
+    await openMenu();
+    press('Remove items').click();
     await fixture.whenStable();
     expect(el.querySelectorAll('[data-row-id]').length).toBe(0);
-    expect(el.querySelector('[role="toolbar"]')).toBeNull();
   });
 
   it('claims the scanner: a scanned barcode adds that item, an unknown one is reported', async () => {

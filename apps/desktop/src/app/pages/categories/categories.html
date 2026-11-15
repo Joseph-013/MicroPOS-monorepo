@@ -123,11 +123,23 @@
 <!-- Right-click (or long-press) menu of a category row. -->
 <ng-template #rowMenu let-id>
   @if (categoryById(id); as category) {
+    @let n = targetsFor(category).length;
     <div hlmDropdownMenu>
+      @if (!category.deletedAt) {
+        @if (n > 1) {
+          <div hlmDropdownMenuLabel class="truncate">{{ category.name }}</div>
+        }
+        <button hlmDropdownMenuItem type="button" (click)="edit(category)">Edit</button>
+        @if (n > 1) {
+          <div hlmDropdownMenuSeparator></div>
+        }
+      }
+      @if (n > 1) {
+        <div hlmDropdownMenuLabel>{{ n }} selected</div>
+      }
       @if (category.deletedAt) {
         <button hlmDropdownMenuItem type="button" (click)="ask('restore', targetsFor(category))">Restore</button>
       } @else {
-        <button hlmDropdownMenuItem type="button" (click)="edit(category)">Edit</button>
         <button hlmDropdownMenuItem variant="destructive" type="button" (click)="ask('delete', targetsFor(category))">Delete</button>
       }
     </div>
