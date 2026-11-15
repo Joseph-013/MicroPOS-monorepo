@@ -171,6 +171,9 @@ importers:
       '@point-of-sale/receipt-printer-encoder':
         specifier: ^4.0.1
         version: 4.0.1
+      barcode-detector:
+        specifier: 3.2.3
+        version: 3.2.3(@types/emscripten@1.41.6)
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
@@ -186,6 +189,9 @@ importers:
       ws:
         specifier: ^8.23.0
         version: 8.23.0
+      zxing-wasm:
+        specifier: 3.1.6
+        version: 3.1.6(@types/emscripten@1.41.6)
     devDependencies:
       '@angular/build':
         specifier: ^22.2.6

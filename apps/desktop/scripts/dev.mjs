@@ -66,6 +66,7 @@ if (process.platform === 'linux') {
   }
 }
 
+await import('./copy-zxing.mjs');
 const ng = run('pnpm', ['exec', 'ng', 'serve', '--port', String(PORT)]);
 ng.on('exit', (code) => shutdown(code ?? 1));
 

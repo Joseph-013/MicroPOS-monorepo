@@ -1,15 +1,15 @@
 {
   "name": "@micropos/desktop",
-  "version": "2.21.0",
+  "version": "2.22.0",
   "productName": "MicroPOS",
   "desktopName": "micropos.desktop",
   "scripts": {
     "ng": "ng",
-    "build:renderer": "ng build",
+    "build:renderer": "node scripts/copy-zxing.mjs && ng build",
     "build:electron": "node -e \"require('node:fs').rmSync('dist/electron',{recursive:true,force:true})\" && tsc -p tsconfig.electron.json && pnpm build:preload",
     "build": "pnpm build:renderer && pnpm build:electron",
     "start": "pnpm build && electron-forge start",
-    "start:renderer": "ng serve",
+    "start:renderer": "node scripts/copy-zxing.mjs && ng serve",
     "test": "ng test",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "package": "pnpm build && electron-forge package",
@@ -79,10 +79,12 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@point-of-sale/receipt-printer-encoder": "^4.0.1",
+    "barcode-detector": "3.2.3",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",
     "qrcode-generator": "^2.0.4",
     "usb": "^3.3.0",
-    "ws": "^8.23.0"
+    "ws": "^8.23.0",
+    "zxing-wasm": "3.1.6"
   }
 }

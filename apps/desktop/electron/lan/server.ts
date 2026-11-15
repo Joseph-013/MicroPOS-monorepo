@@ -54,6 +54,7 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
   '.txt': 'text/plain; charset=utf-8',
+  '.wasm': 'application/wasm',
   '.webmanifest': 'application/manifest+json',
 };
 
