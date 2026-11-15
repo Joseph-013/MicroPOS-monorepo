@@ -43,8 +43,13 @@ export class CameraScanPanel {
   protected readonly status = signal('Starting the camera...');
   protected readonly last = signal('');
 
+  /** Made when the camera is opened (by a press, which browsers require before they allow sound). */
+  private readonly audio = typeof AudioContext === 'undefined' ? undefined : new AudioContext();
+
   constructor() {
+    void this.audio?.resume().catch(() => undefined);
     inject(DestroyRef).onDestroy(() => {
+      void this.audio?.close().catch(() => undefined);
       this.stopped = true;
       this.stream?.getTracks().forEach((track) => track.stop());
     });
@@ -87,7 +92,26 @@ export class CameraScanPanel {
     this.lastAt = now;
     this.last.set(code);
     navigator.vibrate?.(60);
+    this.beep();
     this.scanner.receive(code);
+  }
+
+  /** A short, soft sine tone to say the code was read. */
+  private beep(): void {
+    const audio = this.audio;
+    if (!audio || audio.state !== 'running') return;
+    const tone = audio.createOscillator();
+    const volume = audio.createGain();
+    const now = audio.currentTime;
+    tone.type = 'sine';
+    tone.frequency.value = 1000;
+    // Ramp in and out so the tone does not click.
+    volume.gain.setValueAtTime(0, now);
+    volume.gain.linearRampToValueAtTime(0.25, now + 0.01);
+    volume.gain.linearRampToValueAtTime(0, now + 0.12);
+    tone.connect(volume).connect(audio.destination);
+    tone.start(now);
+    tone.stop(now + 0.13);
   }
 
   private describe(error: unknown): string {
