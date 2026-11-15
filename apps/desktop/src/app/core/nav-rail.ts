@@ -11,6 +11,7 @@ import {
   lucideComputer,
   lucideLayoutGrid,
   lucideLock,
+  lucideScanLine,
   lucideUserCog,
   lucideUserRound,
   lucidePackage,
@@ -29,6 +30,7 @@ import { AuthService } from './auth/auth.service';
 import { NavBadges } from './nav-badges';
 import { NavDrawer } from './nav-drawer';
 import { Logo } from './logo';
+import { CameraScan } from './scanner';
 import { StorageService } from './storage/storage.service';
 
 /** A nav entry: either a link (`path`) or a group (`children`), nestable to any depth. */
@@ -65,6 +67,7 @@ export interface NavItem {
       lucideLayoutDashboard,
       lucideSmartphone,
       lucideLock,
+      lucideScanLine,
   lucideUserCog,
   lucideUserRound,
       lucideLayoutGrid,
@@ -79,6 +82,7 @@ export interface NavItem {
 export class NavRail {
   protected readonly auth = inject(AuthService);
   protected readonly drawer = inject(NavDrawer);
+  protected readonly camera = inject(CameraScan);
   private readonly badges = inject(NavBadges);
   private readonly storage = inject(StorageService);
 

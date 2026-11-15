@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideMenu, lucideX } from '@ng-icons/lucide';
+import { lucideMenu, lucideScanLine, lucideX } from '@ng-icons/lucide';
+import { CameraScan } from './scanner';
 import { Logo } from './logo';
 import { NavDrawer } from './nav-drawer';
 
@@ -12,11 +13,16 @@ import { NavDrawer } from './nav-drawer';
 @Component({
   selector: 'app-topbar',
   imports: [NgIcon, Logo],
-  providers: [provideIcons({ lucideMenu, lucideX })],
+  providers: [provideIcons({ lucideMenu, lucideScanLine, lucideX })],
   host: { class: 'bg-background border-border sticky top-(--banner-offset,0px) z-10 hidden h-(--topbar-height) shrink-0 border-b max-md:block' },
   template: `
     <header class="flex h-full items-center justify-between gap-3 px-3">
-      <app-logo class="shrink-0" />
+      <app-logo class="mr-auto shrink-0" />
+      @if (camera.available) {
+        <button type="button" class="hover:bg-accent flex size-10 shrink-0 items-center justify-center" aria-label="Scan with camera" (click)="camera.open()">
+          <ng-icon name="lucideScanLine" size="22" strokeWidth="1.5" />
+        </button>
+      }
       @if (drawer.mobile()) {
         <button
           type="button"
@@ -34,4 +40,5 @@ import { NavDrawer } from './nav-drawer';
 })
 export class Topbar {
   protected readonly drawer = inject(NavDrawer);
+  protected readonly camera = inject(CameraScan);
 }
