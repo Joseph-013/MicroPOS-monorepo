@@ -24,9 +24,9 @@ const FRAME_MS = 120;
       <div class="border-primary pointer-events-none absolute inset-x-[12%] inset-y-[30%] border-2" aria-hidden="true"></div>
     </div>
 
-    <p class="h-5 min-w-0 truncate text-center text-sm" aria-live="polite">
+    <p class="flex h-5 min-w-0 items-center justify-center gap-2 text-sm" aria-live="polite">
       @if (last()) {
-        <span class="text-muted-foreground">Scanned</span> <span class="font-medium">{{ last() }}</span>
+        <span class="text-muted-foreground shrink-0">Scanned</span> <span class="min-w-0 truncate font-medium">{{ last() }}</span>
       }
     </p>
 
