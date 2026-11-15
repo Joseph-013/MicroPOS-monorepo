@@ -50,6 +50,7 @@ export async function pairFromAddress(): Promise<{ state: 'paired' | 'not-paired
     if (!res.ok || !body.token) return { state: 'refused', error: body.error ?? 'Could not pair' };
     localStorage.setItem(TOKEN_KEY, body.token);
     url.searchParams.delete('pair');
+    url.searchParams.delete('fp'); // the mobile app's pin of the certificate; a browser has no use for it
     history.replaceState(null, '', url.pathname + url.search + url.hash);
     return { state: 'paired' };
   } catch {

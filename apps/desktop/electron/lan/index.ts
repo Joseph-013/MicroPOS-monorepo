@@ -4,7 +4,7 @@ import type { AppDatabase } from '../db';
 import { settings } from '../db/schema';
 import { draftKey } from '../db/queries/draft';
 import { log } from '../logging';
-import { loadOrCreateCertificate } from './certificate';
+import { loadOrCreateCertificate, publicKeyPin } from './certificate';
 import { listDevices, revokeDevice } from './devices';
 import { lanAddresses } from './network';
 import { LanServer, type RpcHandler } from './server';
@@ -35,6 +35,8 @@ export interface LanServiceOptions {
  */
 export class LanService {
   private server: LanServer | null = null;
+  /** The pin of the running server's certificate, put in the pairing QR (`fp`). */
+  private pin = '';
   private error: string | null = null;
   private readonly port: number;
 
@@ -53,6 +55,7 @@ export class LanService {
     try {
       const addresses = lanAddresses();
       const { key, cert } = loadOrCreateCertificate(this.options.dataFolder, addresses);
+      this.pin = publicKeyPin(cert);
       const server = new LanServer({
         db: this.options.db,
         handlers: this.options.handlers,
@@ -105,7 +108,7 @@ export class LanService {
     const address = lanAddresses()[0];
     if (!server?.running || !address) return null;
     const { code, expiresAt } = server.codes.create();
-    return { url: `https://${address}:${this.port}/?pair=${code}`, expiresAt };
+    return { url: `https://${address}:${this.port}/?pair=${code}&fp=${this.pin}`, expiresAt };
   }
 
   revoke(id: unknown): boolean {

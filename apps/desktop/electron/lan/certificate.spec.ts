@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { X509Certificate } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { createCertificate, fingerprint, loadOrCreateCertificate } from './certificate';
+import { createCertificate, fingerprint, loadOrCreateCertificate, publicKeyPin } from './certificate';
 
 describe('self-signed certificate', () => {
   it('is a valid X.509 certificate that signs itself and names the addresses', () => {
@@ -44,6 +44,22 @@ describe('self-signed certificate', () => {
       expect(loadOrCreateCertificate(dir, ['192.168.1.20']).cert).toBe(first.cert);
       expect(loadOrCreateCertificate(dir, ['192.168.1.20', '10.1.1.1']).cert).not.toBe(first.cert);
       expect(loadOrCreateCertificate(dir, ['192.168.1.20'], Date.now() + 340 * 24 * 3600_000).cert).not.toBe(first.cert); // nearly expired
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the same public key (and pin) when it is renewed, so paired phones keep trusting it', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'micropos-cert-'));
+    try {
+      const first = loadOrCreateCertificate(dir, ['192.168.1.20']);
+      const moved = loadOrCreateCertificate(dir, ['10.1.1.1']); // another address: a new certificate
+      expect(moved.cert).not.toBe(first.cert);
+      expect(publicKeyPin(moved.cert)).toBe(publicKeyPin(first.cert));
+      expect(new X509Certificate(moved.cert).checkIP('10.1.1.1')).toBe('10.1.1.1');
+      expect(new X509Certificate(moved.cert).verify(new X509Certificate(moved.cert).publicKey)).toBe(true);
+      expect(publicKeyPin(first.cert)).toMatch(/^[0-9a-f]{64}$/);
+      expect(publicKeyPin(createCertificate(['192.168.1.20']).cert)).not.toBe(publicKeyPin(first.cert)); // a different key
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

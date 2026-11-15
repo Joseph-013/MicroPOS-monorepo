@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync, randomBytes, sign, X509Certificate } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, sign, X509Certificate } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
@@ -55,9 +55,15 @@ export interface Certificate {
   expiresAt: number;
 }
 
-export function createCertificate(addresses: readonly string[], now = Date.now()): Certificate {
+/**
+ * `keyPem`: reuse this private key instead of making a new one, so a renewed certificate (new address, nearing its end)
+ * keeps the same public key and a paired phone's pin of it (`publicKeyPin`) stays valid.
+ */
+export function createCertificate(addresses: readonly string[], now = Date.now(), keyPem?: string): Certificate {
   const ips = addresses.filter((a) => net.isIPv4(a));
-  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const { publicKey, privateKey } = keyPem
+    ? { privateKey: createPrivateKey(keyPem), publicKey: createPublicKey(createPrivateKey(keyPem)) }
+    : generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   const name = seq(set(seq(oid('2.5.4.3'), utf8('MicroPOS till'))));
   const notBefore = now - 60 * 60_000; // an hour back: tolerates a phone whose clock is a little behind
   const notAfter = now + 365 * 24 * 60 * 60_000;
@@ -90,18 +96,22 @@ export function createCertificate(addresses: readonly string[], now = Date.now()
 
 /**
  * The saved certificate in `folder` while it is still good for a month and names every current address; otherwise a
- * new one is made and saved. (A new one makes phones show the warning again, so it is kept as long as it fits.)
+ * new one is made and saved. (A new one makes phones show the warning again, so it is kept as long as it fits.) A new
+ * certificate keeps the saved private key, so the public key (and `publicKeyPin`) never changes.
  */
 export function loadOrCreateCertificate(folder: string, addresses: readonly string[], now = Date.now()): Certificate {
   const file = path.join(folder, 'lan-certificate.json');
+  let keyPem: string | undefined;
   try {
     const saved = JSON.parse(fs.readFileSync(file, 'utf8')) as Certificate;
     new X509Certificate(saved.cert); // must still parse
     if (saved.expiresAt > now + 30 * 24 * 60 * 60_000 && addresses.every((a) => saved.addresses.includes(a))) return saved;
+    createPrivateKey(saved.key); // must still parse to be reused
+    keyPem = saved.key;
   } catch {
     // none yet, or unreadable: make one
   }
-  const made = createCertificate(addresses, now);
+  const made = createCertificate(addresses, now, keyPem);
   fs.mkdirSync(folder, { recursive: true });
   fs.writeFileSync(file, JSON.stringify(made), { mode: 0o600 });
   return made;
@@ -109,3 +119,9 @@ export function loadOrCreateCertificate(folder: string, addresses: readonly stri
 
 /** A short fingerprint to show next to the pairing code, so the person can tell it is theirs. */
 export const fingerprint = (cert: string): string => createHash('sha256').update(new X509Certificate(cert).raw).digest('hex').slice(0, 16).toUpperCase().replace(/(.{4})/g, '$1 ').trim();
+
+/**
+ * What the mobile app pins: the SHA-256 of the certificate's public key (SubjectPublicKeyInfo, DER) as lowercase hex.
+ * It is put in the pairing QR code, and survives renewals because the key is reused.
+ */
+export const publicKeyPin = (cert: string): string => createHash('sha256').update(new X509Certificate(cert).publicKey.export({ type: 'spki', format: 'der' })).digest('hex');
