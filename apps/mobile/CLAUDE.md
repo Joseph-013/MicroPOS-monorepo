@@ -3,7 +3,7 @@
 Expo (managed workflow) + React Native, TypeScript. Uses `@micropos/core` for all business logic.
 
 ## Commands
-- `pnpm --filter @micropos/mobile start` (Expo dev server; `android` / `ios` / `web` variants too)
+- `pnpm dev:mobile` from the root builds core and starts Expo; or `pnpm --filter @micropos/mobile start` (Expo dev server; `android` / `ios` / `web` variants too)
 - `pnpm --filter @micropos/mobile typecheck`
 - Build core first (`pnpm --filter @micropos/core build`); Metro consumes its `dist/`.
 
