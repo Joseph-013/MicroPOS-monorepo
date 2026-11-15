@@ -10,7 +10,7 @@ import { ProductsService } from '../../core/data/products.service';
 import { PurchasesService } from '../../core/data/purchases.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
 import { ConfirmItems, type ConfirmItem } from '../../core/ui/confirm-items';
-import { claimScanner } from '../../core/scanner';
+import { CameraScanButton, claimScanner } from '../../core/scanner';
 import { AppSettings } from '../../core/settings/app-settings.service';
 import { fromDateInput } from '../inventory/receive-stock-form';
 
@@ -31,10 +31,13 @@ interface LineEntry {
  */
 @Component({
   host: { class: 'contents' },
-  imports: [ConfirmItems, OnScreenKeypadDirective, HlmAlertDialogImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports],
+  imports: [CameraScanButton, ConfirmItems, OnScreenKeypadDirective, HlmAlertDialogImports, HlmButtonImports, HlmDialogImports, HlmInputImports, HlmLabelImports],
   template: `
     <hlm-dialog-header>
-      <h3 hlmDialogTitle>Receive {{ purchase.number }}</h3>
+      <div class="flex min-w-0 items-center justify-between gap-2">
+        <h3 hlmDialogTitle>Receive {{ purchase.number }}</h3>
+        <app-camera-scan-button />
+      </div>
     </hlm-dialog-header>
 
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); review()">

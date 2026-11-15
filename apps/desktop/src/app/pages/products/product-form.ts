@@ -15,7 +15,7 @@ import { ProductDraftService } from '../../core/data/product-draft.service';
 import { ProductsService } from '../../core/data/products.service';
 import { formatCentsInput, parseCents } from '../../core/money-input';
 import { OnScreenKeypadDirective } from '../../core/keypad';
-import { claimScanner, ScanInputDirective } from '../../core/scanner';
+import { CameraScanButton, claimScanner, ScanInputDirective } from '../../core/scanner';
 import { FilterInput } from '../../core/ui/filter-input';
 import { AppSettings } from '../../core/settings/app-settings.service';
 
@@ -47,7 +47,7 @@ export interface ProductFormContext {
   // `contents`: the dialog's own grid (gap, rows, footer bleed) lays out the header, form and footer directly,
   // instead of treating this whole component as one grid cell.
   host: { class: 'contents' },
-  imports: [
+  imports: [CameraScanButton, 
     FilterInput,
     ScanInputDirective,
     OnScreenKeypadDirective,
@@ -62,7 +62,10 @@ export interface ProductFormContext {
   ],
   template: `
     <hlm-dialog-header>
-      <h3 hlmDialogTitle>{{ product ? 'Edit product' : 'Add product' }}</h3>
+      <div class="flex min-w-0 items-center justify-between gap-2">
+        <h3 hlmDialogTitle>{{ product ? 'Edit product' : 'Add product' }}</h3>
+        <app-camera-scan-button />
+      </div>
     </hlm-dialog-header>
 
     <!-- Padding inside the scroll area (pulled back out with negative margins) so focus rings are not clipped at its edges. -->

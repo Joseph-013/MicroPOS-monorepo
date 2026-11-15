@@ -12,7 +12,7 @@ import { BannerService } from '../../core/banner';
 import { InventoryService } from '../../core/data/inventory.service';
 import { ProductsService } from '../../core/data/products.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
-import { claimScanner } from '../../core/scanner';
+import { CameraScanButton, claimScanner } from '../../core/scanner';
 import { AppSettings } from '../../core/settings/app-settings.service';
 import { fromDateInput } from './receive-stock-form';
 
@@ -33,7 +33,7 @@ interface TargetRow {
 /** Repackage: take a quantity of one product (a sack) and put it into others (loose kilos, smaller bags). */
 @Component({
   host: { class: 'contents' },
-  imports: [
+  imports: [CameraScanButton, 
     NgIcon,
     OnScreenKeypadDirective,
     HlmButtonImports,
@@ -45,7 +45,10 @@ interface TargetRow {
   viewProviders: [provideIcons({ lucidePlus, lucideX })],
   template: `
     <hlm-dialog-header>
-      <h3 hlmDialogTitle>Repackage</h3>
+      <div class="flex min-w-0 items-center justify-between gap-2">
+        <h3 hlmDialogTitle>Repackage</h3>
+        <app-camera-scan-button />
+      </div>
     </hlm-dialog-header>
 
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); submit()">
