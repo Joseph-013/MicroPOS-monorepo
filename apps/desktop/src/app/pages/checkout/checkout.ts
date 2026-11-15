@@ -34,7 +34,7 @@ import { AppSettings } from '../../core/settings/app-settings.service';
 import { OnScreenKeypadDirective } from '../../core/keypad';
 import { FocusSelectDirective } from '../../core/ui/focus-select.directive';
 import { HoldRepeatDirective } from '../../core/ui/hold-repeat.directive';
-import { CameraScanButton, claimScanner } from '../../core/scanner';
+import { CameraScanButton, CameraScanInline, claimScanner } from '../../core/scanner';
 
 const formatMoney = (cents: number): string => new MoneyPipe().transform(cents);
 
@@ -45,7 +45,7 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
 
 /** Checkout: order lines on the left, payment controls on the right, item browser in a dialog. */
 @Component({
-  imports: [CameraScanButton, 
+  imports: [CameraScanButton, CameraScanInline, 
     HlmSwitchImports,
     NgIcon,
     FocusSelectDirective,

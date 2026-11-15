@@ -15,7 +15,7 @@ import { InventoryService } from '../../core/data/inventory.service';
 import { ProductsService } from '../../core/data/products.service';
 import { formatCentsInput, parseCents } from '../../core/money-input';
 import { OnScreenKeypadDirective } from '../../core/keypad';
-import { CameraScanButton, claimScanner, ScanInputDirective } from '../../core/scanner';
+import { CameraScanButton, CameraScanInline, claimScanner, ScanInputDirective } from '../../core/scanner';
 import { AppSettings } from '../../core/settings/app-settings.service';
 import { ProductForm, type ProductFormContext } from '../products/product-form';
 
@@ -43,7 +43,7 @@ export const fromDateInput = (value: string): number | null => {
 /** Receive stock: pick a product (or scan it), then lot, expiry, quantity and cost as its tracking asks. */
 @Component({
   host: { class: 'contents' },
-  imports: [CameraScanButton, 
+  imports: [CameraScanButton, CameraScanInline, 
     OnScreenKeypadDirective,
     ScanInputDirective,
     HlmButtonImports,
@@ -59,6 +59,7 @@ export const fromDateInput = (value: string): number | null => {
         <h3 hlmDialogTitle>Receive stock</h3>
         <app-camera-scan-button />
       </div>
+      <app-camera-scan-inline />
     </hlm-dialog-header>
 
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); submit()">

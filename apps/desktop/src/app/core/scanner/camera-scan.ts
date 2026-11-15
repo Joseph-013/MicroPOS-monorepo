@@ -1,4 +1,4 @@
-import { inject, Service } from '@angular/core';
+import { inject, Service, signal } from '@angular/core';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { cameraScanSupported } from './camera-detector';
 import { CameraScanDialog } from './camera-scan-dialog';
@@ -8,6 +8,8 @@ import { CameraScanDialog } from './camera-scan-dialog';
 export class CameraScan {
   private readonly dialogs = inject(HlmDialogService);
   private shown = false;
+  /** The camera is shown inside the dialog that has the Scan button (`CameraScanInline`), instead of a dialog of its own. */
+  readonly inline = signal(false);
   readonly available = cameraScanSupported();
 
   open(): void {
