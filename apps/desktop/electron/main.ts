@@ -1,5 +1,5 @@
 import type { DataDomain } from '@micropos/core';
-import { app, BrowserWindow, Menu, powerMonitor, screen, session } from 'electron';
+import { app, BrowserWindow, dialog, Menu, powerMonitor, screen } from 'electron';
 import path from 'node:path';
 import { ensureOwner, signOut } from './auth/auth';
 import { accrueInterest } from './db/queries/credit-interest';
@@ -12,13 +12,11 @@ import { CHANNELS } from './ipc/channels';
 import { emitDataChanged, onDataChanged } from './ipc/changes';
 import { registerIpcHandlers, rpcHandlers } from './ipc';
 import { LanService } from './lan';
-import { applyPendingImport, autoBackup } from './backup/backup';
+import { applyPendingImport, autoBackup, finishImport, rollbackImport } from './backup/backup';
 import { BackupService } from './backup/service';
 import { closeCustomerDisplay, registerCustomerDisplay } from './display';
 import { initLogging, log } from './logging';
-import { purgeLegacyData } from './legacy-data';
 import { attachScanner } from './scanner';
-import { handleSquirrelEvent } from './squirrel';
 
 const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
 
@@ -152,110 +150,102 @@ function migrationsFolder(): string {
 // MicroPOS happens to be installed on the machine.
 if (!app.isPackaged) app.setDesktopName('micropos-dev.desktop');
 
-/**
- * A packaged app starts on a folder an earlier MicroPOS may have used (same name, other schema): make it this app's
- * own before anything opens it. Not in development, where the data lives in the project.
- */
-function claimUserData(): boolean {
-  if (!app.isPackaged) return false;
-  const result = purgeLegacyData(app.getPath('userData'));
-  if (result.state === 'purged') {
-    console.log(`Removed data of an earlier install: ${result.removed.join(', ')}${result.failed.length ? ` (could not remove: ${result.failed.join(', ')})` : ''}`);
+// The installed app has no menu bar (File, Edit, View, Window); development keeps it for the DevTools entries.
+if (app.isPackaged) Menu.setApplicationMenu(null);
+// Logs go in a `logs` folder: the system's log folder when installed, `local-data/logs` in development.
+initLogging(app.isPackaged ? app.getPath('logs') : path.join(app.getAppPath(), 'local-data', 'logs'), !app.isPackaged);
+log.info('app', `MicroPOS ${app.getVersion()} started (${process.platform}, Electron ${process.versions.electron})`);
+process.on('uncaughtException', (error) => log.error('main', 'Uncaught exception', error));
+process.on('unhandledRejection', (reason) => log.error('main', 'Unhandled promise rejection', reason));
+app.on('render-process-gone', (_event, _contents, details) => log.error('main', `The window's process ended (${details.reason}, code ${details.exitCode})`));
+app.on('child-process-gone', (_event, details) => log.error('main', `A ${details.type} process ended (${details.reason}, code ${details.exitCode})`));
+// One MicroPOS at a time (two would share one database): starting it again, for instance while it runs hidden in the tray, brings the till back.
+const gotLock = app.requestSingleInstanceLock();
+app.on('second-instance', () => showMainWindow());
+if (!gotLock) app.quit();
+else void app.whenReady().then(async () => {
+  // A database chosen in Settings > Backup (import or restore) is put in place before anything opens the file.
+  let imported = false;
+  try {
+    imported = applyPendingImport(databaseFile());
+    if (imported) log.info('backup', 'Imported database put in place');
+  } catch (error) {
+    log.error('backup', 'Could not put the imported database in place', error);
   }
-  return result.state === 'purged';
-}
-
-if (handleSquirrelEvent(process.argv, process.execPath)) {
-  app.quit(); // installing, updating or uninstalling: shortcuts are made or removed and the app exits
-} else {
-  // The installed app has no menu bar (File, Edit, View, Window); development keeps it for the DevTools entries.
-  if (app.isPackaged) Menu.setApplicationMenu(null);
-  const purged = claimUserData();
-  // Logs go in a `logs` folder: the system's log folder when installed, `local-data/logs` in development. Started after
-  // claimUserData, which may clear an earlier install's files from the user data folder.
-  initLogging(app.isPackaged ? app.getPath('logs') : path.join(app.getAppPath(), 'local-data', 'logs'), !app.isPackaged);
-  log.info('app', `MicroPOS ${app.getVersion()} started (${process.platform}, Electron ${process.versions.electron})`);
-  process.on('uncaughtException', (error) => log.error('main', 'Uncaught exception', error));
-  process.on('unhandledRejection', (reason) => log.error('main', 'Unhandled promise rejection', reason));
-  app.on('render-process-gone', (_event, _contents, details) => log.error('main', `The window's process ended (${details.reason}, code ${details.exitCode})`));
-  app.on('child-process-gone', (_event, details) => log.error('main', `A ${details.type} process ended (${details.reason}, code ${details.exitCode})`));
-  // One MicroPOS at a time (two would share one database): starting it again, for instance while it runs hidden in the tray, brings the till back.
-  const gotLock = app.requestSingleInstanceLock();
-  app.on('second-instance', () => showMainWindow());
-  if (!gotLock) app.quit();
-  else void app.whenReady().then(async () => {
-    // Browser storage (the old page's local storage, caches) is held by Chromium: clear it through its own API too.
-    if (purged) await session.defaultSession.clearStorageData();
-    // A database chosen in Settings > Backup (import or restore) is put in place before anything opens the file.
-    try {
-      if (applyPendingImport(databaseFile())) log.info('backup', 'Imported database put in place');
-    } catch (error) {
-      log.error('backup', 'Could not put the imported database in place', error);
-    }
+  try {
     database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
-    ensureOwner(database.db); // a fresh install gets an owner account to sign in with
-    closeToTray = getCloseToTray(database.db);
-    if (closeToTray) trayIcon.show();
-    onCloseToTrayChanged((value) => {
-      closeToTray = value;
-      if (value) trayIcon.show();
-      else {
-        trayIcon.hide();
-        if (mainWindow && !mainWindow.isVisible()) mainWindow.show(); // never leave the app running with nothing to click
-      }
-    });
-    // Credit interest that has fallen due is written now, and again every hour for a till left running for days.
-    const accrue = (): void => {
-      try {
-        if (database && accrueInterest(database.db) > 0) emitDataChanged(['customers']); // interest was charged
-      } catch (error) {
-        log.error('interest', 'Could not charge credit interest', error);
-      }
-    };
-    accrue();
-    interestTimer = setInterval(accrue, 60 * 60 * 1000);
-    // The server for phones and tablets on the network (off until an admin turns it on in Devices).
-    lanService = new LanService({
-      db: database.db,
-      handlers: rpcHandlers,
-      dataFolder: app.getPath('userData'),
-      rendererDir: devServerUrl ? null : path.join(__dirname, '../renderer'),
-      devServerUrl: devServerUrl ?? null,
-      announce: (domains) => emitDataChanged(domains),
-    });
-    const backups = new BackupService({
-      db: database.db,
-      dbFile: databaseFile(),
-      folder: backupsFolder(),
-      migrationsFolder: migrationsFolder(),
-      restart: () => {
-        app.relaunch();
-        app.quit();
-      },
-    });
-    registerIpcHandlers(database.db, lanService, backups);
-    // One automatic backup a day (checked at startup and hourly, for a till left running for days).
-    const dailyBackup = (): void => {
-      if (database) autoBackup(database.db, backupsFolder()).catch((error) => log.error('backup', 'Could not make the daily backup', error));
-    };
-    dailyBackup();
-    backupTimer = setInterval(dailyBackup, 60 * 60 * 1000);
-    void lanService.startIfEnabled();
-    // Every window hears when data changes; the clock adds the moments when time alone makes something a concern.
-    const broadcast = (domains: readonly DataDomain[]): void => {
-      for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(CHANNELS.data.changed, domains);
-      lanService?.broadcast(domains); // and every paired device
-    };
-    onDataChanged(broadcast);
-    concernsClock = startConcernsClock(database.db, broadcast);
-    powerMonitor.on('resume', () => concernsClock?.resume());
-    registerCustomerDisplay({ createWindow: createDisplayWindow, mainWindow: () => mainWindow });
-    createWindow();
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
+  } catch (error) {
+    // The import was checked and upgraded on a copy before the restart, so this should not happen; if the imported file
+    // still will not open, the data from before the import goes back instead of leaving a till that cannot start.
+    if (!imported || !rollbackImport(databaseFile())) throw error;
+    log.error('backup', 'The imported database could not be opened: the data from before the import was put back', error);
+    imported = false;
+    database = createDatabase(databaseFile(), { migrationsFolder: migrationsFolder() });
+    dialog.showErrorBox('Import failed', 'MicroPOS could not open the imported database, so the data from before the import was put back. Details are in the log (Settings > Logs).');
+  }
+  if (imported) finishImport(databaseFile());
+  ensureOwner(database.db); // a fresh install gets an owner account to sign in with
+  closeToTray = getCloseToTray(database.db);
+  if (closeToTray) trayIcon.show();
+  onCloseToTrayChanged((value) => {
+    closeToTray = value;
+    if (value) trayIcon.show();
+    else {
+      trayIcon.hide();
+      if (mainWindow && !mainWindow.isVisible()) mainWindow.show(); // never leave the app running with nothing to click
+    }
   });
-}
+  // Credit interest that has fallen due is written now, and again every hour for a till left running for days.
+  const accrue = (): void => {
+    try {
+      if (database && accrueInterest(database.db) > 0) emitDataChanged(['customers']); // interest was charged
+    } catch (error) {
+      log.error('interest', 'Could not charge credit interest', error);
+    }
+  };
+  accrue();
+  interestTimer = setInterval(accrue, 60 * 60 * 1000);
+  // The server for phones and tablets on the network (off until an admin turns it on in Devices).
+  lanService = new LanService({
+    db: database.db,
+    handlers: rpcHandlers,
+    dataFolder: app.getPath('userData'),
+    rendererDir: devServerUrl ? null : path.join(__dirname, '../renderer'),
+    devServerUrl: devServerUrl ?? null,
+    announce: (domains) => emitDataChanged(domains),
+  });
+  const backups = new BackupService({
+    db: database.db,
+    dbFile: databaseFile(),
+    folder: backupsFolder(),
+    migrationsFolder: migrationsFolder(),
+    restart: () => {
+      app.relaunch();
+      app.quit();
+    },
+  });
+  registerIpcHandlers(database.db, lanService, backups);
+  // One automatic backup a day (checked at startup and hourly, for a till left running for days).
+  const dailyBackup = (): void => {
+    if (database) autoBackup(database.db, backupsFolder()).catch((error) => log.error('backup', 'Could not make the daily backup', error));
+  };
+  dailyBackup();
+  backupTimer = setInterval(dailyBackup, 60 * 60 * 1000);
+  void lanService.startIfEnabled();
+  // Every window hears when data changes; the clock adds the moments when time alone makes something a concern.
+  const broadcast = (domains: readonly DataDomain[]): void => {
+    for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(CHANNELS.data.changed, domains);
+    lanService?.broadcast(domains); // and every paired device
+  };
+  onDataChanged(broadcast);
+  concernsClock = startConcernsClock(database.db, broadcast);
+  powerMonitor.on('resume', () => concernsClock?.resume());
+  registerCustomerDisplay({ createWindow: createDisplayWindow, mainWindow: () => mainWindow });
+  createWindow();
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
 
 app.on('before-quit', () => {
   log.info('app', 'Quitting');

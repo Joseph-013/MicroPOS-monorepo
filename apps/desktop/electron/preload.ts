@@ -48,6 +48,8 @@ const api: DesktopApi = {
     importFrom: () => ipcRenderer.invoke(CHANNELS.backup.importFrom),
     restore: (name) => ipcRenderer.invoke(CHANNELS.backup.restore, name),
     openFolder: () => ipcRenderer.invoke(CHANNELS.backup.openFolder),
+    freshInstall: () => ipcRenderer.invoke(CHANNELS.backup.freshInstall),
+    importFresh: () => ipcRenderer.invoke(CHANNELS.backup.importFresh),
   },
   lan: {
     state: () => ipcRenderer.invoke(CHANNELS.lan.state),
@@ -82,6 +84,7 @@ const api: DesktopApi = {
     setCloseToTray: (value) => ipcRenderer.invoke(CHANNELS.shell.setCloseToTray, value),
     getWindowMode: () => ipcRenderer.invoke(CHANNELS.shell.getWindowMode),
     setWindowMode: (value) => ipcRenderer.invoke(CHANNELS.shell.setWindowMode, value),
+    quit: () => ipcRenderer.invoke(CHANNELS.shell.quit),
   },
   data: {
     onChanged: (listener) => {
@@ -129,6 +132,7 @@ const api: DesktopApi = {
   auth: {
     status: () => ipcRenderer.invoke(CHANNELS.auth.status),
     choices: () => ipcRenderer.invoke(CHANNELS.auth.choices),
+    branding: () => ipcRenderer.invoke(CHANNELS.auth.branding),
     signIn: (input) => ipcRenderer.invoke(CHANNELS.auth.signIn, input),
     signOut: () => ipcRenderer.invoke(CHANNELS.auth.signOut),
     changePin: (input) => ipcRenderer.invoke(CHANNELS.auth.changePin, input),
@@ -185,6 +189,7 @@ const api: DesktopApi = {
     saveDraft: (draft) => ipcRenderer.invoke(CHANNELS.checkout.saveDraft, draft),
     clearDraft: () => ipcRenderer.invoke(CHANNELS.checkout.clearDraft),
     nextOrderNumber: () => ipcRenderer.invoke(CHANNELS.checkout.nextOrderNumber),
+    othersInProgress: () => ipcRenderer.invoke(CHANNELS.checkout.othersInProgress),
     completeOrder: (input) => ipcRenderer.invoke(CHANNELS.checkout.completeOrder, input),
     availableStock: (productIds) => ipcRenderer.invoke(CHANNELS.checkout.availableStock, productIds),
   },

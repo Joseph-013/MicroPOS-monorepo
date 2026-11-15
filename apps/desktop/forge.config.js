@@ -67,12 +67,6 @@ const LINUX_MAKERS = [
   { name: '@electron-forge/maker-rpm', config: { options: { name: 'micropos', productName: 'MicroPOS', genericName: 'Point of sale', icon: path.join(__dirname, 'assets', 'icon.png'), bin: 'micropos', specTemplate: path.join(__dirname, 'rpm-spec.ejs') } } },
 ];
 
-// Not used until Windows builds are wanted. Same Squirrel id and executable name as the first MicroPOS (`micropos`,
-// micropos.exe), so Setup installs over it as an upgrade instead of beside it. `name` is set because the package name
-// is scoped and not a valid id.
-// eslint-disable-next-line no-unused-vars
-const WINDOWS_MAKERS = [{ name: '@electron-forge/maker-squirrel', config: { name: 'micropos', setupIcon: path.join(__dirname, 'assets', 'icon.ico') } }];
-
 /** @type {import('@electron-forge/shared-types').ForgeConfig} */
 module.exports = {
   packagerConfig: {
@@ -87,7 +81,7 @@ module.exports = {
     // See RUNTIME_MODULES above: no pruning, node_modules excluded, runtime deps copied in afterCopy.
     prune: false,
     ignore: [
-      /^\/(src|electron|public|assets|node_modules|\.angular|\.vscode|out|local-data)(\/|$)/,
+      /^\/(src|electron|public|assets|node_modules|\.angular|\.vscode|out|local-data|installer|scripts)(\/|$)/,
       // Dev-only dummy data tooling (needs faker, which is not shipped).
       /^\/dist\/electron\/db\/(factories|seed-cli)/,
       /^\/(angular\.json|drizzle\.config\.ts|tsconfig.*\.json|forge\.config\.js|CLAUDE\.md|README\.md|\.mcp\.json)$/,
@@ -98,8 +92,9 @@ module.exports = {
       },
     ],
   },
-  // Linux only for now. Add WINDOWS_MAKERS when building the Windows installer (on Windows). The deb maker is left out
-  // because it needs `dpkg`, which Fedora and other rpm systems do not have; add it where `dpkg` exists.
+  // A zip and an rpm on Linux. Windows uses no Forge maker: scripts/make.mjs packages the app and builds the Inno Setup
+  // wizard (installer/micropos.iss). The deb maker is left out because it needs `dpkg`, which Fedora and other rpm
+  // systems do not have; add it where `dpkg` exists.
   makers: LINUX_MAKERS,
   plugins: [
     { name: '@electron-forge/plugin-auto-unpack-natives', config: {} },

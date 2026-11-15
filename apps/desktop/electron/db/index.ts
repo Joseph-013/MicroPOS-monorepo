@@ -47,7 +47,14 @@ export function createDatabase(
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
   const db = drizzle(sqlite, { schema, casing: 'snake_case' });
-  if (options.migrationsFolder) applyMigrations(db, options.migrationsFolder);
+  if (options.migrationsFolder) {
+    try {
+      applyMigrations(db, options.migrationsFolder);
+    } catch (error) {
+      sqlite.close(); // let go of the file, so a caller can move it (an import is rolled back this way)
+      throw error;
+    }
+  }
   return { db, close: () => sqlite.close() };
 }
 

@@ -3,7 +3,7 @@
  * Convention: `<area>:<action>`. Every channel is a request/response (`invoke`/`handle`).
  */
 /** Must equal `DESKTOP_API_VERSION` in @micropos/core (a test checks); bump both when the contract changes. */
-export const API_VERSION = 52;
+export const API_VERSION = 54;
 
 export const CHANNELS = {
   app: {
@@ -75,6 +75,8 @@ export const CHANNELS = {
     importFrom: 'backup:importFrom',
     restore: 'backup:restore',
     openFolder: 'backup:openFolder',
+    freshInstall: 'backup:freshInstall',
+    importFresh: 'backup:importFresh',
   },
   lan: {
     state: 'lan:state',
@@ -106,6 +108,7 @@ export const CHANNELS = {
     setWindowMode: 'shell:setWindowMode',
     getLogsFolder: 'shell:getLogsFolder',
     openLogsFolder: 'shell:openLogsFolder',
+    quit: 'shell:quit',
   },
   data: {
     /** Main to renderer: these parts of the data changed (`DataDomain[]`). */
@@ -157,6 +160,7 @@ export const CHANNELS = {
   auth: {
     status: 'auth:status',
     choices: 'auth:choices',
+    branding: 'auth:branding',
     signIn: 'auth:signIn',
     signOut: 'auth:signOut',
     changePin: 'auth:changePin',
@@ -175,6 +179,7 @@ export const CHANNELS = {
     saveDraft: 'checkout:saveDraft',
     clearDraft: 'checkout:clearDraft',
     nextOrderNumber: 'checkout:nextOrderNumber',
+    othersInProgress: 'checkout:othersInProgress',
     completeOrder: 'checkout:completeOrder',
     availableStock: 'checkout:availableStock',
   },

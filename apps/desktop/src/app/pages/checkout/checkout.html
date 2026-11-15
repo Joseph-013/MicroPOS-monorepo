@@ -340,9 +340,9 @@
           <dt>Subtotal</dt>
           <dd>{{ subtotal() | money }}</dd>
         </div>
-        <div
-          class="text-muted-foreground flex min-h-(--control-height) items-center justify-between gap-2"
-        >
+        <!-- Only for someone who may give a discount, or when there is one (e.g. a manager's, on an order a cashier continues). -->
+        @if (canDiscount() || discount() !== 0) {
+        <div class="text-muted-foreground flex min-h-(--control-height) items-center justify-between gap-2">
           <dt class="flex min-w-0 items-center gap-2">
             <span class="truncate"
               >Discount
@@ -366,6 +366,7 @@
           </dt>
           <dd class="shrink-0" data-discount>{{ discount() | money }}</dd>
         </div>
+        }
         <div class="font-heading flex justify-between border-t pt-2 text-3xl">
           <dt>Total</dt>
           <dd>{{ total() | money }}</dd>

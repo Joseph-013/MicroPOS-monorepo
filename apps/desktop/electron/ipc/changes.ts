@@ -80,6 +80,7 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.orders.idByNumber,
   CHANNELS.auth.status,
   CHANNELS.auth.choices,
+  CHANNELS.auth.branding,
   CHANNELS.auth.signIn,
   CHANNELS.auth.signOut,
   CHANNELS.auth.changePin,
@@ -93,6 +94,7 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.checkout.clearDraft,
   CHANNELS.checkout.nextOrderNumber,
   CHANNELS.checkout.availableStock,
+  CHANNELS.checkout.othersInProgress,
   CHANNELS.printer.settings,
   CHANNELS.printer.save,
   CHANNELS.printer.getLogo,
@@ -111,6 +113,8 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.backup.importFrom,
   CHANNELS.backup.restore,
   CHANNELS.backup.openFolder,
+  CHANNELS.backup.freshInstall,
+  CHANNELS.backup.importFresh,
   CHANNELS.lan.state,
   CHANNELS.lan.setEnabled,
   CHANNELS.lan.devices,
@@ -131,6 +135,7 @@ export const UNRELATED: readonly string[] = [
   CHANNELS.shell.setCloseToTray,
   CHANNELS.shell.getWindowMode,
   CHANNELS.shell.setWindowMode,
+  CHANNELS.shell.quit,
   CHANNELS.data.changed,
 ];
 

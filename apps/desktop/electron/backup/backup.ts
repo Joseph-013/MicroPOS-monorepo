@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AUTO_BACKUPS_KEPT, type BackupInfo, type BackupKind } from '@micropos/core';
-import type { AppDatabase } from '../db';
+import { type AppDatabase, createDatabase } from '../db';
 
 /*
  * Backups of the SQLite file. Taking one uses SQLite's own online backup (a consistent copy while the till keeps working,
@@ -132,14 +132,20 @@ export async function autoBackup(db: AppDatabase, folder: string, now = Date.now
 }
 
 /** The migrations the app knows (the journal's entries). */
-function knownMigrations(migrationsFolder: string): number {
-  const journal = JSON.parse(fs.readFileSync(path.join(migrationsFolder, 'meta', '_journal.json'), 'utf8')) as { entries: unknown[] };
-  return journal.entries.length;
+/** When each migration this app knows was made (the journal's `when`, which the migrator stores as `created_at`), in order. */
+function knownMigrations(migrationsFolder: string): number[] {
+  const journal = JSON.parse(fs.readFileSync(path.join(migrationsFolder, 'meta', '_journal.json'), 'utf8')) as { entries: { when: number }[] };
+  return journal.entries.map((e) => e.when);
 }
 
+const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 /**
- * Whether `file` is a MicroPOS database this version can open: a healthy SQLite file with the app's tables, made by this
- * version or an older one (a newer version's file has migrations this app does not know). Opens a read-write handle, so
+ * Whether `file` is a MicroPOS database this version can open: a healthy SQLite file with the app's tables whose
+ * migration history is the start of this app's own (an older or the same version). A newer version's file has
+ * migrations this app does not know; a file whose history differs (another branch, or from before the history was
+ * squashed) would be migrated wrongly, so both are refused. Migrations are compared by when they were made, not by
+ * their hash, which changes with the line endings of the checkout that built the app. Opens a read-write handle, so
  * give it a copy, never the live file.
  */
 export function checkDatabaseFile(file: string, migrationsFolder: string): { ok: true } | { ok: false; error: string } {
@@ -150,13 +156,35 @@ export function checkDatabaseFile(file: string, migrationsFolder: string): { ok:
     if (rows.length !== 1 || rows[0]!.integrity_check !== 'ok') return { ok: false, error: 'The file is damaged' };
     const tables = new Set((sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map((t) => t.name));
     if (!tables.has('employees') || !tables.has('__drizzle_migrations')) return { ok: false, error: 'This is not a MicroPOS database' };
-    const applied = (sqlite.prepare('SELECT COUNT(*) AS n FROM __drizzle_migrations').get() as { n: number }).n;
-    if (applied > knownMigrations(migrationsFolder)) return { ok: false, error: 'This file was made by a newer MicroPOS: update the app first' };
+    const applied = (sqlite.prepare('SELECT created_at AS at FROM __drizzle_migrations ORDER BY created_at').all() as { at: number | string }[]).map((r) => Number(r.at));
+    const known = knownMigrations(migrationsFolder);
+    const latest = known[known.length - 1] ?? 0;
+    if (applied.length > known.length || applied.some((at) => at > latest)) return { ok: false, error: 'This file was made by a newer MicroPOS: update the app first' };
+    if (applied.some((at, i) => at !== known[i])) return { ok: false, error: 'This file comes from a MicroPOS version this one cannot read' };
     return { ok: true };
   } catch {
     return { ok: false, error: 'This is not a MicroPOS database' };
   } finally {
     sqlite?.close();
+  }
+}
+
+/**
+ * Brings a checked copy up to this version (the migrations an older file lacks, and the foreign key check that follows
+ * them) so a file that cannot be upgraded is refused now, with the reason, instead of failing the next start. Leaves a
+ * single file (no -wal or -shm).
+ */
+function upgradeCopy(file: string, migrationsFolder: string): { ok: true } | { ok: false; error: string } {
+  try {
+    const handle = createDatabase(file, { migrationsFolder });
+    try {
+      handle.db.$client.pragma('journal_mode = DELETE');
+    } finally {
+      handle.close();
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: `This file could not be brought up to this version of MicroPOS: ${message(error)}` };
   }
 }
 
@@ -172,13 +200,14 @@ export function stageImport(source: string, dbFile: string, migrationsFolder: st
     if (path.resolve(source) === path.resolve(dbFile)) return { ok: false, error: 'That is the database in use' };
     fs.copyFileSync(source, staged);
     // A backup copied while the till ran can still ask for its -wal file; a plain copy has none, which is fine.
-    const checked = checkDatabaseFile(staged, migrationsFolder);
+    let checked = checkDatabaseFile(staged, migrationsFolder);
+    if (checked.ok) checked = upgradeCopy(staged, migrationsFolder);
     for (const extra of ['-wal', '-shm']) fs.rmSync(staged + extra, { force: true });
     if (!checked.ok) fs.rmSync(staged, { force: true });
     return checked;
   } catch (error) {
     fs.rmSync(staged, { force: true });
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    return { ok: false, error: message(error) };
   }
 }
 
@@ -187,14 +216,36 @@ export function cancelImport(dbFile: string): void {
   fs.rmSync(pendingImportFile(dbFile), { force: true });
 }
 
+const DB_PARTS = ['', '-wal', '-shm'];
+
+/** Where the database an import replaced waits until the imported one has opened. */
+export const replacedFile = (dbFile: string): string => `${dbFile}.replaced`;
+
 /**
- * At startup, before the database is opened: puts a staged import in place of the database (and removes the old file's
- * -wal and -shm leftovers). Returns whether it did.
+ * At startup, before the database is opened: puts a staged import in place of the database. The database it replaces
+ * (with its -wal and -shm) is moved aside, not deleted, until the imported one has opened (`finishImport`), so a file
+ * that will not open can be undone (`rollbackImport`). Returns whether it did.
  */
 export function applyPendingImport(dbFile: string): boolean {
   const staged = pendingImportFile(dbFile);
   if (!fs.existsSync(staged)) return false;
-  for (const extra of ['', '-wal', '-shm']) fs.rmSync(dbFile + extra, { force: true });
+  const aside = replacedFile(dbFile);
+  for (const part of DB_PARTS) fs.rmSync(aside + part, { force: true });
+  for (const part of DB_PARTS) if (fs.existsSync(dbFile + part)) fs.renameSync(dbFile + part, aside + part);
   fs.renameSync(staged, dbFile);
+  return true;
+}
+
+/** The imported database opened: the one it replaced is dropped (a before-import backup of it is kept in the backups folder). */
+export function finishImport(dbFile: string): void {
+  for (const part of DB_PARTS) fs.rmSync(replacedFile(dbFile) + part, { force: true });
+}
+
+/** The imported database would not open: puts back the one it replaced. Returns whether there was one to put back. */
+export function rollbackImport(dbFile: string): boolean {
+  const aside = replacedFile(dbFile);
+  if (!fs.existsSync(aside)) return false;
+  for (const part of DB_PARTS) fs.rmSync(dbFile + part, { force: true });
+  for (const part of DB_PARTS) if (fs.existsSync(aside + part)) fs.renameSync(aside + part, dbFile + part);
   return true;
 }

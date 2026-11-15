@@ -55,6 +55,8 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
     published: [] as CustomerDisplayState[],
     /** Receipts asked for, and what the fake main process answers. */
     printed: [] as string[],
+    /** Other people with an order in progress on this till. */
+    others: [] as string[],
     printResult: { ok: true } as { ok: true; savedTo?: string } | { ok: false; code: 'not-configured'; error: string },
   };
   const listeners: ((open: boolean) => void)[] = [];
@@ -80,8 +82,8 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       clearRepackageDraft: () => Promise.resolve(),
     },
     data: { onChanged: () => () => undefined },
-      shell: { getWindowMode: () => Promise.resolve('windowed' as const), setWindowMode: () => Promise.resolve(true), getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true), getLogsFolder: () => Promise.resolve(null), openLogsFolder: () => Promise.resolve(false) },
-      backup: { list: () => Promise.resolve({ backups: [], folder: '' }), create: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve(false), exportTo: () => Promise.reject(new Error('unused')), exportCsv: () => Promise.reject(new Error('unused')), importFrom: () => Promise.reject(new Error('unused')), restore: () => Promise.reject(new Error('unused')), openFolder: () => Promise.resolve(false) },
+      shell: { getWindowMode: () => Promise.resolve('windowed' as const), setWindowMode: () => Promise.resolve(true), getCloseToTray: () => Promise.resolve(false), setCloseToTray: () => Promise.resolve(true), quit: () => Promise.resolve(), getLogsFolder: () => Promise.resolve(null), openLogsFolder: () => Promise.resolve(false) },
+      backup: { list: () => Promise.resolve({ backups: [], folder: '' }), create: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve(false), exportTo: () => Promise.reject(new Error('unused')), exportCsv: () => Promise.reject(new Error('unused')), importFrom: () => Promise.reject(new Error('unused')), restore: () => Promise.reject(new Error('unused')), openFolder: () => Promise.resolve(false), freshInstall: () => Promise.resolve(false), importFresh: () => Promise.reject(new Error('unused')) },
       lan: { state: () => Promise.reject(new Error('unused')), setEnabled: () => Promise.reject(new Error('unused')), devices: () => Promise.resolve([]), newPairing: () => Promise.resolve(null), revokeDevice: () => Promise.resolve(false) },
       dashboard: { get: () => Promise.reject(new Error('unused')) },
       tables: { columnOrders: () => Promise.resolve({}), saveColumnOrder: () => Promise.resolve(true) },
@@ -129,7 +131,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       getState: () => Promise.resolve(IDLE_DISPLAY_STATE),
       onState: () => () => undefined,
     },
-    auth: { status: () => Promise.resolve(null), choices: () => Promise.resolve([]), signIn: () => Promise.reject(new Error('unused')), signOut: () => Promise.resolve(), changePin: () => Promise.reject(new Error('unused')), activity: () => Promise.resolve({ user: null, timeoutMinutes: null }), setSessionTimeout: () => Promise.resolve(true) },
+    auth: { status: () => Promise.resolve(null), choices: () => Promise.resolve([]), branding: () => Promise.resolve({ shopName: '', logo: null }), signIn: () => Promise.reject(new Error('unused')), signOut: () => Promise.resolve(), changePin: () => Promise.reject(new Error('unused')), activity: () => Promise.resolve({ user: null, timeoutMinutes: null }), setSessionTimeout: () => Promise.resolve(true) },
     users: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), resetPin: () => Promise.reject(new Error('unused')), signInLog: () => Promise.resolve([]) },
     suppliers: { list: () => Promise.resolve([]), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), remove: () => Promise.resolve({ removed: 0, blocked: [] }), restore: () => Promise.resolve() },
     purchases: { concerns: () => Promise.resolve([]), list: () => Promise.resolve([]), get: () => Promise.resolve(null), create: () => Promise.reject(new Error('unused')), update: () => Promise.reject(new Error('unused')), receive: () => Promise.reject(new Error('unused')), pay: () => Promise.reject(new Error('unused')), cancel: () => Promise.reject(new Error('unused')) },
@@ -148,6 +150,7 @@ function fakeApi(initialDraft: CheckoutDraft | null = null) {
       },
       availableStock: (ids) => Promise.resolve(ids.map((productId) => ({ productId, availableMilli: store.stock[productId] ?? null }))),
       nextOrderNumber: () => Promise.resolve(`SO-${1001 + store.orders.length}`),
+      othersInProgress: () => Promise.resolve(store.others),
       completeOrder: (input) => {
         store.orders.push(input);
         const result = store.result ?? { ok: true as const, orderId: 'o', orderNumber: `SO-${1000 + store.orders.length}`, total: 0, change: 0, onAccount: 0 };
@@ -655,13 +658,44 @@ describe('CheckoutPage', () => {
         await fixture.whenStable();
       };
 
+      it('says once per sign-in whose orders are waiting on this till', async () => {
+        const announce = (): Promise<void> => (fixture.componentInstance as unknown as { announceOthersInProgress(): Promise<void> }).announceOthersInProgress();
+        const banners = TestBed.inject(BannerService);
+        store.others = ['Sam'];
+        await signIn('checkout.sell');
+        banners.clear();
+        await announce();
+        expect(banners.current()?.text).toBe('Sam has an order in progress on this till');
+        banners.clear();
+        await announce();
+        expect(banners.current()).toBeNull(); // the same sign-in is not told again
+
+        store.others = ['Ana', 'Lee', 'Sam'];
+        await signIn('checkout.sell'); // a new sign-in
+        await announce();
+        expect(banners.current()?.text).toBe('Ana, Lee and Sam have orders in progress on this till');
+      });
+
       it('offers a discount only to someone who may give one', async () => {
         scan(PRODUCTS[1].barcode!);
         await fixture.whenStable();
         await signIn('checkout.sell');
         expect(buttonByText(el, 'Add')).toBeUndefined();
+        expect(el.querySelector('[data-discount]')).toBeNull(); // no discount and none to give: no Discount line
         await signIn('checkout.sell', 'discounts.give');
         expect(buttonByText(el, 'Add')).toBeDefined();
+        expect(el.querySelector('[data-discount]')).not.toBeNull();
+      });
+
+      it('still shows a discount someone else gave to a cashier who continues the order', async () => {
+        await signIn('checkout.sell', 'discounts.give');
+        scan(PRODUCTS[1].barcode!);
+        await fixture.whenStable();
+        page().orderDiscountSpec.set({ mode: 'amount', value: 100 });
+        await signIn('checkout.sell');
+        expect(buttonByText(el, 'Add')).toBeUndefined();
+        expect(buttonByText(el, 'Edit')).toBeUndefined();
+        expect(el.querySelector('[data-discount]')!.textContent!.trim()).toBe('₱1.00');
       });
 
       it('takes a line discount and an order discount off, and sends them with the reason and a note', async () => {

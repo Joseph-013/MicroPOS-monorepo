@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
 import { ALL_PERMISSIONS, isExportFormat, isReportKind, type Permission } from '@micropos/core';
 import type { AppDatabase } from '../db';
 import { listCategories, listProducts } from '../db/queries/catalog';
@@ -18,12 +18,12 @@ import { getInterestDefaults, saveInterestDefaults } from '../db/queries/credit-
 import { createCustomer, deleteCustomers, getCustomerAccount, listCustomers, receivePayment, restoreCustomers, updateCustomer } from '../db/queries/customers';
 import { completeOrder, getOrder, orderIdByNumber, listOrders, nextOrderNumber, refundOrder, voidOrder } from '../db/queries/orders';
 import { availableStock } from '../db/queries/available-stock';
-import { clearDraft, loadDraft, saveDraft } from '../db/queries/draft';
+import { clearDraft, loadDraft, othersInProgress, saveDraft } from '../db/queries/draft';
 import { clearRepackageDraft, loadRepackageDraft, saveRepackageDraft } from '../db/queries/repackage-draft';
 import { clearProductDraft, loadProductDraft, saveProductDraft } from '../db/queries/product-draft';
 import { setScannerEnabled } from '../scanner';
 import { setSessionTimeout } from '../auth/session-timeout';
-import { changePin, isAllowed, recordActivity, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
+import { changePin, isAllowed, isFreshInstall, recordActivity, signIn, signInChoices, signOut, currentUser } from '../auth/auth';
 import { createUser, listUsers, resetPin, signInLog, updateUser } from '../auth/users';
 import { getCloseToTray, setCloseToTray } from '../close-to-tray';
 import { getWindowMode, setWindowMode } from '../window-mode';
@@ -215,6 +215,7 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
   guarded(db, CHANNELS.checkout.clearDraft, 'checkout.sell', () => clearDraft(db));
   guarded(db, CHANNELS.checkout.nextOrderNumber, 'checkout.sell', () => nextOrderNumber(db));
   guarded(db, CHANNELS.checkout.availableStock, 'checkout.sell', (_event, productIds: unknown) => availableStock(db, productIds));
+  guarded(db, CHANNELS.checkout.othersInProgress, 'checkout.sell', () => othersInProgress(db));
   // The order comes from the renderer: completeOrder validates it and takes prices and names from the catalog.
   guarded(db, CHANNELS.checkout.completeOrder, 'checkout.sell', (_event, input: unknown) => {
     // Giving a discount is a permission of its own: a cashier's order that carries one is refused whole.
@@ -225,6 +226,7 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
   handle(CHANNELS.auth.status, () => currentUser(db));
   handle(CHANNELS.auth.activity, () => recordActivity(db));
   handle(CHANNELS.auth.choices, () => signInChoices(db));
+  handle(CHANNELS.auth.branding, () => ({ shopName: loadPrinterSettings(db).shop.name, logo: shopLogos.dataUrl() }));
   handle(CHANNELS.auth.signIn, (_event, input: unknown) => signIn(db, input));
   guarded(db, CHANNELS.auth.signOut, [], () => signOut(db));
   guarded(db, CHANNELS.auth.setSessionTimeout, 'settings.manage', (_event, minutes: unknown) => setSessionTimeout(db, minutes));
@@ -233,6 +235,12 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
   guarded(db, CHANNELS.shell.setCloseToTray, 'settings.manage', (_event, value: unknown) => setCloseToTray(db, value));
   guarded(db, CHANNELS.shell.getWindowMode, 'settings.manage', () => getWindowMode(db));
   guarded(db, CHANNELS.shell.setWindowMode, 'settings.manage', (_event, value: unknown) => setWindowMode(db, value));
+  // Quits for real, past the tray (app.quit runs before-quit, which lets the window close). After the answer has gone.
+  // The `shell` group is never offered to paired devices, so a phone cannot close the till.
+  guarded(db, CHANNELS.shell.quit, 'settings.manage', () => {
+    log.info('app', 'Quit from Settings');
+    setTimeout(() => app.quit(), 100);
+  });
   guarded(db, CHANNELS.users.list, ['users.manage'], () => listUsers(db));
   guarded(db, CHANNELS.users.create, ['users.manage'], (_event, input: unknown) => createUser(db, input));
   guarded(db, CHANNELS.users.update, ['users.manage'], (_event, id: unknown, input: unknown) => updateUser(db, id, input));
@@ -248,6 +256,12 @@ export function registerIpcHandlers(db: AppDatabase, lan?: LanService, backup?: 
     guarded(db, CHANNELS.backup.importFrom, 'settings.manage', (event) => backup.importFrom(BrowserWindow.fromWebContents(event.sender)));
     guarded(db, CHANNELS.backup.restore, 'settings.manage', (_event, name: unknown) => backup.restore(name));
     guarded(db, CHANNELS.backup.openFolder, 'settings.manage', () => backup.openFolder());
+    // A fresh install's sign-in screen may restore a backup before anyone signs in (the `backup` group is never offered
+    // to paired devices); the main process re-checks that it is still fresh, so this cannot replace anyone's data.
+    handle(CHANNELS.backup.freshInstall, () => isFreshInstall(db));
+    handle(CHANNELS.backup.importFresh, (event) =>
+      isFreshInstall(db) ? backup.importFrom(BrowserWindow.fromWebContents(event.sender)) : { ok: false as const, error: 'Not allowed: this till is already in use. Restore from Settings > Backup.' },
+    );
   }
   if (lan) {
     guarded(db, CHANNELS.lan.state, 'settings.manage', () => lan.state());

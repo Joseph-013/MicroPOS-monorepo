@@ -74,6 +74,15 @@ export class CheckoutDraftService {
     this.api?.checkout.clearDraft().catch((error: unknown) => console.error('Failed to clear the saved order', error));
   }
 
+  /** The names of the other people with an order in progress on this till (or this phone); none when it cannot be read. */
+  async othersInProgress(): Promise<string[]> {
+    try {
+      return (await this.api?.checkout.othersInProgress?.()) ?? [];
+    } catch {
+      return [];
+    }
+  }
+
   /** The number the next order will get, or null when it cannot be read. */
   async nextOrderNumber(): Promise<string | null> {
     try {

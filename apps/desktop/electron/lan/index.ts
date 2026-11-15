@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm';
 import { type DataDomain, LAN_DEFAULT_PORT, type LanDevice, type LanPairing, type LanState } from '@micropos/core';
 import type { AppDatabase } from '../db';
 import { settings } from '../db/schema';
-import { draftKey } from '../db/queries/draft';
+import { deviceDraftKey } from '../db/queries/draft';
+import { deleteDraftForEveryone } from '../db/queries/owned-drafts';
 import { log } from '../logging';
 import { loadOrCreateCertificate, publicKeyPin } from './certificate';
 import { listDevices, revokeDevice } from './devices';
@@ -114,7 +115,7 @@ export class LanService {
   revoke(id: unknown): boolean {
     if (!revokeDevice(this.options.db, id)) return false;
     this.server?.dropDevice(id as string);
-    this.options.db.delete(settings).where(eq(settings.key, draftKey(id as string))).run(); // its order in progress goes with it
+    deleteDraftForEveryone(this.options.db, deviceDraftKey(id as string)); // its orders in progress (everyone's) go with it
     this.options.announce(['devices']);
     return true;
   }

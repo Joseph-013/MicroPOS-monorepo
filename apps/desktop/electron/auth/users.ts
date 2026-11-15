@@ -17,6 +17,7 @@ import { auditLog, type Employee, employees, loginSessions } from '../db/schema'
 import { currentActorId } from './actor';
 import { canSignIn, lastSignIns, permissionsOf } from './auth';
 import { hashPin } from './pin';
+import { deleteDraftsOf } from '../db/queries/owned-drafts';
 
 function toRecord(employee: Employee, lastSignIn: number | null): UserRecord {
   return {
@@ -122,6 +123,7 @@ export function updateUser(db: AppDatabase, id: unknown, raw: unknown): SaveUser
     audit(tx, 'user.update', id, { name: input.name, active: input.active, permissionsBefore: before, permissionsAfter: input.permissions });
     return row;
   });
+  if (!input.active) deleteDraftsOf(db, id); // a deactivated person's half-finished orders and forms go: nobody else may finish them
   return { ok: true, user: toRecord(updated, lastSignIns(db).get(id) ?? null) };
 }
 

@@ -17,7 +17,7 @@ import {
   suggestEmployeeNumber,
 } from '@micropos/core';
 import type { AppDatabase } from '../db';
-import { auditLog, type Employee, employees, loginSessions } from '../db/schema';
+import { auditLog, type Employee, employees, loginSessions, orders, products } from '../db/schema';
 import { setActor } from './actor';
 import { sessionState } from './context';
 import { getSessionTimeout } from './session-timeout';
@@ -72,15 +72,29 @@ export function isAllowed(db: AppDatabase, needed: readonly Permission[]): boole
   return needed.length === 0 || needed.some((p) => user.permissions.includes(p));
 }
 
+/** Who can sign in, by name, except that whoever signed in last comes first (back from a break: the first tile). */
 export function signInChoices(db: AppDatabase): SignInChoice[] {
-  return db
+  const people = db
     .select()
     .from(employees)
     .where(isNull(employees.deletedAt))
     .orderBy(employees.name)
     .all()
     .filter(canSignIn)
-    .map((e) => ({ id: e.id, name: e.name }));
+    .map((e) => ({ id: e.id, name: e.name, role: e.role }));
+  const [last] = db.select({ employeeId: loginSessions.employeeId }).from(loginSessions).orderBy(desc(loginSessions.loggedInAt)).limit(1).all();
+  const at = last ? people.findIndex((p) => p.id === last.employeeId) : -1;
+  if (at > 0) people.unshift(...people.splice(at, 1));
+  return people;
+}
+
+/**
+ * A fresh install: nobody has ever signed in, and there are no products or sales. Only then may the sign-in screen
+ * restore a backup (before anyone signs in, so nothing it would replace can be anyone's work).
+ */
+export function isFreshInstall(db: AppDatabase): boolean {
+  const none = (table: typeof loginSessions | typeof products | typeof orders): boolean => db.select({ id: table.id }).from(table).limit(1).all().length === 0;
+  return none(loginSessions) && none(products) && none(orders);
 }
 
 export function signIn(db: AppDatabase, input: unknown, now = Date.now()): SignInResult {

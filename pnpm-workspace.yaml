@@ -6,7 +6,6 @@ packages:
 
 allowBuilds:
   electron: true
-  electron-winstaller: true
   '@parcel/watcher': false
   esbuild: false
   lmdb: false
