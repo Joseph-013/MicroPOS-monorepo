@@ -1,25 +1,26 @@
+import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
-import { subtotal, type LineItem } from '@micropos/core';
-
-// Placeholder screen proving the shared core package resolves. Money is integer cents.
-const DEMO: LineItem[] = [
-  { sku: 'A', unitPrice: 250, qty: 2 },
-  { sku: 'B', unitPrice: 199, qty: 1 },
-];
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { BannerProvider } from './src/banner';
+import { AppShell } from './src/layout/AppShell';
+import { findLabel } from './src/layout/nav';
+import { ComponentsScreen } from './src/screens/ComponentsScreen';
+import { PlaceholderScreen } from './src/screens/PlaceholderScreen';
+import { ThemeProvider } from './src/theme';
 
 export default function App() {
-  const cents = subtotal(DEMO);
+  // No router yet: the shell keeps the current screen id.
+  const [route, setRoute] = useState(__DEV__ ? 'components' : 'dashboard');
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>MicroPOS</Text>
-      <Text>Core subtotal: {cents} cents</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <BannerProvider>
+          <AppShell route={route} onNavigate={setRoute}>
+            {(metrics) => (route === 'components' ? <ComponentsScreen {...metrics} /> : <PlaceholderScreen title={findLabel(route)} />)}
+          </AppShell>
+          <StatusBar style="auto" />
+        </BannerProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-});
