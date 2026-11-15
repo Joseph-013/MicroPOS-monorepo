@@ -4,6 +4,9 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import type { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { DESKTOP_API } from '../../core/api/desktop-api';
 import { CheckoutCopy } from '../../core/checkout-copy';
+import { QuantityForm, type QuantityContext } from './quantity-form';
+import { RowSelection } from '../../core/ui/row-selection';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { PaymentDialog, type PaymentDialogContext } from './payment-dialog';
 import { NavDrawer } from '../../core/nav-drawer';
 import { lucideFilterX, lucideX, lucideMinus, lucideListPlus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
@@ -55,7 +58,7 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
 const announcedOthersFor = new WeakSet<object>();
 
 @Component({
-  imports: [CameraScanButton, CameraScanInline, NgTemplateOutlet,
+  imports: [HlmCheckboxImports, CameraScanButton, CameraScanInline, NgTemplateOutlet,
     HlmSwitchImports,
     NgIcon,
     FocusSelectDirective,
@@ -365,6 +368,58 @@ export class CheckoutPage {
   private paymentDialog: BrnDialogRef | undefined;
   private readonly receipts = inject(ReceiptPrinting);
 
+  /** Lines ticked for a bulk action (remove, discount, quantity). */
+  protected readonly selection = new RowSelection<{ id: string }>(() => this.lines().map((l) => ({ id: l.productId })));
+  /** The ticked lines that are still on the order. */
+  protected readonly selectedLines = computed(() => this.lines().filter((l) => this.selection.has(l.productId)));
+  protected readonly allSelected = computed(() => this.lines().length > 0 && this.selectedLines().length === this.lines().length);
+  protected readonly someSelected = computed(() => this.selectedLines().length > 0 && !this.allSelected());
+
+  protected toggleAll(on: boolean): void {
+    this.selection.setMany(this.lines().map((l) => l.productId), on);
+  }
+
+  /** Ctrl/Cmd or Shift on a line selects it like in the tables; a plain click does nothing here. */
+  protected rowClick(line: DraftLine, event: MouseEvent): void {
+    if ((event.target as HTMLElement).closest('button, input, a')) return;
+    this.selection.click(line.productId, event);
+  }
+
+  /** Takes the ticked lines off the order. */
+  protected removeSelected(): void {
+    const ids = new Set(this.selectedLines().map((l) => l.productId));
+    if (!ids.size) return;
+    this.lines.update((lines) => lines.filter((l) => !ids.has(l.productId)));
+    this.selection.clear();
+  }
+
+  /** One discount (an amount or a percent) on each ticked line; blank removes theirs. */
+  protected async discountSelected(): Promise<void> {
+    const picked = this.selectedLines();
+    if (!picked.length || !this.canDiscount()) return;
+    const base = picked.reduce((sum, l) => sum + lineTotal(l.unitPrice, l.quantityMilli), 0);
+    const outcome = await this.askDiscount({ title: `Discount on ${picked.length} ${picked.length === 1 ? 'item' : 'items'}`, base, current: picked.length === 1 ? (picked[0].discount ?? null) : null, reason: this.discountReason(), eachOf: picked.length });
+    if (!outcome) return;
+    const ids = new Set(picked.map((l) => l.productId));
+    this.lines.update((lines) => lines.map((l) => (ids.has(l.productId) ? { productId: l.productId, name: l.name, quantityMilli: l.quantityMilli, unitPrice: l.unitPrice, unit: l.unit, ...(outcome.spec ? { discount: outcome.spec } : {}) } : l)));
+    this.discountReason.set(outcome.reason);
+  }
+
+  /** The same quantity on each ticked line. */
+  protected async quantitySelected(): Promise<void> {
+    const picked = this.selectedLines();
+    if (!picked.length) return;
+    const ref = this.dialogs.open<number, QuantityContext>(QuantityForm, {
+      id: 'checkout-quantity',
+      contentClass: 'w-[min(24rem,95vw)] max-w-none sm:max-w-none max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]',
+      context: { title: `Quantity of ${picked.length} ${picked.length === 1 ? 'item' : 'items'}` },
+    });
+    const quantityMilli = await firstValueFrom(ref.closed$);
+    if (!quantityMilli) return;
+    const ids = new Set(picked.map((l) => l.productId));
+    this.lines.update((lines) => lines.map((l) => (ids.has(l.productId) ? { ...l, quantityMilli } : l)));
+  }
+
   /** The line whose quantity is being typed in place; null when none. */
   protected readonly inlineEditing = signal<string | null>(null);
 
@@ -440,6 +495,7 @@ export class CheckoutPage {
   }
 
   private resetOrder(): void {
+    this.selection.clear();
     this.paidSale.set(null);
     this.lastTouched.set(null);
     this.lines.set([]);

@@ -1,6 +1,6 @@
 {
   "name": "@micropos/desktop",
-  "version": "2.27.0",
+  "version": "2.28.0",
   "productName": "MicroPOS",
   "desktopName": "micropos.desktop",
   "scripts": {

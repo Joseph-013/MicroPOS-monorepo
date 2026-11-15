@@ -131,19 +131,35 @@
       </hlm-dialog>
     </header>
 
+    @if (selectedLines().length) {
+      <!-- Bulk actions for the ticked lines. -->
+      <div class="flex flex-wrap items-center gap-2 border-b px-4 py-2 max-md:px-3" role="toolbar" aria-label="Selected items">
+        <span class="mr-auto text-sm">{{ selectedLines().length }} selected</span>
+        <button hlmBtn variant="outline" size="sm" type="button" class="px-3" (click)="quantitySelected()">Quantity</button>
+        @if (canDiscount()) {
+          <button hlmBtn variant="outline" size="sm" type="button" class="px-3" (click)="discountSelected()">Discount</button>
+        }
+        <button hlmBtn variant="destructive" size="sm" type="button" class="px-3" (click)="removeSelected()">Remove</button>
+        <button hlmBtn variant="outline" size="sm" type="button" class="px-3" (click)="selection.clear()">Clear</button>
+      </div>
+    }
+
     <div class="min-h-0 flex-1 overflow-auto px-4 max-md:px-3">
       @if (lineTotals().length) {
         <!-- A table: the item, quantity and total columns have their own widths, shared by the title row and every line, so the quantity controls line up. -->
         <div
           role="table"
           aria-label="Order items"
-          class="md:min-w-[28rem] [--cols:minmax(0,1fr)_12.5rem_6.5rem]"
+          class="md:min-w-[28rem] [--cols:2.25rem_minmax(0,1fr)_12.5rem_6.5rem]"
         >
           <div role="rowgroup" class="bg-background sticky top-0 z-10 max-md:hidden">
             <div
               role="row"
               class="text-muted-foreground grid grid-cols-(--cols) items-center gap-4 border-b px-3 py-2 text-sm"
             >
+              <div role="columnheader" class="flex items-center">
+                <hlm-checkbox aria-label="Select all items" [checked]="allSelected()" [indeterminate]="someSelected()" (checkedChange)="toggleAll($event)" />
+              </div>
               <div role="columnheader">Item</div>
               <div role="columnheader" class="text-center">Quantity</div>
               <div role="columnheader" class="text-right">Total</div>
@@ -159,10 +175,20 @@
                 <!-- The line added or changed last stays highlighted (the class goes on the row). -->
                 <div
                   role="row"
-                  class="not-[.row-target]:hover:bg-muted/40 grid grid-cols-(--cols) items-center gap-4 px-3 py-3 transition-colors max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3 max-md:gap-y-1 max-md:px-1 max-md:py-2"
+                  class="not-[.row-target]:hover:bg-muted/40 grid grid-cols-(--cols) items-center gap-4 px-3 py-3 transition-colors max-md:grid-cols-[auto_minmax(0,1fr)_auto] max-md:gap-x-3 max-md:gap-y-1 max-md:px-1 max-md:py-2"
                   [class.row-target]="highlightId() === line.productId"
+                  [class.bg-muted]="selection.has(line.productId)"
+                  (click)="rowClick(line, $event)"
                 >
-                  <div role="cell" class="min-w-0 max-md:col-start-1 max-md:row-start-1">
+                  <div role="cell" class="flex items-center max-md:col-start-1 max-md:row-start-1">
+                    <hlm-checkbox
+                      [aria-label]="'Select ' + line.name"
+                      [checked]="selection.has(line.productId)"
+                      (pointerdown)="selection.noteModifiers($event)"
+                      (checkedChange)="selection.toggle(line.productId, $event)"
+                    />
+                  </div>
+                  <div role="cell" class="min-w-0 max-md:col-start-2 max-md:row-start-1">
                     @if (canViewProduct()) {
                       <!-- The name opens the product in a dialog over checkout (view mode), without leaving the order. -->
                       <button
@@ -193,7 +219,7 @@
                   </div>
                   <div
                     role="cell"
-                    class="flex min-w-0 items-center gap-1 max-md:col-span-2 max-md:row-start-2 max-md:ml-auto max-md:w-full max-md:max-w-44"
+                    class="flex min-w-0 items-center gap-1 max-md:col-span-2 max-md:col-start-2 max-md:row-start-2 max-md:ml-auto max-md:w-full max-md:max-w-44"
                   >
                     <button
                       hlmBtn
@@ -260,7 +286,7 @@
                   </div>
                   <span
                     role="cell"
-                    class="text-right text-lg max-md:col-start-2 max-md:row-start-1 max-md:self-start"
+                    class="text-right text-lg max-md:col-start-3 max-md:row-start-1 max-md:self-start"
                     >{{ line.net | money }}</span
                   >
                 </div>

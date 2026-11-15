@@ -345,6 +345,38 @@ describe('CheckoutPage', () => {
     expect(el.textContent).not.toContain(PRODUCTS[1].name);
   });
 
+  it('selects lines: the toolbar sets one quantity on them, removes them, and clearing leaves the rest', async () => {
+    scan(PRODUCTS[0].barcode!);
+    scan(PRODUCTS[1].barcode!);
+    await fixture.whenStable();
+    expect(el.querySelector('[role="toolbar"]')).toBeNull();
+
+    (el.querySelector(`[aria-label="Select ${PRODUCTS[0].name}"]`) as HTMLElement).click();
+    await fixture.whenStable();
+    expect(el.querySelector('[role="toolbar"]')?.textContent).toContain('1 selected');
+
+    (el.querySelector('[aria-label="Select all items"]') as HTMLElement).click();
+    await fixture.whenStable();
+    expect(el.querySelector('[role="toolbar"]')?.textContent).toContain('2 selected');
+
+    buttonByText(el, 'Quantity').click();
+    await new Promise((r) => setTimeout(r, 20));
+    const field = document.querySelector('#bulk-quantity') as HTMLInputElement;
+    field.value = '3';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    await fixture.whenStable();
+    buttonByText(document.body, 'Apply').click();
+    await new Promise((r) => setTimeout(r, 20));
+    await fixture.whenStable();
+    expect(el.textContent).toContain('₱5.37'); // 3 x 1.79
+    expect(el.querySelectorAll('[data-row-id]').length).toBe(2);
+
+    buttonByText(el, 'Remove').click();
+    await fixture.whenStable();
+    expect(el.querySelectorAll('[data-row-id]').length).toBe(0);
+    expect(el.querySelector('[role="toolbar"]')).toBeNull();
+  });
+
   it('claims the scanner: a scanned barcode adds that item, an unknown one is reported', async () => {
     scan(PRODUCTS[0].barcode!);
     await fixture.whenStable();

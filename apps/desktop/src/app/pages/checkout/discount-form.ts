@@ -16,6 +16,8 @@ export interface DiscountContext {
   base: number;
   current: DiscountSpec | null;
   reason: string;
+  /** When it applies to several order lines at once: how many (each gets the same discount, an amount comes off each). */
+  eachOf?: number;
 }
 
 /** What the dialog closes with: the discount (null removes it) and the reason; nothing when cancelled. */
@@ -31,7 +33,13 @@ export interface DiscountOutcome {
   template: `
     <hlm-dialog-header>
       <h3 hlmDialogTitle>{{ title }}</h3>
-      <p hlmDialogDescription>Comes off {{ base | money }}.</p>
+      <p hlmDialogDescription>
+        @if (eachOf) {
+          Comes off each of the {{ eachOf }} items (up to {{ base | money }} in all).
+        } @else {
+          Comes off {{ base | money }}.
+        }
+      </p>
     </hlm-dialog-header>
 
     <form class="-mx-2 grid min-h-0 gap-4 overflow-y-auto px-2 py-1" (submit)="$event.preventDefault(); apply()">
@@ -83,6 +91,7 @@ export class DiscountForm {
   protected readonly title = this.context.title;
   protected readonly base = this.context.base;
   protected readonly current = this.context.current;
+  protected readonly eachOf = this.context.eachOf;
   protected readonly maxReason = MAX_DISCOUNT_REASON;
 
   protected readonly mode = signal<DiscountSpec['mode']>(this.context.current?.mode ?? 'percent');
