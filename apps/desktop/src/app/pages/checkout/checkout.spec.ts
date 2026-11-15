@@ -285,7 +285,7 @@ describe('CheckoutPage', () => {
     await fixture.whenStable();
   });
 
-  it('on a phone the payment controls open in a dialog from the Proceed button', async () => {
+  it('on a phone the payment controls open in a dialog from the Next button', async () => {
     TestBed.resetTestingModule();
     const fake = fakeApi(null);
     TestBed.configureTestingModule({ providers: [{ provide: DESKTOP_API, useValue: fake.api }, { provide: NavDrawer, useValue: { mobile: signal(true) } }] });
@@ -297,7 +297,7 @@ describe('CheckoutPage', () => {
 
     scan(PRODUCTS[0].barcode!);
     await fixture.whenStable();
-    buttonByText(el, 'Proceed').click();
+    buttonByText(el, 'Next').click();
     await fixture.whenStable();
     expect(document.querySelector('[data-slot="dialog-content"]')?.textContent).toContain('Complete Order');
     expect(el.textContent).not.toContain('Complete Order');
@@ -568,7 +568,7 @@ describe('CheckoutPage', () => {
         });
         await new Promise((r) => setTimeout(r, 20));
         await fixture.whenStable();
-        expect(el.querySelector('[data-line-discount]')!.textContent).toContain('₱0.86 off (10%)');
+        expect(el.querySelector('[data-line-discount]')!.textContent!.replace(/\s+/g, ' ')).toContain('₱0.86 off (10%)');
         expect(el.querySelector('[data-discount]')!.textContent!.trim()).toBe('₱1.86');
         expect((el.querySelector('input[aria-label="Order note"]') as HTMLInputElement).value).toBe('Pick up at 5');
         await type('input[aria-label="Order note"]', 'Pick up at 6');
@@ -635,7 +635,7 @@ describe('CheckoutPage', () => {
         page().orderDiscountSpec.set({ mode: 'amount', value: 100 }); // 1.00 more
         page().discountReason.set('Loyal customer');
         await fixture.whenStable();
-        expect(el.querySelector('[data-line-discount]')!.textContent).toContain('₱0.86 off (10%)');
+        expect(el.querySelector('[data-line-discount]')!.textContent!.replace(/\s+/g, ' ')).toContain('₱0.86 off (10%)');
         expect(el.querySelector('[data-discount]')!.textContent!.trim()).toBe('₱1.86');
         expect(el.textContent).toContain('₱6.72'); // 8.58 - 1.86
         await type('#tendered', '7');

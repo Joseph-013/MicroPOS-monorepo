@@ -10,7 +10,14 @@
       </div>
 
       <hlm-dialog>
-        <button hlmDialogTrigger hlmBtn size="icon" type="button" aria-label="Add items" title="Add items">
+        <button
+          hlmDialogTrigger
+          hlmBtn
+          size="icon"
+          type="button"
+          aria-label="Add items"
+          title="Add items"
+        >
           <ng-icon name="lucideListPlus" size="20" />
         </button>
         <hlm-dialog-content
@@ -127,27 +134,45 @@
     <div class="min-h-0 flex-1 overflow-auto px-4 max-md:px-3">
       @if (lineTotals().length) {
         <!-- A table: the item, quantity and total columns have their own widths, shared by the title row and every line, so the quantity controls line up. -->
-        <div role="table" aria-label="Order items" class="md:min-w-[28rem] [--cols:minmax(0,1fr)_12.5rem_6.5rem]">
+        <div
+          role="table"
+          aria-label="Order items"
+          class="md:min-w-[28rem] [--cols:minmax(0,1fr)_12.5rem_6.5rem]"
+        >
           <div role="rowgroup" class="bg-background sticky top-0 z-10 max-md:hidden">
-            <div role="row" class="text-muted-foreground grid grid-cols-(--cols) items-center gap-4 border-b px-3 py-2 text-sm">
+            <div
+              role="row"
+              class="text-muted-foreground grid grid-cols-(--cols) items-center gap-4 border-b px-3 py-2 text-sm"
+            >
               <div role="columnheader">Item</div>
               <div role="columnheader" class="text-center">Quantity</div>
               <div role="columnheader" class="text-right">Total</div>
             </div>
           </div>
           <div role="rowgroup" class="divide-border divide-y">
-          @for (line of lineTotals(); track line.productId) {
-            <div
-              [attr.data-row-id]="line.productId"
-              [hlmContextMenuTrigger]="lineMenu"
-              [hlmContextMenuTriggerData]="{ $implicit: line }"
-            >
+            @for (line of lineTotals(); track line.productId) {
+              <div
+                [attr.data-row-id]="line.productId"
+                [hlmContextMenuTrigger]="lineMenu"
+                [hlmContextMenuTriggerData]="{ $implicit: line }"
+              >
                 <!-- The line added or changed last stays highlighted (the class goes on the row). -->
-                <div role="row" class="not-[.row-target]:hover:bg-muted/40 grid grid-cols-(--cols) items-center gap-4 px-3 py-3 transition-colors max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3 max-md:gap-y-1 max-md:px-1 max-md:py-2" [class.row-target]="highlightId() === line.productId">
+                <div
+                  role="row"
+                  class="not-[.row-target]:hover:bg-muted/40 grid grid-cols-(--cols) items-center gap-4 px-3 py-3 transition-colors max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3 max-md:gap-y-1 max-md:px-1 max-md:py-2"
+                  [class.row-target]="highlightId() === line.productId"
+                >
                   <div role="cell" class="min-w-0 max-md:col-start-1 max-md:row-start-1">
                     @if (canViewProduct()) {
                       <!-- The name opens the product in a dialog over checkout (view mode), without leaving the order. -->
-                      <button type="button" class="hover:text-primary block max-w-full truncate text-left text-base underline-offset-4 hover:underline" [attr.aria-label]="'View ' + line.name" (click)="viewProduct(line.productId)">{{ line.name }}</button>
+                      <button
+                        type="button"
+                        class="hover:text-primary block max-w-full truncate text-left text-base underline-offset-4 hover:underline"
+                        [attr.aria-label]="'View ' + line.name"
+                        (click)="viewProduct(line.productId)"
+                      >
+                        {{ line.name }}
+                      </button>
                     } @else {
                       <p class="truncate text-base">{{ line.name }}</p>
                     }
@@ -158,10 +183,18 @@
                       }
                     </p>
                     @if (line.off) {
-                      <p class="text-success truncate text-sm" data-line-discount>{{ line.off | money }} off@if (line.discount?.mode === 'percent') { ({{ formatDiscount(line.discount!) }}) }</p>
+                      <p class="text-success truncate text-sm" data-line-discount>
+                        {{ line.off | money }} off
+                        @if (line.discount?.mode === 'percent') {
+                          ({{ formatDiscount(line.discount!) }})
+                        }
+                      </p>
                     }
                   </div>
-                  <div role="cell" class="flex min-w-0 items-center gap-1 max-md:col-span-2 max-md:row-start-2 max-md:ml-auto max-md:w-full max-md:max-w-44">
+                  <div
+                    role="cell"
+                    class="flex min-w-0 items-center gap-1 max-md:col-span-2 max-md:row-start-2 max-md:ml-auto max-md:w-full max-md:max-w-44"
+                  >
                     <button
                       hlmBtn
                       variant="outline"
@@ -225,10 +258,14 @@
                       <ng-icon name="lucidePlus" size="18" strokeWidth="1.5" />
                     </button>
                   </div>
-                  <span role="cell" class="text-right text-lg max-md:col-start-2 max-md:row-start-1 max-md:self-start">{{ line.net | money }}</span>
+                  <span
+                    role="cell"
+                    class="text-right text-lg max-md:col-start-2 max-md:row-start-1 max-md:self-start"
+                    >{{ line.net | money }}</span
+                  >
                 </div>
-            </div>
-          }
+              </div>
+            }
           </div>
         </div>
       } @else {
@@ -241,7 +278,16 @@
           <span class="text-muted-foreground text-xs">Total</span>
           <span class="font-heading truncate text-2xl">{{ total() | money }}</span>
         </div>
-        <button hlmBtn type="button" size="lg" class="shrink-0 px-8" [disabled]="!lines().length" (click)="openPayment()">Proceed</button>
+        <button
+          hlmBtn
+          type="button"
+          size="lg"
+          class="shrink-0 px-8"
+          [disabled]="!lines().length"
+          (click)="openPayment()"
+        >
+          Next
+        </button>
       </div>
     }
   </section>
@@ -258,9 +304,13 @@
 <ng-template #lineMenu let-line>
   <div hlmDropdownMenu>
     @if (canDiscount()) {
-      <button hlmDropdownMenuItem type="button" (click)="editLineDiscount(line.productId)">{{ line.discount ? 'Change discount' : 'Discount' }}</button>
+      <button hlmDropdownMenuItem type="button" (click)="editLineDiscount(line.productId)">
+        {{ line.discount ? 'Change discount' : 'Discount' }}
+      </button>
       @if (line.discount) {
-        <button hlmDropdownMenuItem type="button" (click)="setLineDiscount(line.productId, null)">Remove discount</button>
+        <button hlmDropdownMenuItem type="button" (click)="setLineDiscount(line.productId, null)">
+          Remove discount
+        </button>
       }
     }
     <button
@@ -276,22 +326,42 @@
 
 <!-- The payment controls, shown in the side card or in the phone dialog. -->
 <ng-template #payment>
-<div class="flex max-h-[calc(95svh-2rem)] min-h-0 flex-1 flex-col md:max-h-none">
+  <div class="flex max-h-[calc(95svh-2rem)] min-h-0 flex-1 flex-col md:max-h-none">
     <div hlmCardHeader class="border-b pb-3 max-md:pr-12">
       <h2 hlmCardTitle>Payment</h2>
     </div>
 
-    <div hlmCardContent class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pt-3">
+    <div
+      hlmCardContent
+      class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pt-3"
+    >
       <dl class="flex flex-col gap-1 text-sm">
         <div class="flex justify-between">
           <dt>Subtotal</dt>
           <dd>{{ subtotal() | money }}</dd>
         </div>
-        <div class="text-muted-foreground flex min-h-(--control-height) items-center justify-between gap-2">
+        <div
+          class="text-muted-foreground flex min-h-(--control-height) items-center justify-between gap-2"
+        >
           <dt class="flex min-w-0 items-center gap-2">
-            <span class="truncate">Discount@if (orderDiscountSpec()?.mode === 'percent') { ({{ formatDiscount(orderDiscountSpec()!) }}) }</span>
+            <span class="truncate"
+              >Discount
+              @if (orderDiscountSpec()?.mode === 'percent') {
+                ({{ formatDiscount(orderDiscountSpec()!) }})
+              }
+            </span>
             @if (canDiscount()) {
-              <button hlmBtn variant="outline" size="sm" type="button" class="px-3" [disabled]="!lines().length" (click)="editOrderDiscount()">{{ orderDiscountSpec() ? 'Edit' : 'Add' }}</button>
+              <button
+                hlmBtn
+                variant="outline"
+                size="sm"
+                type="button"
+                class="px-3"
+                [disabled]="!lines().length"
+                (click)="editOrderDiscount()"
+              >
+                {{ orderDiscountSpec() ? 'Edit' : 'Add' }}
+              </button>
             }
           </dt>
           <dd class="shrink-0" data-discount>{{ discount() | money }}</dd>
@@ -304,23 +374,46 @@
 
       <div class="flex flex-col gap-2">
         <label hlmLabel for="checkout-customer">Customer</label>
-        <hlm-combobox [value]="customerId()" (valueChange)="customerId.set($event ?? null)" [itemToString]="customerName" class="block">
-          <hlm-combobox-input id="checkout-customer" placeholder="No customer" [showClear]="!!customerId()" clearAriaLabel="Clear customer" />
-          <hlm-combobox-content *hlmComboboxPortal>
-            <hlm-combobox-empty>No customer found</hlm-combobox-empty>
-            <div hlmComboboxList>
-              @for (c of customers.customers(); track c.id) {
-                <hlm-combobox-item [value]="c.id">
-                  <span class="flex min-w-0 flex-col">
-                    <span class="truncate">{{ c.name }}</span>
-                    @if (c.phone) { <span class="text-muted-foreground truncate text-xs">{{ c.phone }}</span> }
-                  </span>
-                </hlm-combobox-item>
-              }
-            </div>
-          </hlm-combobox-content>
-        </hlm-combobox>
-        @if (customer()) { <p class="text-muted-foreground text-xs">{{ customerSummary() }}</p> }
+        <div hlmButtonGroup class="w-full">
+          <hlm-combobox
+            [value]="customerId()"
+            (valueChange)="customerId.set($event ?? null)"
+            [itemToString]="customerName"
+            class="block min-w-0 flex-1"
+          >
+            <hlm-combobox-input id="checkout-customer" placeholder="No customer" />
+            <hlm-combobox-content *hlmComboboxPortal>
+              <hlm-combobox-empty>No customer found</hlm-combobox-empty>
+              <div hlmComboboxList>
+                @for (c of customers.customers(); track c.id) {
+                  <hlm-combobox-item [value]="c.id">
+                    <span class="flex min-w-0 flex-col">
+                      <span class="truncate">{{ c.name }}</span>
+                      @if (c.phone) {
+                        <span class="text-muted-foreground truncate text-xs">{{ c.phone }}</span>
+                      }
+                    </span>
+                  </hlm-combobox-item>
+                }
+              </div>
+            </hlm-combobox-content>
+          </hlm-combobox>
+          <button
+            hlmBtn
+            variant="outline"
+            size="icon"
+            type="button"
+            aria-label="Clear customer"
+            title="Clear customer"
+            [disabled]="!customerId()"
+            (click)="customerId.set(null)"
+          >
+            <ng-icon name="lucideX" size="18" />
+          </button>
+        </div>
+        @if (customer()) {
+          <p class="text-muted-foreground text-xs">{{ customerSummary() }}</p>
+        }
       </div>
 
       @if (customer()) {
@@ -339,9 +432,14 @@
             (input)="payNowText.set($any($event.target).value)"
           />
           <p class="flex justify-between text-sm">
-            <span>On account</span><span [class.text-destructive]="overLimit() || onAccount() > 0">{{ onAccount() | money }}</span>
+            <span>On account</span
+            ><span [class.text-destructive]="overLimit() || onAccount() > 0">{{
+              onAccount() | money
+            }}</span>
           </p>
-          @if (overLimit()) { <p class="text-destructive text-sm">That is over their credit limit</p> }
+          @if (overLimit()) {
+            <p class="text-destructive text-sm">That is over their credit limit</p>
+          }
         </div>
       }
 
@@ -367,44 +465,91 @@
           @case ('card') {
             <div class="flex flex-col gap-2">
               <label hlmLabel for="reference">Terminal reference</label>
-              <input hlmInput id="reference" type="text" [value]="reference()" (input)="reference.set('' + $any($event.target).value)" />
+              <input
+                hlmInput
+                id="reference"
+                type="text"
+                [value]="reference()"
+                (input)="reference.set('' + $any($event.target).value)"
+              />
             </div>
           }
           @case ('ewallet') {
             <div class="flex flex-col gap-2">
               <label hlmLabel for="reference">Reference number</label>
-              <input hlmInput id="reference" type="text" [value]="reference()" (input)="reference.set('' + $any($event.target).value)" />
+              <input
+                hlmInput
+                id="reference"
+                type="text"
+                [value]="reference()"
+                (input)="reference.set('' + $any($event.target).value)"
+              />
             </div>
           }
           @case ('bank_transfer') {
             <div class="flex flex-col gap-2">
               <label hlmLabel for="reference">Reference number</label>
-              <input hlmInput id="reference" type="text" [value]="reference()" (input)="reference.set('' + $any($event.target).value)" />
+              <input
+                hlmInput
+                id="reference"
+                type="text"
+                [value]="reference()"
+                (input)="reference.set('' + $any($event.target).value)"
+              />
             </div>
           }
           @case ('other') {
             <div class="flex flex-col gap-2">
               <label hlmLabel for="other-note">Note</label>
-              <input hlmInput id="other-note" type="text" [value]="reference()" (input)="reference.set('' + $any($event.target).value)" />
+              <input
+                hlmInput
+                id="other-note"
+                type="text"
+                [value]="reference()"
+                (input)="reference.set('' + $any($event.target).value)"
+              />
             </div>
           }
           @default {
             <div class="flex flex-col gap-2">
               <label hlmLabel for="tendered">Cash tendered</label>
-              <input
-                hlmInput
-                id="tendered"
-                type="text"
-                placeholder="0.00"
-                [value]="tenderedText()"
-                (input)="tenderedText.set($any($event.target).value)"
-                appOnScreenKeypad
-                [keypadWholeDigits]="7"
-                [keypadDecimals]="2"
-                [attr.inputmode]="settings.onScreenKeyboard() ? 'none' : 'decimal'"
-              />
-              <button hlmBtn variant="outline" type="button" [disabled]="!lines().length" (click)="exactCash()">Exact</button>
-              <p class="flex justify-between text-sm">
+              <div hlmButtonGroup class="w-full">
+                <input
+                  hlmInput
+                  class="min-w-0"
+                  id="tendered"
+                  type="text"
+                  placeholder="0.00"
+                  [value]="tenderedText()"
+                  (input)="tenderedText.set($any($event.target).value)"
+                  appOnScreenKeypad
+                  [keypadWholeDigits]="7"
+                  [keypadDecimals]="2"
+                  [attr.inputmode]="settings.onScreenKeyboard() ? 'none' : 'decimal'"
+                />
+                <button
+                  hlmBtn
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  aria-label="Clear cash tendered"
+                  title="Clear cash tendered"
+                  [disabled]="!tenderedText()"
+                  (click)="tenderedText.set('')"
+                >
+                  <ng-icon name="lucideX" size="18" />
+                </button>
+              </div>
+              <button
+                hlmBtn
+                variant="outline"
+                type="button"
+                [disabled]="!lines().length"
+                (click)="exactCash()"
+              >
+                Exact
+              </button>
+              <p class="mb-2 flex justify-between text-sm">
                 <span>Change due</span><span>{{ changeDue() | money }}</span>
               </p>
             </div>
@@ -414,12 +559,44 @@
     </div>
 
     <div hlmCardContent class="grid grid-cols-[1fr_auto] gap-2 border-t pt-3">
-      <input hlmInput class="col-span-2" type="text" autocomplete="off" aria-label="Order note" placeholder="Note on this sale (optional)" [attr.maxlength]="maxNote" [value]="note()" (input)="note.set($any($event.target).value)" />
-      <label class="col-span-2 flex min-h-(--control-height) items-center justify-between gap-3 text-sm">
+      <div hlmButtonGroup class="col-span-2 w-full">
+        <input
+          hlmInput
+          class="min-w-0"
+          type="text"
+          autocomplete="off"
+          aria-label="Order note"
+          placeholder="Note on this sale (optional)"
+          [attr.maxlength]="maxNote"
+          [value]="note()"
+          (input)="note.set($any($event.target).value)"
+        />
+        <button
+          hlmBtn
+          variant="outline"
+          size="icon"
+          type="button"
+          aria-label="Clear note"
+          title="Clear note"
+          [disabled]="!note()"
+          (click)="note.set('')"
+        >
+          <ng-icon name="lucideX" size="18" />
+        </button>
+      </div>
+      <label
+        class="col-span-2 flex min-h-(--control-height) items-center justify-between gap-3 text-sm"
+      >
         <span>Print receipt</span>
-        <hlm-switch aria-label="Print receipt after each sale" [checked]="settings.printReceiptAfterSale()" (checkedChange)="settings.printReceiptAfterSale.set($event)" />
+        <hlm-switch
+          aria-label="Print receipt after each sale"
+          [checked]="settings.printReceiptAfterSale()"
+          (checkedChange)="settings.printReceiptAfterSale.set($event)"
+        />
       </label>
-      <button hlmBtn type="button" size="lg" [disabled]="!canComplete()" (click)="complete()">Complete Order</button>
+      <button hlmBtn type="button" size="lg" [disabled]="!canComplete()" (click)="complete()">
+        Complete Order
+      </button>
       <hlm-alert-dialog>
         <button
           hlmAlertDialogTrigger
@@ -446,5 +623,5 @@
         </hlm-alert-dialog-content>
       </hlm-alert-dialog>
     </div>
-</div>
+  </div>
 </ng-template>
