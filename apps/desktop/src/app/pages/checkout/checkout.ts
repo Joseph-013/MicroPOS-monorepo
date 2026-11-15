@@ -1,5 +1,8 @@
-import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { Component, computed, DestroyRef, effect, inject, signal, TemplateRef, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
+import type { BrnDialogRef } from '@spartan-ng/brain/dialog';
+import { NavDrawer } from '../../core/nav-drawer';
 import { lucideFilterX, lucideX, lucideMinus, lucideListPlus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { discountCents, type DiscountSpec, formatDiscount, MAX_ORDER_NOTE, type CatalogProduct, type CustomerDisplayLine, type CustomerDisplayReceipt, type CustomerDisplayState, type DraftLine, IDLE_DISPLAY_STATE, gramsToQuantityMilli, parseScaleBarcode, type OrderLineProblem, formatQuantity, isWeighed, type ProductUnit, lineTotal, MAX_QUANTITY_UNITS, MILLI, parseQuantityMilli } from '@micropos/core';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
@@ -45,7 +48,7 @@ type PaymentMethod = keyof typeof PAYMENT_METHODS;
 
 /** Checkout: order lines on the left, payment controls on the right, item browser in a dialog. */
 @Component({
-  imports: [CameraScanButton, CameraScanInline, 
+  imports: [CameraScanButton, CameraScanInline, NgTemplateOutlet,
     HlmSwitchImports,
     NgIcon,
     FocusSelectDirective,
@@ -215,6 +218,10 @@ export class CheckoutPage {
   private readonly draftRestored = signal(false);
 
   constructor() {
+    // Growing past the phone breakpoint puts the controls back beside the order.
+    effect(() => {
+      if (!this.mobile()) this.paymentDialog?.close(undefined);
+    });
     void this.catalog.load();
     void this.refreshOrderNumber();
     void this.customers.load();
@@ -337,6 +344,10 @@ export class CheckoutPage {
   }
 
   protected readonly settings = inject(AppSettings);
+  /** A phone-sized screen: the payment controls open in a dialog (Pay) instead of sitting beside the order. */
+  protected readonly mobile = inject(NavDrawer).mobile;
+  private readonly paymentTemplate = viewChild.required<TemplateRef<unknown>>('payment');
+  private paymentDialog: BrnDialogRef | undefined;
   private readonly receipts = inject(ReceiptPrinting);
 
   /** The line whose quantity is being typed in place; null when none. */
@@ -399,6 +410,13 @@ export class CheckoutPage {
     this.lines.update((lines) => lines.filter((l) => l.productId !== productId));
   }
 
+  protected openPayment(): void {
+    this.paymentDialog = this.dialogs.open(this.paymentTemplate(), {
+      id: 'checkout-payment',
+      contentClass: 'w-[min(26rem,95vw)] max-w-none sm:max-w-none max-h-[95svh] grid-rows-[minmax(0,1fr)] gap-0 p-0',
+    });
+  }
+
   /** Empties the order and removes the saved draft. */
   protected clearOrder(): void {
     this.resetOrder();
@@ -451,6 +469,7 @@ export class CheckoutPage {
         this.banner.error(result.lines.length ? result.lines.map((p) => p.error).join('. ') : result.error, { duration: 'long', key: 'complete-order' });
         return;
       }
+      this.paymentDialog?.close(undefined);
       const soldLines = this.displayState().lines; // before the order is emptied
       this.resetOrder();
       this.paidSale.set({ receipt: { orderNumber: result.orderNumber, total: result.total, change: result.change, onAccount: result.onAccount }, lines: soldLines });

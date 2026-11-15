@@ -1,5 +1,5 @@
 <div
-  class="grid h-[calc(100svh-var(--banner-offset,0px)-var(--topbar-height,0px)-1.5rem)] grid-cols-[minmax(0,1fr)_22rem] gap-4"
+  class="grid h-[calc(100svh-var(--banner-offset,0px)-var(--topbar-height,0px)-1.5rem)] grid-cols-[minmax(0,1fr)_22rem] gap-4 max-md:grid-cols-[minmax(0,1fr)]"
 >
   <!-- Line items -->
   <section hlmCard class="min-h-0 gap-0">
@@ -233,11 +233,49 @@
         <p class="text-muted-foreground py-8 text-center text-sm">No items yet</p>
       }
     </div>
+    @if (mobile()) {
+      <div class="flex items-center justify-between gap-3 border-t px-4 pt-3">
+        <div class="flex min-w-0 flex-col">
+          <span class="text-muted-foreground text-xs">Total</span>
+          <span class="font-heading truncate text-2xl">{{ total() | money }}</span>
+        </div>
+        <button hlmBtn type="button" size="lg" class="shrink-0 px-8" [disabled]="!lines().length" (click)="openPayment()">Pay</button>
+      </div>
+    }
   </section>
 
-  <!-- Controls -->
-  <aside hlmCard class="min-h-0 gap-0 self-stretch">
-    <div hlmCardHeader class="border-b pb-3">
+  <!-- Controls: beside the order on a wide screen, in a dialog (opened by Pay) on a phone. -->
+  @if (!mobile()) {
+    <aside hlmCard class="min-h-0 gap-0 self-stretch">
+      <ng-container *ngTemplateOutlet="payment" />
+    </aside>
+  }
+</div>
+
+<!-- Right-click (or long-press) menu of an order line. -->
+<ng-template #lineMenu let-line>
+  <div hlmDropdownMenu>
+    @if (canDiscount()) {
+      <button hlmDropdownMenuItem type="button" (click)="editLineDiscount(line.productId)">{{ line.discount ? 'Change discount' : 'Discount' }}</button>
+      @if (line.discount) {
+        <button hlmDropdownMenuItem type="button" (click)="setLineDiscount(line.productId, null)">Remove discount</button>
+      }
+    }
+    <button
+      hlmDropdownMenuItem
+      variant="destructive"
+      type="button"
+      (click)="removeLine(line.productId)"
+    >
+      Remove item
+    </button>
+  </div>
+</ng-template>
+
+<!-- The payment controls, shown in the side card or in the phone dialog. -->
+<ng-template #payment>
+<div class="flex max-h-[95svh] min-h-0 flex-1 flex-col md:max-h-none">
+    <div hlmCardHeader class="border-b pb-3 max-md:pr-12">
       <h2 hlmCardTitle>Payment</h2>
     </div>
 
@@ -406,25 +444,5 @@
         </hlm-alert-dialog-content>
       </hlm-alert-dialog>
     </div>
-  </aside>
 </div>
-
-<!-- Right-click (or long-press) menu of an order line. -->
-<ng-template #lineMenu let-line>
-  <div hlmDropdownMenu>
-    @if (canDiscount()) {
-      <button hlmDropdownMenuItem type="button" (click)="editLineDiscount(line.productId)">{{ line.discount ? 'Change discount' : 'Discount' }}</button>
-      @if (line.discount) {
-        <button hlmDropdownMenuItem type="button" (click)="setLineDiscount(line.productId, null)">Remove discount</button>
-      }
-    }
-    <button
-      hlmDropdownMenuItem
-      variant="destructive"
-      type="button"
-      (click)="removeLine(line.productId)"
-    >
-      Remove item
-    </button>
-  </div>
 </ng-template>
