@@ -124,11 +124,11 @@
       </hlm-dialog>
     </header>
 
-    <div class="min-h-0 flex-1 overflow-auto px-4">
+    <div class="min-h-0 flex-1 overflow-auto px-4 max-md:px-3">
       @if (lineTotals().length) {
         <!-- A table: the item, quantity and total columns have their own widths, shared by the title row and every line, so the quantity controls line up. -->
-        <div role="table" aria-label="Order items" class="min-w-[28rem] [--cols:minmax(0,1fr)_12.5rem_6.5rem]">
-          <div role="rowgroup" class="bg-background sticky top-0 z-10">
+        <div role="table" aria-label="Order items" class="md:min-w-[28rem] [--cols:minmax(0,1fr)_12.5rem_6.5rem]">
+          <div role="rowgroup" class="bg-background sticky top-0 z-10 max-md:hidden">
             <div role="row" class="text-muted-foreground grid grid-cols-(--cols) items-center gap-4 border-b px-3 py-2 text-sm">
               <div role="columnheader">Item</div>
               <div role="columnheader" class="text-center">Quantity</div>
@@ -143,8 +143,8 @@
               [hlmContextMenuTriggerData]="{ $implicit: line }"
             >
                 <!-- The line added or changed last stays highlighted (the class goes on the row). -->
-                <div role="row" class="not-[.row-target]:hover:bg-muted/40 grid grid-cols-(--cols) items-center gap-4 px-3 py-3 transition-colors" [class.row-target]="highlightId() === line.productId">
-                  <div role="cell" class="min-w-0">
+                <div role="row" class="not-[.row-target]:hover:bg-muted/40 grid grid-cols-(--cols) items-center gap-4 px-3 py-3 transition-colors max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3 max-md:gap-y-1 max-md:px-1 max-md:py-2" [class.row-target]="highlightId() === line.productId">
+                  <div role="cell" class="min-w-0 max-md:col-start-1 max-md:row-start-1">
                     @if (canViewProduct()) {
                       <!-- The name opens the product in a dialog over checkout (view mode), without leaving the order. -->
                       <button type="button" class="hover:text-primary block max-w-full truncate text-left text-base underline-offset-4 hover:underline" [attr.aria-label]="'View ' + line.name" (click)="viewProduct(line.productId)">{{ line.name }}</button>
@@ -161,7 +161,7 @@
                       <p class="text-success truncate text-sm" data-line-discount>{{ line.off | money }} off@if (line.discount?.mode === 'percent') { ({{ formatDiscount(line.discount!) }}) }</p>
                     }
                   </div>
-                  <div role="cell" class="flex min-w-0 items-center gap-1">
+                  <div role="cell" class="flex min-w-0 items-center gap-1 max-md:col-span-2 max-md:row-start-2 max-md:ml-auto max-md:w-full max-md:max-w-60">
                     <button
                       hlmBtn
                       variant="outline"
@@ -223,7 +223,7 @@
                       <ng-icon name="lucidePlus" size="18" strokeWidth="1.5" />
                     </button>
                   </div>
-                  <span role="cell" class="text-right text-lg">{{ line.net | money }}</span>
+                  <span role="cell" class="text-right text-lg max-md:col-start-2 max-md:row-start-1 max-md:self-start">{{ line.net | money }}</span>
                 </div>
             </div>
           }
