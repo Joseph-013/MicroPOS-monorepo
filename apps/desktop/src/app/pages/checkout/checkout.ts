@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, DestroyRef, effect, inject, signal, TemplateRef, untracked, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import type { BrnDialogRef } from '@spartan-ng/brain/dialog';
+import { CheckoutCopy } from '../../core/checkout-copy';
 import { PaymentDialog, type PaymentDialogContext } from './payment-dialog';
 import { NavDrawer } from '../../core/nav-drawer';
 import { lucideFilterX, lucideX, lucideMinus, lucideListPlus, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
@@ -218,7 +219,13 @@ export class CheckoutPage {
   /** True once the saved draft has been read; saving waits for this so an empty start never overwrites it. */
   private readonly draftRestored = signal(false);
 
+  private readonly checkoutCopy = inject(CheckoutCopy);
+
   constructor() {
+    // Items copied from a recorded sale join the order once the catalog and the saved order are both in.
+    effect(() => {
+      if (this.catalog.status() === 'ready' && this.draftRestored() && this.checkoutCopy.pending()) untracked(() => this.addCopied());
+    });
     // Growing past the phone breakpoint puts the controls back beside the order.
     effect(() => {
       if (!this.mobile()) this.paymentDialog?.close(undefined);
@@ -518,6 +525,43 @@ export class CheckoutPage {
     if (!messages.length) return;
     this.lines.set(next);
     this.banner.warning(messages.join('. '), { duration: 'long', key: 'catalog-changed' });
+  }
+
+  /**
+   * Adds the items of a sale copied from Sales Orders. They are added to the order in progress (quantities join a line already there),
+   * at today's prices; products that are gone or no longer for sale are skipped and named, and a changed price is mentioned.
+   * Stock is not checked here: Complete Order refuses an item that is short, as for any item.
+   */
+  private addCopied(): void {
+    const copied = this.checkoutCopy.take();
+    if (!copied) return;
+    const byId = new Map(this.catalog.products().map((p) => [p.id, p]));
+    const missing: string[] = [];
+    const repriced: string[] = [];
+    let added = 0;
+    const lines = [...this.lines()];
+    for (const item of copied.lines) {
+      const product = byId.get(item.productId);
+      if (!product) {
+        missing.push(item.name);
+        continue;
+      }
+      if (product.price !== item.unitPrice) repriced.push(`${product.name} is now ${formatMoney(product.price)}`);
+      const at = lines.findIndex((l) => l.productId === product.id);
+      if (at >= 0) lines[at] = { ...lines[at], quantityMilli: this.clamp(lines[at].quantityMilli + item.quantityMilli) };
+      else lines.push({ productId: product.id, name: product.name, quantityMilli: this.clamp(item.quantityMilli), unitPrice: product.price, unit: product.unit });
+      added++;
+      this.touch(product.id);
+    }
+    if (added) this.lines.set(lines);
+    const notes = [
+      added ? `${added} ${added === 1 ? 'item' : 'items'} copied from ${copied.orderNumber}` : `Nothing could be copied from ${copied.orderNumber}`,
+      ...(missing.length ? [`not for sale any more: ${missing.join(', ')}`] : []),
+      ...(repriced.length ? [`price changed: ${repriced.join(', ')}`] : []),
+    ];
+    const text = notes.join('. ');
+    if (missing.length || repriced.length || !added) this.banner.warning(text, { duration: 'long', key: 'copy-order' });
+    else this.banner.success(text, { key: 'copy-order' });
   }
 
   /** Brings the lines in line with what the main process found: new prices in, unavailable items out. */

@@ -10,6 +10,7 @@ import { CatalogService } from '../../core/data/catalog.service';
 import { ProductViewer } from '../../core/product-viewer';
 import { SalesOrderViewer } from '../../core/sales-order-viewer';
 import { ScannerService } from '../../core/scanner';
+import { CheckoutCopy } from '../../core/checkout-copy';
 import { NavDrawer } from '../../core/nav-drawer';
 import { CheckoutPage } from './checkout';
 
@@ -302,6 +303,26 @@ describe('CheckoutPage', () => {
     expect(document.querySelector('[data-slot="dialog-content"]')?.textContent).toContain('Complete Order');
     expect(el.textContent).not.toContain('Complete Order');
     buttonByText(document.body, 'Clear').click();
+  });
+
+  it('copies the items of a recorded sale: joins what is on the order, uses today\'s price, skips what is gone', async () => {
+    scan(PRODUCTS[0].barcode!); // already on the order: one of it
+    await fixture.whenStable();
+    TestBed.inject(CheckoutCopy).pending.set({
+      orderNumber: 'SO-1001',
+      lines: [
+        { productId: PRODUCTS[0].id, name: PRODUCTS[0].name, quantityMilli: 2000, unitPrice: PRODUCTS[0].price + 50 },
+        { productId: 'gone', name: 'Old Item', quantityMilli: 1000, unitPrice: 100 },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    await fixture.whenStable();
+    expect(el.textContent).toContain('₱5.37'); // 3 x 1.79, at today's price
+    const text = TestBed.inject(BannerService).current()?.text;
+    expect(text).toContain('1 item copied from SO-1001');
+    expect(text).toContain('not for sale any more: Old Item');
+    expect(text).toContain('price changed');
+    expect(TestBed.inject(CheckoutCopy).pending()).toBeNull();
   });
 
   it('claims the scanner: a scanned barcode adds that item, an unknown one is reported', async () => {

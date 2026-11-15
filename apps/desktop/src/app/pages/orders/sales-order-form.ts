@@ -4,10 +4,12 @@ import { Router, RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideExternalLink } from '@ng-icons/lucide';
 import { canReverseOrder, formatQuantity, isWeighed, type SalesOrderDetail } from '@micropos/core';
-import { injectBrnDialogContext } from '@spartan-ng/brain/dialog';
+import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
+import { AuthService } from '../../core/auth/auth.service';
+import { CheckoutCopy } from '../../core/checkout-copy';
 import { OrdersService } from '../../core/data/orders.service';
 import { DialogPageLink } from '../../core/ui/dialog-page-link';
 import { ReceiptPrinting } from '../../core/receipt-printing';
@@ -150,6 +152,9 @@ export const METHOD_LABELS = { cash: 'Cash', card: 'Card', ewallet: 'E-wallet', 
 
     <hlm-dialog-footer>
       <button hlmBtn variant="outline" type="button" class="px-4 sm:mr-auto" [disabled]="printing()" (click)="print()">Print receipt</button>
+      @if (canCopy()) {
+        <button hlmBtn variant="outline" type="button" class="px-4" (click)="copyToCheckout()">Copy to checkout</button>
+      }
       @if (canReverse()) {
         <button hlmBtn variant="destructive" type="button" class="px-4" (click)="reverse('void')">Void</button>
         <button hlmBtn variant="outline" type="button" class="px-4" (click)="reverse('refund')">Refund</button>
@@ -166,6 +171,17 @@ export class SalesOrderForm {
   private readonly router = inject(Router);
   private readonly customerViewer = inject(CustomerViewer);
   private readonly receipts = inject(ReceiptPrinting);
+  private readonly checkoutCopy = inject(CheckoutCopy);
+  private readonly auth = inject(AuthService);
+  private readonly dialogRef = inject(BrnDialogRef, { optional: true });
+  /** Whoever can ring up sales can start a new one from this sale's items (not from a refund, whose quantities are negative). */
+  protected readonly canCopy = computed(() => this.auth.can('checkout.sell') && this.checkoutCopy.canCopy(this.order()) && this.order().lines.some((l) => l.productId));
+
+  /** Puts this sale's items on the Checkout order and goes there. */
+  protected async copyToCheckout(): Promise<void> {
+    await this.checkoutCopy.copy(this.order());
+    this.dialogRef?.close(undefined);
+  }
   protected readonly printing = signal(false);
 
   /** Sends the order's receipt to the receipt printer (or, while debugging, saves it as an image); says in a banner how it went. */
