@@ -4,7 +4,27 @@ Point of sale system for small shops. A pnpm monorepo with shared TypeScript bus
 
 ## Preview
 
-<!-- Screenshots go in preview/ -->
+### Desktop
+
+| | |
+| --- | --- |
+| ![Checkout](preview/desktop-checkout.png) Checkout | ![Dashboard](preview/desktop-dashboard.png) Dashboard |
+| ![Products](preview/desktop-products.png) Products | ![Edit product](preview/desktop-edit-product.png) Edit product |
+| ![Users](preview/desktop-users.png) Users and sign-ins | ![Add user](preview/desktop-add-user.png) Add user with permissions |
+| ![Sign in](preview/desktop-sign-in.png) Sign in | ![Devices](preview/desktop-devices.png) Devices on the local network |
+
+<p align="center"><img src="preview/desktop-receipt.png" alt="Receipt" width="260"><br>Receipt</p>
+
+### Mobile browser
+
+Phones on the same Wi-Fi open the app from the desktop's LAN server.
+
+<p align="center">
+  <img src="preview/mobile-add-items.jpeg" alt="Add items" width="240">
+  <img src="preview/mobile-sales-orders.jpeg" alt="Sales orders" width="240">
+  <img src="preview/mobile-camera-scan.jpeg" alt="Camera scan" width="240">
+</p>
+<p align="center">Add items, sales orders, camera barcode scan</p>
 
 ## Stack
 
@@ -51,7 +71,7 @@ pnpm dev
 - `packages/core` has no platform imports. Apps implement platform specifics (storage, printing) behind its interfaces.
 - Money is stored as integer minor units (cents).
 - SQLite lives in Electron's main process; the renderer reaches it over IPC.
-- The desktop runs a LAN server (HTTPS + WebSocket, self-signed certificate) that the mobile app pairs with by QR code.
+- The desktop runs a LAN server (HTTPS + WebSocket, self-signed certificate). Phones use it from a browser, or pair the mobile app by QR code.
 - Database ERD: [`docs/erd.png`](docs/erd.png) (source `docs/erd.mmd`).
 
 More detail in each app's `CLAUDE.md`.
